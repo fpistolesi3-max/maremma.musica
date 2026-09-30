@@ -1,0 +1,284 @@
+/* Maremma Musica — token del Design System (tokens.json → variabili CSS). Un solo tema: notte. */
+@font-face { font-family: "Big Shoulders Display"; src: url("/fonts/big-shoulders-display-800.woff2") format("woff2"); font-weight: 800; font-display: swap; }
+@font-face { font-family: "Big Shoulders Display"; src: url("/fonts/big-shoulders-display-900.woff2") format("woff2"); font-weight: 900; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("/fonts/barlow-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("/fonts/barlow-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("/fonts/barlow-600.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("/fonts/martian-mono-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("/fonts/martian-mono-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+
+:root {
+  color-scheme: dark;
+  --notte: #0c0f14; --notte-2: #141820; --notte-3: #1c212b; --vinile: #050505; --velo: #0c0f14b8;
+  --linea: #2a303b; --linea-forte: #6a7280;
+  --osso: #e1d7c9; --osso-2: #a39e95; --osso-3: #77736c;
+  --arancio: #d55b23; --su-arancio: #050505; --focus: #e1d7c9;
+  --ok: #4fc8b4; --attesa: #f0b44c; --stop: #a02a33; --stop-testo: #f0646a; --su-stato: #050505;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-24: 96px;
+  --radius-0: 0; --radius-sm: 2px; --radius-round: 9999px;
+  --ombra-pannello: 0 24px 64px rgba(0,0,0,0.55); --blur-locandina: 28px;
+  --durata-secca: 120ms; --durata-cambio: 200ms;
+  --font-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+  --font-sans: Barlow, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, Menlo, monospace;
+}
+
+@tailwind base;
+
+@layer base {
+  html { background: var(--notte); -webkit-text-size-adjust: 100%; }
+  body { background: var(--notte); color: var(--osso); font-family: var(--font-sans); min-height: 100dvh; }
+  a { color: var(--osso); }
+  a:hover { color: var(--arancio); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+  ::selection { background: var(--arancio); color: var(--su-arancio); }
+}
+
+@tailwind components;
+
+/* ===== Componenti del Design System (components/bundle.css, invariati) ===== */
+/* Maremma Musica — componenti. Da caricare dopo tokens.css. Prefisso: mm- */
+
+.mm-stage { background: var(--notte); color: var(--osso); font-family: var(--font-sans); padding: var(--space-6); box-sizing: border-box; }
+.mm-stage *, .mm-stage *::before, .mm-stage *::after,
+[class^="mm-"], [class*=" mm-"], [class^="mm-"] *, [class*=" mm-"] * { box-sizing: border-box; }
+.mm-row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
+.mm-stack { display: grid; gap: var(--space-6); }
+
+/* ---------- Button ---------- */
+.mm-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: 48px; padding: 0 var(--space-6);
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  font: 600 15px/20px var(--font-sans); letter-spacing: .08em; text-transform: uppercase;
+  text-decoration: none; cursor: pointer; background: none; color: var(--osso);
+  transition: filter var(--durata-secca), background-color var(--durata-secca), color var(--durata-secca), transform var(--durata-secca);
+}
+.mm-btn:active { transform: translateY(1px); }
+.mm-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.mm-btn--primario { background: var(--arancio); color: var(--su-arancio); }
+.mm-btn--primario:hover { filter: brightness(1.1); }
+.mm-btn--linea { border-color: var(--osso); }
+.mm-btn--linea:hover { background: var(--osso); color: var(--notte); }
+.mm-btn--muto { padding: 0 var(--space-2); color: var(--osso-2); }
+.mm-btn--muto:hover { color: var(--osso); text-decoration: underline; text-decoration-color: var(--arancio); text-underline-offset: 6px; }
+.mm-btn--pieno { width: 100%; }
+.mm-btn:disabled, .mm-btn[aria-disabled="true"] { background: var(--notte-3); color: var(--osso-3); border-color: transparent; filter: none; cursor: not-allowed; }
+.mm-btn__freccia { font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; }
+
+/* ---------- TextField ---------- */
+.mm-campo { display: grid; gap: var(--space-2); min-width: 0; align-content: start; }
+.mm-campo__etichetta { font: 600 12px/16px var(--font-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--osso-2); }
+.mm-campo__input {
+  width: 100%; height: 52px; padding: 0 var(--space-4);
+  background: var(--vinile); color: var(--osso); color-scheme: dark;
+  border: 1px solid var(--linea-forte); border-radius: var(--radius-sm);
+  font: 500 17px/24px var(--font-sans);
+  transition: border-color var(--durata-secca), box-shadow var(--durata-secca);
+}
+.mm-campo__input::placeholder { color: var(--osso-3); }
+.mm-campo__input:focus { outline: none; border-color: var(--osso); box-shadow: 0 0 0 1px var(--osso); }
+.mm-campo__aiuto { font: 400 14px/20px var(--font-sans); color: var(--osso-2); }
+.mm-campo--errore .mm-campo__input { border-color: var(--stop-testo); box-shadow: 0 0 0 1px var(--stop-testo); }
+.mm-campo--errore .mm-campo__aiuto { color: var(--stop-testo); }
+.mm-campi-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-4); }
+
+/* ---------- ListField ---------- */
+.mm-lista {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--notte-3); border: 1px dashed var(--linea-forte); border-radius: var(--radius-sm);
+}
+.mm-lista__etichetta { font: 400 11px/14px var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--osso-2); }
+.mm-lista__nome { font: 800 28px/1 var(--font-display); letter-spacing: .02em; text-transform: uppercase; color: var(--osso); min-width: 0; overflow-wrap: anywhere; }
+.mm-lista__lucchetto { width: 18px; height: 18px; color: var(--arancio); }
+.mm-lista__nota { grid-column: 1 / -1; font: 400 14px/20px var(--font-sans); color: var(--osso-2); }
+.mm-lista--ufficiale .mm-lista__nome { color: var(--osso-2); }
+
+/* ---------- StatusChip ---------- */
+.mm-chip {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  height: 24px; padding: 0 10px; border: 1px solid currentColor; border-radius: var(--radius-round);
+  font: 500 11px/14px var(--font-mono); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+}
+.mm-chip::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-round); background: currentColor; }
+.mm-chip--lista { color: var(--arancio); }
+.mm-chip--incassare { color: var(--attesa); }
+.mm-chip--pagato { color: var(--osso); }
+.mm-chip--entrato { color: var(--ok); }
+.mm-chip--annullato { color: var(--stop-testo); text-decoration: line-through; }
+.mm-chip--esaurito { color: var(--notte); background: var(--osso); border-color: var(--osso); }
+.mm-chip--esaurito::before { background: var(--notte); }
+.mm-chip--libero { color: var(--osso-2); }
+
+/* ---------- EventCard (riga della lista date) ---------- */
+.mm-evento {
+  display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: var(--space-2) var(--space-6); align-items: center;
+  padding: var(--space-4) 0; border-top: 1px solid var(--linea); color: var(--osso); text-decoration: none;
+}
+.mm-evento:last-child { border-bottom: 1px solid var(--linea); }
+.mm-evento__locandina { width: 88px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: var(--radius-0); filter: grayscale(1) contrast(1.1); transition: filter var(--durata-cambio); }
+.mm-evento:hover .mm-evento__locandina, .mm-evento:focus-visible .mm-evento__locandina { filter: none; }
+.mm-evento:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.mm-evento__corpo { display: grid; gap: var(--space-1); min-width: 0; }
+.mm-evento__num { font: 400 11px/14px var(--font-mono); letter-spacing: .04em; color: var(--osso-2); }
+.mm-evento__data { font: 900 44px/.9 var(--font-display); text-transform: uppercase; }
+.mm-evento__data em { font-style: normal; color: var(--arancio); }
+.mm-evento__titolo { font: 800 22px/1.05 var(--font-display); letter-spacing: .02em; text-transform: uppercase; overflow-wrap: anywhere; }
+.mm-evento__luogo { font: 400 13px/18px var(--font-mono); color: var(--osso-2); font-variant-numeric: tabular-nums; }
+.mm-evento__azione { display: grid; justify-items: end; gap: var(--space-2); }
+.mm-evento__freccia { font: 400 22px/1 var(--font-mono); color: var(--arancio); transition: transform var(--durata-secca); }
+.mm-evento:hover .mm-evento__freccia { transform: translateX(4px); }
+@media (max-width: 520px) {
+  .mm-evento { grid-template-columns: 72px minmax(0, 1fr); }
+  .mm-evento__locandina { width: 72px; }
+  .mm-evento__azione { grid-column: 2; justify-items: start; grid-auto-flow: column; align-items: center; }
+  .mm-evento__data { font-size: 36px; }
+}
+
+/* ---------- Ticket ---------- */
+.mm-biglietto {
+  width: 100%; max-width: 360px; background: var(--vinile); color: var(--osso);
+  border: 1px solid var(--linea); border-radius: var(--radius-sm); box-shadow: var(--ombra-pannello);
+}
+.mm-biglietto__testa { padding: var(--space-6) var(--space-6) var(--space-4); display: grid; gap: var(--space-2); }
+.mm-biglietto__titolo { font: 900 36px/.9 var(--font-display); text-transform: uppercase; margin: 0; }
+.mm-biglietto__meta { font: 400 13px/18px var(--font-mono); color: var(--osso-2); }
+.mm-biglietto__strappo { position: relative; height: 0; border-top: 1px dashed var(--linea-forte); margin: 0 var(--space-4); }
+.mm-biglietto__strappo::before, .mm-biglietto__strappo::after {
+  content: ""; position: absolute; top: -12px; width: 24px; height: 24px; border-radius: var(--radius-round); background: var(--notte);
+}
+.mm-biglietto__strappo::before { left: calc(-1 * var(--space-4) - 13px); }
+.mm-biglietto__strappo::after { right: calc(-1 * var(--space-4) - 13px); }
+.mm-biglietto__qr { margin: var(--space-6) var(--space-6) var(--space-4); background: var(--osso); padding: var(--space-4); border-radius: var(--radius-sm); }
+.mm-biglietto__qr svg { display: block; width: 100%; height: auto; }
+.mm-biglietto__codice { text-align: center; font: 500 20px/24px var(--font-mono); letter-spacing: .06em; }
+.mm-biglietto__dati { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); padding: var(--space-4) var(--space-6) var(--space-6); }
+.mm-biglietto__dati dt { font: 600 12px/16px var(--font-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--osso-2); margin: 0 0 var(--space-1); }
+.mm-biglietto__dati dd { margin: 0; font: 500 16px/22px var(--font-sans); overflow-wrap: anywhere; }
+.mm-biglietto__dati .mm-biglietto__largo { grid-column: 1 / -1; }
+.mm-biglietto__porta { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-6); border-top: 1px solid var(--linea); }
+.mm-biglietto__prezzo { font: 900 28px/1 var(--font-display); }
+
+/* ---------- ScanResult ---------- */
+.mm-esito {
+  display: grid; align-content: center; gap: var(--space-2); min-height: 220px; padding: var(--space-6);
+  border-radius: var(--radius-0); animation: mm-comparsa var(--durata-cambio) ease-out;
+}
+.mm-esito__stato { font: 900 64px/.88 var(--font-display); text-transform: uppercase; margin: 0; }
+.mm-esito__dettaglio { font: 500 13px/18px var(--font-mono); letter-spacing: .02em; text-transform: uppercase; }
+.mm-esito__nome { font: 800 28px/1 var(--font-display); letter-spacing: .02em; text-transform: uppercase; }
+.mm-esito__lista { font: 400 16px/22px var(--font-sans); }
+.mm-esito--ok { background: var(--ok); color: var(--su-stato); }
+.mm-esito--incassare { background: var(--attesa); color: var(--su-stato); }
+.mm-esito--stop { background: var(--stop); color: var(--osso); }
+@keyframes mm-comparsa { from { transform: scale(.98); } to { transform: none; } }
+@keyframes mm-barra { from { width: 0; } to { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .mm-esito { animation: none; } .mm-btn, .mm-evento__freccia, .mm-evento__locandina { transition: none; } }
+
+/* ---------- PrLeaderboard ---------- */
+.mm-classifica { width: 100%; border-collapse: collapse; font-family: var(--font-sans); color: var(--osso); }
+.mm-classifica th { white-space: nowrap; text-align: left; font: 600 12px/16px var(--font-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--osso-2); padding: 0 var(--space-3) var(--space-3); border-bottom: 1px solid var(--linea-forte); }
+.mm-classifica td { padding: var(--space-3); border-bottom: 1px solid var(--linea); font-variant-numeric: tabular-nums; vertical-align: middle; }
+.mm-classifica .mm-num { font: 400 13px/18px var(--font-mono); text-align: right; }
+.mm-classifica th.mm-num { text-align: right; }
+.mm-classifica__pos { font: 900 28px/1 var(--font-display); width: 48px; color: var(--osso-3); }
+.mm-classifica__nome { font: 800 20px/1 var(--font-display); letter-spacing: .02em; text-transform: uppercase; }
+.mm-classifica tr.mm-tu td { background: var(--notte-2); }
+.mm-classifica tr.mm-tu .mm-classifica__pos { color: var(--arancio); }
+.mm-classifica__tu { font: 400 11px/14px var(--font-mono); color: var(--arancio); margin-left: var(--space-2); letter-spacing: .04em; }
+.mm-barra { height: 6px; background: var(--notte-3); min-width: 80px; }
+.mm-barra > span { display: block; height: 100%; background: var(--arancio); }
+.mm-scroll { overflow-x: auto; }
+
+/* ---------- PresaleSheet ---------- */
+.mm-prevendita { color: var(--osso); font-family: var(--font-sans); position: relative; overflow: hidden; min-height: 640px; display: grid; place-items: center; padding: var(--space-8) var(--space-4); isolation: isolate; }
+.mm-prevendita__sfondo { position: absolute; inset: -60px; z-index: -2; background-size: cover; background-position: center; filter: blur(var(--blur-locandina)) saturate(1.1); }
+.mm-prevendita::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--velo); }
+.mm-prevendita__pannello { width: 100%; max-width: 440px; background: var(--notte-2); border: 1px solid var(--linea); box-shadow: var(--ombra-pannello); padding: var(--space-8); display: grid; gap: var(--space-6); border-radius: var(--radius-0); }
+.mm-prevendita__testa { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--space-4); align-items: end; }
+.mm-prevendita__mini { width: 64px; aspect-ratio: 3 / 4; object-fit: cover; }
+.mm-prevendita__titolo { font: 900 36px/.9 var(--font-display); text-transform: uppercase; margin: 0; overflow-wrap: anywhere; }
+.mm-prevendita__meta { font: 400 13px/18px var(--font-mono); color: var(--osso-2); margin-top: var(--space-2); }
+.mm-prevendita__totale { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--linea); }
+.mm-prevendita__totale span { font: 600 12px/16px var(--font-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--osso-2); }
+.mm-prevendita__totale strong { font: 900 36px/1 var(--font-display); text-transform: uppercase; }
+.mm-prevendita__legale { font: 400 14px/20px var(--font-sans); color: var(--osso-2); display: flex; gap: var(--space-2); align-items: flex-start; }
+.mm-prevendita__legale input { accent-color: var(--arancio); width: 18px; height: 18px; margin: 1px 0 0; flex: none; }
+.mm-prevendita__legale a { color: var(--osso); text-decoration-color: var(--arancio); text-underline-offset: 3px; }
+@media (max-width: 520px) { .mm-prevendita__pannello { padding: var(--space-6); } }
+
+/* ===== Motivi dei mockup ===== */
+/* Motivi condivisi dai mockup: grana, curve di livello, disco, nastro, segnaposto foto. */
+.mm-grana { position: relative; }
+.mm-grana::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: url("/img/grana.svg"); opacity: .07; mix-blend-mode: screen; }
+
+.mm-curve { background-image: url("/img/curve-livello.svg"); background-repeat: no-repeat; background-size: 1600px 1000px; }
+
+.mm-disco {
+  position: relative; border-radius: 50%; flex: none;
+  background:
+    conic-gradient(from 20deg, transparent 0deg, rgba(225,215,201,.11) 14deg, transparent 30deg, transparent 160deg, rgba(225,215,201,.08) 176deg, transparent 194deg, transparent 360deg),
+    repeating-radial-gradient(circle at center, #16191f 0 2px, #0a0c10 2px 4px);
+  box-shadow: 0 0 0 1px #262b35, 0 30px 80px rgba(0,0,0,.6);
+}
+.mm-disco__etichetta {
+  position: absolute; inset: 31%; border-radius: 50%; background: var(--osso); color: var(--notte);
+  text-align: center; font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; line-height: 1.4;
+}
+.mm-disco__etichetta > span { position: absolute; left: 0; right: 0; }
+.mm-disco__etichetta > span:first-child { top: 17%; }
+.mm-disco__etichetta > span:last-child { bottom: 17%; }
+.mm-disco__foro { position: absolute; left: 50%; top: 50%; width: 5%; height: 5%; transform: translate(-50%, -50%); border-radius: 50%; background: var(--notte); }
+
+/* Nastro delle date: scorre in orizzontale, si ferma al passaggio o al tocco. */
+.mm-nastro { background: var(--osso); color: var(--notte); overflow: hidden; white-space: nowrap; }
+.mm-nastro__binario { display: flex; width: max-content; animation: mm-scorri 38s linear infinite; }
+.mm-nastro__giro { display: inline-flex; gap: 28px; align-items: center; padding-right: 28px; }
+.mm-nastro:hover .mm-nastro__binario, .mm-nastro:focus-within .mm-nastro__binario, .mm-nastro:active .mm-nastro__binario { animation-play-state: paused; }
+.mm-nastro a, .mm-nastro span { font-family: var(--font-display); font-weight: 900; text-transform: uppercase; letter-spacing: .01em; color: var(--notte); text-decoration: none; }
+.mm-nastro a:hover { color: var(--arancio); }
+.mm-nastro i { font-style: normal; color: var(--arancio); }
+@keyframes mm-scorri { to { transform: translateX(-50%); } }
+
+.mm-foto {
+  position: relative; overflow: hidden; background: #111419;
+  background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(106,114,128,.10) 14px 15px);
+  display: flex; align-items: flex-end; padding: 14px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .04em; color: var(--osso-2); text-transform: uppercase;
+}
+
+/* Riga lista date (home/eventi): locandina in scala di grigi, colore al passaggio. */
+.mm-riga-data img { filter: grayscale(1) contrast(1.1); transition: filter var(--durata-cambio); }
+.mm-riga-data:hover img, .mm-riga-data:focus-visible img { filter: none; }
+.mm-riga-data .mm-freccia { transition: transform var(--durata-secca); }
+.mm-riga-data:hover .mm-freccia { transform: translateX(4px); }
+
+/* Mirino dello scanner */
+.mm-mirino > i { position: absolute; width: 56px; height: 56px; border-color: var(--arancio); border-style: solid; border-width: 0; }
+.mm-mirino > i:nth-child(1) { left: 0; top: 0; border-left-width: 3px; border-top-width: 3px; }
+.mm-mirino > i:nth-child(2) { right: 0; top: 0; border-right-width: 3px; border-top-width: 3px; }
+.mm-mirino > i:nth-child(3) { left: 0; bottom: 0; border-left-width: 3px; border-bottom-width: 3px; }
+.mm-mirino > i:nth-child(4) { right: 0; bottom: 0; border-right-width: 3px; border-bottom-width: 3px; }
+
+.mm-classifica th, .mm-classifica__nome { white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-nastro__binario { animation: none; }
+  .mm-nastro { overflow-x: auto; }
+  .mm-riga-data img, .mm-riga-data .mm-freccia { transition: none; }
+}
+
+/* ===== Classi di supporto ===== */
+.etichetta { font: 600 12px/16px var(--font-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--osso-2); }
+.dato { font: 400 13px/18px var(--font-mono); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.dato-s { font: 400 11px/14px var(--font-mono); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.link-sottolineato { font: 600 12px/1 var(--font-sans); letter-spacing: .14em; text-transform: uppercase; text-decoration: underline; text-decoration-color: var(--arancio); text-underline-offset: 6px; }
+.contenitore { width: 100%; max-width: 1440px; margin-inline: auto; padding-inline: 16px; }
+@media (min-width: 768px) { .contenitore { padding-inline: 40px; } }
+@media (min-width: 1280px) { .contenitore { padding-inline: 80px; } }
+.testo-legale h2 { font: 800 28px/1 var(--font-display); text-transform: uppercase; margin: 40px 0 12px; }
+.testo-legale p, .testo-legale li { font: 400 16px/24px var(--font-sans); color: var(--osso-2); margin: 0 0 12px; }
+.testo-legale ul { padding-left: 20px; list-style: square; }
+
+@tailwind utilities;

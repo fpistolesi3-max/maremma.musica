@@ -1,0 +1,360 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePorta, nuovoId } from './store';
+import { Fotocamera } from './fotocamera';
+import { cercaPerNome, decidiIngresso, trovaVoce, type EsitoPorta, type VocePorta } from '@/lib/porta-logica';
+import type { MetodoPagamento } from '@/lib/dati/tipi';
+import { etichettaCanale } from '@/lib/canali';
+import { SchermoCassa } from './cassa';
+import type { DatiCassa } from '@/lib/porta-logica';
+
+// Scanner della porta (mockup Porta 1–5). Tutto il controllo avviene sul telefono con l'elenco salvato:
+// funziona anche senza campo, e gli ingressi si sincronizzano appena torna la connessione.
+
+interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; prezzoCassa: number }
+
+type Schermo =
+  | { tipo: 'scanner' }
+  | { tipo: 'cerca' }
+  | { tipo: 'cassa' }
+  | { tipo: 'impostazioni' }
+  | { tipo: 'esito'; esito: EsitoPorta };
+
+const oraDi = (iso: string) => new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+const euro = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2).replace('.', ',')} €`;
+const nascita = (ymd: string) => ymd.split('-').reverse().join('.');
+function anni(ymd: string) {
+  const [a, m, g] = ymd.split('-').map(Number);
+  const o = new Date();
+  return o.getFullYear() - a - (o.getMonth() + 1 < m || (o.getMonth() + 1 === m && o.getDate() < g) ? 1 : 0);
+}
+
+export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: string; esci: () => Promise<void> }) {
+  const st = usePorta();
+  const [pronto, setPronto] = useState(false);
+  const [schermo, setSchermo] = useState<Schermo>({ tipo: 'scanner' });
+  const [torcia, setTorcia] = useState(false);
+  const [metodo, setMetodo] = useState<MetodoPagamento>('porta_contanti');
+  const [codice, setCodice] = useState('');
+  const [q, setQ] = useState('');
+  const [conto, setConto] = useState(0);
+  const ritorno = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Evento di default: quello salvato, altrimenti il più vicino.
+  useEffect(() => {
+    usePorta.persist.rehydrate();
+    setPronto(true);
+  }, []);
+  useEffect(() => {
+    if (!pronto) return;
+    if (!st.eventoId || !eventi.some((e) => e.id === st.eventoId)) { if (eventi[0]) st.scegliEvento(eventi[0].id); }
+  }, [pronto, eventi, st]);
+
+  // Sincronizza all'avvio, ogni 10 secondi, al ritorno della rete e quando il telefono si riaccende.
+  useEffect(() => {
+    if (!pronto || !st.eventoId) return;
+    const sync = () => { void usePorta.getState().sincronizza(); };
+    sync();
+    const t = setInterval(sync, 10_000);
+    window.addEventListener('online', sync);
+    document.addEventListener('visibilitychange', sync);
+    return () => { clearInterval(t); window.removeEventListener('online', sync); document.removeEventListener('visibilitychange', sync); };
+  }, [pronto, st.eventoId]);
+
+  const evento = eventi.find((e) => e.id === st.eventoId) ?? null;
+  const totale = st.elenco.filter((v) => v.stato !== 'annullato' && v.stato !== 'rimborsato').length;
+  const entrati = st.elenco.filter((v) => v.stato === 'entrato').length;
+
+  const mostra = useCallback((esito: EsitoPorta) => {
+    clearTimeout(ritorno.current);
+    setSchermo({ tipo: 'esito', esito });
+    // Dopo un ingresso riuscito torna da solo allo scanner (mockup: 2 secondi).
+    if (esito.esito === 'entrato') {
+      setConto(0);
+      ritorno.current = setTimeout(() => setSchermo({ tipo: 'scanner' }), 2000);
+    }
+  }, []);
+
+  const entra = useCallback((v: VocePorta, incassa: boolean) => {
+    const s = usePorta.getState();
+    const { esito, aggiornata } = decidiIngresso(v, { incassa, metodo, porta: s.porta, ora: new Date().toISOString() });
+    if (aggiornata) {
+      s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, incassa, metodo, ora: aggiornata.oraCheckIn! });
+    }
+    mostra(esito);
+  }, [metodo, mostra]);
+
+  /** Ingresso in cassa: entra subito sul telefono, il server lo registra alla prossima sincronizzazione. */
+  const registraCassa = useCallback((dati: DatiCassa) => {
+    const s = usePorta.getState();
+    const id = nuovoId();
+    const ora = new Date().toISOString();
+    const voce: VocePorta = {
+      id: `cassa-${id}`, token: '', codice: '', nome: dati.nome, cognome: dati.cognome, dataNascita: dati.dataNascita,
+      stato: 'entrato', importo: dati.importo, oraCheckIn: ora, porta: s.porta, lista: 'Cassa', canale: 'cassa', origine: 'cassa',
+    };
+    s.aggiungiCassa(voce, { idLocale: id, voceId: voce.id, chiave: '', incassa: true, metodo, ora, cassa: dati });
+    mostra({ esito: 'entrato', voce, incassato: dati.importo, ora, primaPagato: false });
+  }, [metodo, mostra]);
+
+  const leggiChiave = useCallback(async (chiave: string) => {
+    let v = trovaVoce(usePorta.getState().elenco, chiave);
+    if (!v && navigator.onLine) {
+      // Forse si è iscritto dopo l'ultimo salvataggio: riscarichiamo l'elenco e riproviamo.
+      await usePorta.getState().sincronizza();
+      v = trovaVoce(usePorta.getState().elenco, chiave);
+    }
+    if (!v) {
+      const salvato = usePorta.getState().salvatoAlle;
+      mostra({ esito: 'non_valido', motivo: chiave.startsWith('MM1.') ? `Non è in elenco${salvato ? ` (salvato alle ${oraDi(salvato)})` : ''}` : 'Codice non trovato' });
+      return;
+    }
+    entra(v, false);
+  }, [entra, mostra]);
+
+  useEffect(() => () => clearTimeout(ritorno.current), []);
+
+  const risultati = useMemo(() => cercaPerNome(st.elenco, q), [st.elenco, q]);
+
+  if (!pronto) return <div className="min-h-dvh bg-vinile" />;
+
+  const colori = schermo.tipo === 'esito'
+    ? { entrato: 'bg-ok text-su-stato', da_incassare: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso' }[schermo.esito.esito]
+    : schermo.tipo === 'cerca' || schermo.tipo === 'impostazioni' || schermo.tipo === 'cassa' ? 'bg-notte text-osso' : 'bg-vinile text-osso';
+  const suPieno = schermo.tipo === 'esito';
+
+  return (
+    <div className={`flex min-h-dvh flex-col ${colori} transition-colors duration-cambio`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* Testata con contatore ingressi */}
+      <button type="button" onClick={() => setSchermo({ tipo: 'impostazioni' })} className="flex flex-none flex-col gap-[10px] border-0 bg-transparent px-4 pt-[14px] text-left text-current" aria-label="Impostazioni della porta">
+        <span className="flex w-full items-center gap-[10px]">
+          <span className="flex-grow text-[11px] font-semibold leading-none tracking-logo">{st.porta.replace('P', 'PORTA ')} · {(evento?.nome ?? 'SCEGLI LA SERATA').toUpperCase()}</span>
+          <span className="font-mono text-[12px] font-medium leading-none" aria-label={`${entrati} entrati su ${totale}`}>
+            {entrati}<span className={suPieno ? 'opacity-50' : 'text-osso-3'}>/{totale}</span>
+          </span>
+        </span>
+        <span className={`block h-[3px] w-full ${suPieno ? 'bg-[rgba(5,5,5,.18)]' : 'bg-notte-3'}`}>
+          <span className={`block h-full ${suPieno ? (colori.includes('text-osso') ? 'bg-osso' : 'bg-vinile') : 'bg-arancio'}`} style={{ width: `${totale ? (entrati / totale) * 100 : 0}%` }} />
+        </span>
+      </button>
+
+      {st.serveAccesso && (
+        <a href="/accedi?dopo=/door" className="mx-4 mt-3 block border border-attesa p-3 text-[14px] text-attesa no-underline">Accesso scaduto: gli ingressi restano salvati sul telefono. Tocca qui per rientrare.</a>
+      )}
+
+      {schermo.tipo === 'scanner' && (
+        <>
+          <div className="flex flex-grow flex-col items-center justify-center gap-[22px] px-4">
+            <div className="relative h-[300px] w-[300px] max-w-full overflow-hidden">
+              <div className="mm-disco absolute inset-0 opacity-50" style={{ boxShadow: 'none' }}><div className="mm-disco__foro" style={{ background: 'var(--vinile)' }} /></div>
+              <Fotocamera attiva={Boolean(evento)} onLettura={leggiChiave} torcia={torcia} />
+              <div className="mm-mirino pointer-events-none absolute inset-0"><i /><i /><i /><i /></div>
+            </div>
+            <span className="font-display text-[40px] font-black uppercase leading-none">Inquadra il QR</span>
+            <form className="flex w-full max-w-[300px] gap-2" onSubmit={(e) => { e.preventDefault(); if (codice.trim()) { void leggiChiave(codice.trim()); setCodice(''); } }}>
+              <label htmlFor="porta-codice" className="sr-only">Codice del biglietto</label>
+              <input id="porta-codice" value={codice} onChange={(e) => setCodice(e.target.value)} placeholder="o scrivi il codice"
+                autoCapitalize="characters" autoComplete="off" className="mm-campo__input text-center font-mono" style={{ height: 44, fontSize: 16 }} />
+              <button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 44, padding: '0 14px' }}>OK</button>
+            </form>
+            <StatoRete />
+          </div>
+          <div className="flex flex-none px-4 pb-[10px]">
+            <button type="button" className="mm-btn mm-btn--primario flex-grow" style={{ minHeight: 56 }} disabled={!evento} onClick={() => setSchermo({ tipo: 'cassa' })}>
+              Ingresso in cassa{evento && evento.prezzoCassa > 0 ? ` · ${euro(evento.prezzoCassa)}` : ''}
+            </button>
+          </div>
+          <div className="flex flex-none gap-[10px] px-4 pb-7">
+            <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 60 }} onClick={() => { setQ(''); setSchermo({ tipo: 'cerca' }); }}>Cerca per nome</button>
+            <button type="button" aria-label={torcia ? 'Spegni la torcia' : 'Accendi la torcia'} aria-pressed={torcia} onClick={() => setTorcia(!torcia)}
+              className={`grid h-[60px] w-[60px] flex-none place-items-center rounded-sm border border-linea-forte p-0 ${torcia ? 'bg-osso text-notte' : 'bg-notte-3 text-osso'}`}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M8 2h8l-1 6H9L8 2z" /><path d="M9 8h6v4l-2 10h-2L9 12V8z" /></svg>
+            </button>
+          </div>
+        </>
+      )}
+
+      {schermo.tipo === 'cerca' && (
+        <div className="flex flex-grow flex-col gap-4 px-4 pt-5">
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label="Torna allo scanner" onClick={() => setSchermo({ tipo: 'scanner' })} className="grid h-11 w-11 flex-none place-items-center border-0 bg-transparent p-0 text-osso">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+            </button>
+            <h1 className="m-0 font-display text-[36px] font-black uppercase leading-none">Cerca per nome</h1>
+          </div>
+          <div className="mm-campo">
+            <label className="mm-campo__etichetta" htmlFor="pc-cerca">Nome, cognome o data di nascita</label>
+            <input className="mm-campo__input" id="pc-cerca" value={q} onChange={(e) => setQ(e.target.value)} autoFocus autoComplete="off" style={{ height: 60, fontSize: 22 }} />
+          </div>
+          {q && <span className="font-mono text-[11px] leading-[14px] text-osso-2">{risultati.length} RISULTATI · CONTROLLA LA DATA DI NASCITA SUL DOCUMENTO</span>}
+          <div className="flex flex-col border-b border-linea">
+            {risultati.map((v) => {
+              const dentro = v.stato === 'entrato';
+              const chip = dentro ? ['mm-chip mm-chip--entrato', `Entrato ${v.oraCheckIn ? oraDi(v.oraCheckIn) : ''}`]
+                : v.stato === 'annullato' || v.stato === 'rimborsato' ? ['mm-chip mm-chip--annullato', 'Annullato']
+                  : v.stato === 'pagato' ? ['mm-chip mm-chip--pagato', 'Pagato']
+                    : v.importo > 0 ? ['mm-chip mm-chip--incassare', 'Da incassare'] : ['mm-chip mm-chip--lista', 'In lista'];
+              return (
+                <div key={v.id} className="flex items-center gap-3 border-t border-linea py-4">
+                  <div className="flex min-w-0 flex-grow flex-col gap-[6px]">
+                    <span className="font-display text-[24px] font-extrabold uppercase leading-none">{v.nome} {v.cognome}</span>
+                    <span className="font-mono text-[11px] leading-[14px] text-osso-2">{nascita(v.dataNascita)} · {testoLista(v).replace('Lista: ', '').toUpperCase()}</span>
+                    <span className={`${chip[0]} self-start`}>{chip[1]}</span>
+                  </div>
+                  {!dentro && v.stato !== 'annullato' && v.stato !== 'rimborsato' && (
+                    <button type="button" className="mm-btn mm-btn--primario" style={{ minHeight: 48, padding: '0 16px', fontSize: 13 }} onClick={() => entra(v, false)}>Apri</button>
+                  )}
+                </div>
+              );
+            })}
+            {q && risultati.length === 0 && <p className="border-t border-linea py-4 text-osso-2">Nessuno con questo nome in elenco.</p>}
+          </div>
+        </div>
+      )}
+
+      {schermo.tipo === 'cassa' && evento && (
+        <SchermoCassa evento={evento} elenco={st.elenco} metodo={metodo} setMetodo={setMetodo}
+          onRegistra={registraCassa} onApri={(v) => entra(v, false)} onChiudi={() => setSchermo({ tipo: 'scanner' })} />
+      )}
+
+      {schermo.tipo === 'impostazioni' && (
+        <div className="flex flex-grow flex-col gap-6 px-4 pt-6">
+          <h1 className="m-0 font-display text-[36px] font-black uppercase leading-none">Porta</h1>
+          <div className="mm-campo">
+            <label className="mm-campo__etichetta" htmlFor="imp-evento">Serata</label>
+            <select id="imp-evento" className="mm-campo__input" value={st.eventoId ?? ''} onChange={(e) => st.scegliEvento(e.target.value)}>
+              {eventi.map((e) => <option key={e.id} value={e.id}>{new Date(e.data).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' })} · {e.nome}</option>)}
+            </select>
+          </div>
+          <div className="mm-campo">
+            <span className="mm-campo__etichetta" id="imp-porta">Questa porta</span>
+            <div role="radiogroup" aria-labelledby="imp-porta" className="grid grid-cols-4 border border-linea-forte">
+              {['P1', 'P2', 'P3', 'P4'].map((p) => (
+                <button key={p} type="button" role="radio" aria-checked={st.porta === p} onClick={() => st.scegliPorta(p)}
+                  className={`h-12 border-0 font-mono text-[14px] ${st.porta === p ? 'bg-osso text-notte' : 'bg-transparent text-osso'}`}>{p}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 font-mono text-[12px] leading-5 text-osso-2">
+            <span>ELENCO: {st.elenco.length} NOMI{st.salvatoAlle ? ` · SALVATO ${oraDi(st.salvatoAlle)}` : ''}</span>
+            <span>IN CODA: {st.coda.length}{st.conflitti ? ` · GIÀ ENTRATI DA ALTRE PORTE: ${st.conflitti}` : ''}</span>
+            <span>STAFF: {email}</span>
+          </div>
+          <button type="button" className="mm-btn mm-btn--linea mm-btn--pieno" onClick={() => void st.sincronizza()}>Aggiorna ora</button>
+          <a href={`/gestione/pr${st.eventoId ? `?serata=${st.eventoId}` : ''}`} className="mm-btn mm-btn--linea mm-btn--pieno">Attività PR</a>
+          <button type="button" className="mm-btn mm-btn--primario mm-btn--pieno" onClick={() => setSchermo({ tipo: 'scanner' })}>Torna allo scanner</button>
+          <form action={esci}><button type="submit" className="mm-btn mm-btn--muto" disabled={st.coda.length > 0}>{st.coda.length ? 'Esci (prima sincronizza)' : 'Esci'}</button></form>
+        </div>
+      )}
+
+      {schermo.tipo === 'esito' && (
+        <Esito esito={schermo.esito} metodo={metodo} setMetodo={setMetodo}
+          onIncassa={() => { if (schermo.esito.esito === 'da_incassare') entra(schermo.esito.voce, true); }}
+          onChiudi={() => { clearTimeout(ritorno.current); setSchermo({ tipo: 'scanner' }); }} conto={conto} />
+      )}
+    </div>
+  );
+}
+
+/** "Lista: Maremma Musica · da Instagram": senza PR si vede da dove è arrivato. */
+function testoLista(v: VocePorta) {
+  if (v.origine === 'cassa') return 'Ingresso in cassa · senza lista';
+  const canale = v.canale && v.canale !== 'diretto' ? ` · da ${etichettaCanale(v.canale)}` : '';
+  return `Lista: ${v.lista}${v.lista === 'Maremma Musica' ? canale : ''}`;
+}
+
+function StatoRete() {
+  const { online, salvatoAlle, coda } = usePorta();
+  const ok = online && coda.length === 0;
+  return (
+    <span className="flex items-center gap-2 font-mono text-[11px] leading-4 text-osso-2" role="status">
+      <span className={`h-2 w-2 flex-none rounded-full ${ok ? 'bg-ok' : 'bg-attesa'}`} />
+      {online ? '' : 'SENZA RETE · '}
+      {salvatoAlle ? `ELENCO SALVATO ${oraDi(salvatoAlle)}` : 'ELENCO NON ANCORA SCARICATO'}
+      {coda.length ? ` · ${coda.length} IN CODA` : ' · FUNZIONA OFFLINE'}
+    </span>
+  );
+}
+
+function Esito({ esito, metodo, setMetodo, onIncassa, onChiudi }: {
+  esito: EsitoPorta; metodo: MetodoPagamento; setMetodo: (m: MetodoPagamento) => void; onIncassa: () => void; onChiudi: () => void; conto: number;
+}) {
+  const linea = 'my-[10px] h-px bg-current opacity-30';
+  const X = <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>;
+
+  if (esito.esito === 'entrato') {
+    const v = esito.voce;
+    const incasso = esito.incassato > 0;
+    return (
+      <>
+        <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
+          <svg width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" /></svg>
+          <span className="font-mono text-[13px] font-medium leading-[18px]">
+            {incasso ? `${euro(esito.incassato)} INCASSATI` : esito.primaPagato ? 'PAGATO' : v.importo > 0 ? 'PAGATO' : 'INGRESSO LIBERO'} · {oraDi(esito.ora)}
+          </span>
+          <span className="font-display text-[104px] font-black uppercase leading-[.8]">{incasso ? 'Entrato' : 'Valido'}</span>
+          <div className={linea} />
+          <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
+          <span className="text-[17px] font-medium leading-6">{testoLista(v)}</span>
+        </div>
+        <div className="flex flex-none flex-col gap-3 px-4 pb-7">
+          <div className="h-[3px] bg-[rgba(5,5,5,.18)]"><div className="h-full bg-vinile" style={{ animation: 'mm-barra 2s linear forwards' }} /></div>
+          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onChiudi}>Prossimo</button>
+          <span className="text-center font-mono text-[11px] font-medium leading-[14px]">TORNO ALLO SCANNER TRA 2 S</span>
+        </div>
+      </>
+    );
+  }
+
+  if (esito.esito === 'da_incassare') {
+    const v = esito.voce;
+    return (
+      <>
+        <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
+          <span className="font-mono text-[13px] font-medium leading-[18px]">IN LISTA · NON ANCORA PAGATO</span>
+          <span className="font-display text-[104px] font-black uppercase leading-[.8]">Incassa</span>
+          <span className="font-display text-[168px] font-black leading-[.78]">{euro(v.importo)}</span>
+          <div className={linea} />
+          <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
+          <span className="font-mono text-[13px] font-medium leading-[18px]">NASCITA {nascita(v.dataNascita)} · {anni(v.dataNascita)} ANNI</span>
+          <span className="text-[17px] font-medium leading-6">{testoLista(v)}</span>
+        </div>
+        <div className="flex flex-none flex-col gap-2 px-4 pb-7">
+          <div role="radiogroup" aria-label="Metodo di pagamento" className="grid grid-cols-2 border border-current">
+            {([['porta_contanti', 'Contanti'], ['porta_pos', 'POS']] as const).map(([m, t]) => (
+              <button key={m} type="button" role="radio" aria-checked={metodo === m} onClick={() => setMetodo(m)}
+                className={`h-11 border-0 text-[13px] font-semibold uppercase tracking-bottone ${metodo === m ? 'bg-vinile text-attesa' : 'bg-transparent text-current'}`}>{t}</button>
+            ))}
+          </div>
+          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onIncassa}>Incassato · fai entrare</button>
+          <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 48 }} onClick={onChiudi}>Non entra</button>
+        </div>
+      </>
+    );
+  }
+
+  const v = 'voce' in esito ? esito.voce : null;
+  const dettaglio = esito.esito === 'gia_entrato'
+    ? `STESSO QR · ENTRATO ${esito.voce.oraCheckIn ? oraDi(esito.voce.oraCheckIn) : ''}${esito.voce.porta ? ` · ${esito.voce.porta.replace('P', 'PORTA ')}` : ''}`
+    : esito.esito === 'annullato' ? 'QR ANNULLATO DALLA CREW' : esito.motivo.toUpperCase();
+  return (
+    <>
+      <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
+        {X}
+        <span className="font-mono text-[13px] font-medium leading-[18px]">{dettaglio}</span>
+        <span className="font-display text-[100px] font-black uppercase leading-[.8]">{esito.esito === 'gia_entrato' ? <>Già<br />entrato</> : <>Non<br />valido</>}</span>
+        <div className={linea} />
+        {v && <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>}
+        <span className="text-[17px] font-medium leading-6">
+          {esito.esito === 'gia_entrato' ? 'Controlla il documento. Se è un’altra persona, il QR è stato girato: non entra.'
+            : esito.esito === 'annullato' ? 'Questa iscrizione è stata annullata: non entra con questo QR.'
+              : 'Controlla il documento e prova con "Cerca per nome".'}
+        </span>
+      </div>
+      <div className="flex flex-none px-4 pb-7">
+        <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 64, fontSize: 17, borderColor: 'currentColor', color: 'inherit' }} onClick={onChiudi}>Torna allo scanner</button>
+      </div>
+    </>
+  );
+}

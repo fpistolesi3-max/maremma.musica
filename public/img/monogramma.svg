@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="256 350 278 304">
+  <title>Maremma Musica — monogramma</title>
+  <g fill="none" stroke-width="3.6" stroke-linejoin="miter" stroke-miterlimit="8">
+    <path d="M383.3 476.11 L383.3 353.3 L360.0 373.3 L317.5 448.3 L285.0 403.3 L259.5 419.3 L259.5 588.3 L296.3 608.3 L296.3 491.7 L319.5 530 L343.8 491.7 L343.8 626.7 L383.3 650 L383.3 525.89" stroke="#E1D7C9"></path>
+    <path d="M406.7 476.11 L406.7 353.3 L430.0 373.3 L472.5 448.3 L505.0 403.3 L530.5 419.3 L530.5 588.3 L493.7 608.3 L493.7 491.7 L470.5 530 L446.2 491.7 L446.2 626.7 L406.7 650 L406.7 525.89" stroke="#D55B23"></path>
+    <circle cx="395.7" cy="501" r="27.5" fill="#000" stroke="#E1D7C9" stroke-width="1.8"></circle>
+  </g>
+</svg>

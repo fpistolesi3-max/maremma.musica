@@ -1,0 +1,10 @@
+{
+  "name": "Maremma Musica · Porta",
+  "short_name": "MM Porta",
+  "start_url": "/door",
+  "scope": "/door",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [{ "src": "/img/monogramma.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
