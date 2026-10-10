@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 
 const VOCI = [
   { href: '/admin', testo: 'Serate', icona: <><rect x="4" y="5" width="16" height="15" rx="1" /><path d="M4 10h16M9 3v4M15 3v4" /></> },
@@ -14,8 +15,23 @@ const VOCI = [
 
 export function NavAdmin() {
   const p = usePathname();
+  const ref = useRef<HTMLElement>(null);
+  // Su telefono la barra scorre in orizzontale: la voce attiva resta in vista e, con il mouse,
+  // la rotella (che scorre solo in verticale) la fa scorrere di lato.
+  useEffect(() => {
+    const nav = ref.current;
+    if (!nav) return;
+    nav.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    const rotella = (e: WheelEvent) => {
+      if (nav.scrollWidth <= nav.clientWidth || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      nav.scrollLeft += e.deltaY;
+    };
+    nav.addEventListener('wheel', rotella, { passive: false });
+    return () => nav.removeEventListener('wheel', rotella);
+  }, [p]);
   return (
-    <nav aria-label="Admin" className="-mx-4 flex gap-1 overflow-x-auto px-4 md:mx-0 md:flex-col md:px-0">
+    <nav ref={ref} aria-label="Admin" className="-mx-4 flex gap-1 overflow-x-auto px-4 md:mx-0 md:flex-col md:px-0">
       {VOCI.map((v) => {
         const attiva = v.href === '/admin' ? p === '/admin' || p.startsWith('/admin/eventi') : p.startsWith(v.href);
         return (
