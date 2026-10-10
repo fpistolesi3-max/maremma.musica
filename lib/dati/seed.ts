@@ -14,7 +14,7 @@ function evento(p: Partial<Evento> & Pick<Evento, 'slug' | 'nome' | 'data'>): Ev
   return {
     id: randomUUID(), numero: null, dataFine: null, location: null, comune: null, lat: null, lng: null,
     locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, dressCode: null,
-    lineup: [], infoArrivo: null, locandinaUrl: null, prezzoLista: 0, prezzoCassa: null, etaMinima: 18, pubblicato: true,
+    lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 0, prezzoCassa: null, etaMinima: 18, pubblicato: true,
     prAbilitati: null, createdAt: ora(), updatedAt: ora(), ...p,
   };
 }
@@ -121,6 +121,6 @@ export function datiIniziali(segreto: string): Archivio {
   return {
     versione: 1, segreto,
     eventi: [halloween, solchi, capodanno, ricky], lotti, pr, iscrizioni, utenti,
-    accessi: [], posta: [], porte: [], consegne: [],
+    accessi: [], posta: [], porte: [], consegne: [], tavoli: [], prenotazioni: [],
   };
 }

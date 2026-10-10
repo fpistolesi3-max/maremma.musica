@@ -44,6 +44,7 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
 - Prevendita: `/e/[slug]/prevendita?pr=[handle]` e il link PR `/e/[slug]/[handle]` (Lista bloccata).
   Il link PR lascia un cookie di 3 giorni: vince l'ultimo link visitato. Senza link: "Lista: Maremma Musica".
 - Biglietto: `/biglietto/[id]?email=…` (conferma, PDF, calendario), recupero da `/biglietto`.
+- Tavoli: `/tavoli/[slug]` (mappa e richiesta; `?pr=[handle]` la attribuisce al PR, se quel tavolo gli è affidato) e `/tavolo/[id]?email=…` (stato della prenotazione e, a pagamento ricevuto, il QR unico del tavolo). La spesa minima si paga in anticipo: il tavolo resta fermo 3 giorni (`GIORNI_PAGAMENTO_TAVOLO`, mai oltre l'apertura), poi la prenotazione decade e torna libero. L'admin segna il pagamento dalla serata; il PR vede solo i propri tavoli e può inserire la richiesta per un cliente. Alla porta il QR del tavolo vale per tutto il gruppo: ogni passaggio fa entrare una persona fino al numero prenotato ("3 di 6"), poi "Tavolo pieno"; un tavolo non pagato non entra. Funziona anche offline come il resto dello scanner.
 - PR: `/pr/[handle]` — chi apre il link vede le prossime serate; il PR entrato vede la sua area.
 - Porta: `/door` — fotocamera o codice, "cerca per nome", contatore live, funziona senza rete
   (elenco e ingressi in coda salvati sul telefono, sincronizzati al ritorno del segnale).
@@ -63,7 +64,7 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
   WhatsApp, Google, locandina, diretto). Il canale si riconosce dal social di provenienza o dal link
   etichettato `/e/[slug]?da=instagram` (la pagina dà i link pronti da copiare). Anche nella serata live
   dell'admin e alla porta ("Lista: Maremma Musica · da Instagram").
-- Admin: `/admin` serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con lotti · PR · iscrizioni
+- Admin: `/admin` serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con lotti e tavoli (spesa minima, zona, posti, stato, mappa con piantina del locale) · PR · iscrizioni
   (annulla/rimborsa/CSV) · staff.
 
 ## Da completare con il cliente (`TODO: cliente` nel codice)

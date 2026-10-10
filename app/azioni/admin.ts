@@ -5,11 +5,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { sessioneCorrente, type Sessione } from '@/lib/sessione';
 import {
-  cambiaStatoIscrizione, cambiaStatoPr, creaPr, creaStaff, eliminaLotto, rimuoviStaff, salvaEvento, salvaLotto, type DatiEvento,
+  cambiaStatoIscrizione, cambiaStatoPr, creaPr, creaStaff, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
 } from '@/lib/dati/admin';
 import { salvaMedia } from '@/lib/dati/media';
 import { slugDa } from '@/lib/formato';
-import type { TipoIngresso } from '@/lib/dati/tipi';
+import type { StatoTavolo, TipoIngresso } from '@/lib/dati/tipi';
 
 async function admin(): Promise<Sessione> {
   const s = await sessioneCorrente();
@@ -35,10 +35,10 @@ function isoRoma(giorno: string, orario: string) {
 // Su Vercel il corpo di una richiesta non supera ~4,5 MB: il modulo riduce la foto prima dell'invio (form-serata).
 const MAX_LOCANDINA = 4 * 1024 * 1024;
 
-async function salvaLocandina(file: File | null): Promise<string | null> {
+async function salvaLocandina(file: File | null, cosa = 'La locandina'): Promise<string | null> {
   if (!file || file.size === 0) return null;
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('La locandina deve essere JPG, PNG o WebP');
-  if (file.size > MAX_LOCANDINA) throw new Error('Locandina troppo pesante (massimo 4 MB)');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error(`${cosa} deve essere JPG, PNG o WebP`);
+  if (file.size > MAX_LOCANDINA) throw new Error(`${cosa} è troppo pesante (massimo 4 MB)`);
   const est = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.type];
   const nome = `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}.${est}`;
   return salvaMedia(nome, Buffer.from(await file.arrayBuffer()), file.type);
@@ -133,6 +133,64 @@ export async function eliminaLottoAzione(id: string) {
   try { await eliminaLotto(s, id); } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/', 'layout');
   return { ok: 'Lotto eliminato.' };
+}
+
+const STATI_TAVOLO: StatoTavolo[] = ['libero', 'riservato', 'confermato', 'non_in_vendita'];
+
+export async function salvaTavoloAzione(_p: EsitoAzione, f: FormData): Promise<EsitoAzione> {
+  const s = await admin();
+  const nome = t(f, 'nome');
+  const spesa = num(t(f, 'spesaMinima')) ?? 0;
+  const posti = num(t(f, 'posti'));
+  const stato = t(f, 'stato') as StatoTavolo;
+  if (!nome) return { errore: 'Dai un nome al tavolo (es. "T4" o "Privé 2").' };
+  if (nome.length > 40) return { errore: 'Nome troppo lungo.' };
+  if (Number.isNaN(spesa) || spesa < 0) return { errore: 'Spesa minima non valida.' };
+  if (posti != null && (Number.isNaN(posti) || posti < 1 || posti > 99)) return { errore: 'Posti: un numero da 1 a 99.' };
+  try {
+    await salvaTavolo(s, {
+      id: t(f, 'id') || null, eventoId: t(f, 'eventoId'), nome, zona: t(f, 'zona').slice(0, 40) || null,
+      posti: posti == null ? null : Math.round(posti), spesaMinima: spesa,
+      stato: STATI_TAVOLO.includes(stato) ? stato : 'libero', nota: t(f, 'nota').slice(0, 200) || null,
+      // A chi è affidato: tutti i PR, nessuno, o solo quelli spuntati.
+      visibileDaPr: t(f, 'prChi') !== 'nessuno', prAbilitati: t(f, 'prChi') === 'alcuni' ? f.getAll('prAbilitati').map(String) : null,
+      ordine: Number(t(f, 'ordine') || 0),
+    });
+  } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: 'Tavolo salvato.' };
+}
+
+export async function posizionaTavoloAzione(id: string, x: number | null, y: number | null): Promise<EsitoAzione> {
+  const s = await admin();
+  try { await posizionaTavolo(s, id, x, y); } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return {};
+}
+
+export async function caricaPiantinaAzione(f: FormData): Promise<EsitoAzione> {
+  const s = await admin();
+  try {
+    const url = await salvaLocandina(f.get('piantina') as File | null, 'La piantina');
+    if (!url) return { errore: 'Scegli un’immagine.' };
+    await salvaPiantina(s, t(f, 'eventoId'), url);
+  } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: 'Piantina caricata.' };
+}
+
+export async function togliPiantinaAzione(eventoId: string): Promise<EsitoAzione> {
+  const s = await admin();
+  try { await salvaPiantina(s, eventoId, null); } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: 'Piantina tolta.' };
+}
+
+export async function eliminaTavoloAzione(id: string) {
+  const s = await admin();
+  try { await eliminaTavolo(s, id); } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: 'Tavolo eliminato.' };
 }
 
 export async function azioneIscrizione(id: string, azione: 'annulla' | 'rimborsa' | 'ripristina') {

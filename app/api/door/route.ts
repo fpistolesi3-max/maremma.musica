@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     const metodo: MetodoPagamento = m.metodo === 'porta_pos' ? 'porta_pos' : 'porta_contanti';
     const esito = m.cassa
       ? await registraCassa(s, corpo.eventoId, String(m.idLocale), m.cassa, { metodo, porta, ora: m.ora })
-      : await checkIn(s, corpo.eventoId, String(m.chiave), { incassa: Boolean(m.incassa), metodo, porta, ora: m.ora });
+      : await checkIn(s, corpo.eventoId, String(m.chiave), { incassa: Boolean(m.incassa), metodo, porta, ora: m.ora }, String(m.idLocale));
     esiti.push({ idLocale: m.idLocale, esito });
   }
   await segnaPorta(porta, corpo.eventoId);
