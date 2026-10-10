@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { leggi } from '@/lib/dati/archivio';
 import { dataPunti, ora } from '@/lib/formato';
+import { modalitaProva } from '@/lib/prova';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Posta di prova', robots: { index: false } };
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: 'Posta di prova', robots: { index: fa
  * Esiste solo in sviluppo.
  */
 export default async function PostaDiProva({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
-  if (process.env.NODE_ENV === 'production') notFound();
+  if (!modalitaProva()) notFound();
   const { id } = await searchParams;
   const posta = (await leggi()).posta;
   const aperta = posta.find((m) => m.id === id) ?? posta[0];

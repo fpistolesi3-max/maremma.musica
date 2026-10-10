@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { leggi, modifica, segreto } from './dati/archivio';
 import type { Pr, Ruolo, Utente } from './dati/tipi';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
+import { modalitaProva } from './prova';
 
 // Accesso senza password per PR, staff porta e admin: link magico o codice a 6 cifre via email.
 // La sessione è un cookie firmato HMAC (httpOnly). Nessuna password viene mai salvata.
@@ -109,7 +110,7 @@ ${bottoneEmail(link, 'Entra →')}
 <p style="font:400 12px/18px Arial,sans-serif;color:#77736c;margin:0;">Non hai chiesto tu l'accesso? Ignora questa email.</p>`),
   });
   // Solo in sviluppo: il link torna alla pagina, così si provano gli account senza aprire la posta.
-  return process.env.NODE_ENV === 'production' ? undefined : link;
+  return modalitaProva() ? link : undefined;
 }
 
 export async function entraConToken(token: string): Promise<Sessione | null> {
