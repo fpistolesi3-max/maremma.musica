@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { MenuTelefono } from './client';
 import { MarchioLink } from './ui';
 
 // Testata e piede del sito pubblico (mockup Home desktop / telefono).
@@ -24,8 +25,8 @@ export function Testata() {
         </nav>
         <Link href="/biglietto" className="px-[6px] py-[14px] font-sans text-[12px] font-semibold uppercase leading-none tracking-[.12em] no-underline md:hidden">Il mio QR</Link>
         <Link href="/biglietto" className="mm-btn mm-btn--linea hidden md:inline-flex" style={{ minHeight: 40, padding: '0 18px', fontSize: 13 }}>Il mio QR</Link>
-        {/* Menu telefono senza JavaScript: funziona anche nel browser di Instagram */}
-        <details className="group md:hidden">
+        {/* Menu telefono: <details>, si apre anche senza JavaScript (browser di Instagram) */}
+        <MenuTelefono className="group md:hidden">
           <summary className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-sm border border-linea-forte text-osso [&::-webkit-details-marker]:hidden" aria-label="Menu">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M4 8h16M4 16h16" /></svg>
           </summary>
@@ -36,7 +37,7 @@ export function Testata() {
               </Link>
             ))}
           </nav>
-        </details>
+        </MenuTelefono>
       </div>
     </header>
   );
