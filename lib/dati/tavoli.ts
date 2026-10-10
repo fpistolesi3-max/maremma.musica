@@ -107,6 +107,11 @@ async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavol
     if (opzioni.inseritaDa === 'cliente' && d.prenotazioni.some((p) => p.eventoId === evento.id && p.email === email && prenotazioneAttiva(p))) {
       return { ok: false, campo: 'email', errore: 'Con questa email hai già un tavolo per questa serata.' };
     }
+    // Stesso limite sul telefono: cambiare email non basta a tenere fermi più tavoli senza pagare.
+    const cifre = (tel: string) => tel.replace(/\D/g, '').slice(-9);
+    if (opzioni.inseritaDa === 'cliente' && d.prenotazioni.some((p) => p.eventoId === evento.id && prenotazioneAttiva(p) && cifre(p.telefono) === cifre(i.telefono))) {
+      return { ok: false, campo: 'telefono', errore: 'Con questo numero c’è già un tavolo per questa serata.' };
+    }
     const id = randomUUID();
     const adesso = new Date();
     const p: PrenotazioneTavolo = {
@@ -114,7 +119,7 @@ async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavol
       nome: i.nome.trim(), cognome: i.cognome.trim(), email, telefono: i.telefono.trim(), persone: i.persone,
       spesaMinima: t.spesaMinima, stato: 'in_attesa', scade: scadenzaPagamento(adesso, evento),
       tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),
-      inseritaDa: opzioni.inseritaDa, consensoPrivacyAt: adesso.toISOString(), createdAt: adesso.toISOString(), pagatoAt: null, chiusaAt: null, ingressi: [],
+      inseritaDa: opzioni.inseritaDa, consensoPrivacyAt: adesso.toISOString(), createdAt: adesso.toISOString(), pagatoAt: null, chiusaAt: null, promemoriaAt: null, ingressi: [],
     };
     d.prenotazioni.push(p);
     t.stato = 'riservato';
@@ -231,4 +236,36 @@ export async function tavoliDelPr(s: Sessione, eventoId: string) {
 export function prPrenotaTavolo(s: Sessione, i: DatiPrenotazione): Promise<EsitoPrenotazione> {
   const pr = soloPr(s);
   return crea(i, { inseritaDa: 'pr', soloDelPr: pr.id, prId: () => pr.id });
+}
+
+// ------------------------------------------------------------------ recupero e promemoria
+
+/** Per "Il mio QR": le prenotazioni ancora valide di un'email, per le serate non passate. */
+export async function prenotazioniPerEmail(email: string): Promise<PrenotazioneVista[]> {
+  await applicaScadenze();
+  const d = await leggi();
+  const e = email.trim().toLowerCase();
+  return d.prenotazioni
+    .filter((p) => p.email === e && prenotazioneAttiva(p))
+    .map((p) => vista(d, p))
+    .filter((v): v is PrenotazioneVista => v !== null && !eventoPassato(v.evento));
+}
+
+/** Email degli admin: ricevono l'avviso quando arriva una richiesta. */
+export async function emailAdmin(): Promise<string[]> {
+  return (await leggi()).utenti.filter((u) => u.ruolo === 'admin').map((u) => u.email);
+}
+
+/**
+ * Prenotazioni in attesa il cui termine cade entro `ore`: le segna come avvisate e le restituisce,
+ * così il promemoria parte una volta sola anche se il controllo gira più volte.
+ */
+export async function promemoriaDaMandare(ore = 24, adesso = new Date()): Promise<PrenotazioneVista[]> {
+  const limite = adesso.getTime() + ore * 3_600_000;
+  return modifica((d) => {
+    faiDecadere(d, adesso);
+    const daAvvisare = d.prenotazioni.filter((p) => p.stato === 'in_attesa' && !p.promemoriaAt && new Date(p.scade).getTime() <= limite);
+    for (const p of daAvvisare) p.promemoriaAt = adesso.toISOString();
+    return daAvvisare.map((p) => vista(d, p)).filter((v): v is PrenotazioneVista => v !== null);
+  });
 }

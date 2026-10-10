@@ -1,6 +1,7 @@
 import 'server-only';
 import QRCode from 'qrcode';
 import type { Biglietto } from './dati/pubblico';
+import type { PrenotazioneVista } from './dati/tavoli';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
 import { dataPunti, euro, giornoSett, nascita, numeroEvento, orari } from './formato';
 import { mostraCodice } from './qr-token';
@@ -44,15 +45,19 @@ ${bottoneEmail(link, 'Apri il biglietto →')}
   });
 }
 
-export async function inviaRecupero(email: string, biglietti: Biglietto[], origine: string) {
+export async function inviaRecupero(email: string, biglietti: Biglietto[], origine: string, tavoli: PrenotazioneVista[] = []) {
   const righe = biglietti.map((b) => `
 <p style="margin:0 0 12px;font:400 15px/22px Arial,sans-serif;">
   <a href="${escapeHtml(linkBiglietto(origine, b.iscrizione.id, email))}" style="color:#e1d7c9;text-decoration-color:#d55b23;">${escapeHtml(b.evento.nome)} · ${dataPunti(b.evento.data)}</a>
   <span style="color:#a39e95;"> — ${escapeHtml(`${b.iscrizione.nome} ${b.iscrizione.cognome}`)}</span>
+</p>`).join('') + tavoli.map((v) => `
+<p style="margin:0 0 12px;font:400 15px/22px Arial,sans-serif;">
+  <a href="${escapeHtml(`${origine}/tavolo/${v.prenotazione.id}?email=${encodeURIComponent(email)}`)}" style="color:#e1d7c9;text-decoration-color:#d55b23;">${escapeHtml(v.evento.nome)} · ${dataPunti(v.evento.data)} · tavolo ${escapeHtml(v.tavolo.nome)}</a>
+  <span style="color:#a39e95;"> — ${v.prenotazione.stato === 'confermata' ? 'confermato' : 'in attesa di pagamento'}</span>
 </p>`).join('');
   await inviaEmail({
     a: email,
     oggetto: 'I tuoi QR di Maremma Musica',
-    html: guscioEmail('I tuoi QR', `<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ecco i link ai tuoi biglietti per le prossime serate:</p>${righe}`),
+    html: guscioEmail('I tuoi QR', `<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ecco i link ai tuoi biglietti e tavoli per le prossime serate:</p>${righe}`),
   });
 }

@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { sessioneCorrente, type Sessione } from '@/lib/sessione';
 import {
-  cambiaStatoIscrizione, cambiaStatoPr, creaPr, creaStaff, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
+  cambiaStatoIscrizione, cambiaStatoPr, copiaTavoli, creaPr, creaStaff, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
 } from '@/lib/dati/admin';
 import { salvaMedia } from '@/lib/dati/media';
 import { slugDa } from '@/lib/formato';
@@ -103,6 +103,9 @@ export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAz
   } catch (e) {
     return { errore: (e as Error).message, campi: { slug: (e as Error).message } };
   }
+  // Serata nuova nello stesso locale di un'altra: si parte con i suoi tavoli e la sua piantina.
+  const copiaDa = t(f, 'copiaTavoliDa');
+  if (!id && copiaDa) { try { await copiaTavoli(s, copiaDa, salvato.id); } catch (e) { console.error('[tavoli] copia non riuscita', e); } }
   revalidatePath('/', 'layout');
   redirect(`/admin/eventi/${salvato.id}/modifica?salvato=1`);
 }
@@ -184,6 +187,14 @@ export async function togliPiantinaAzione(eventoId: string): Promise<EsitoAzione
   try { await salvaPiantina(s, eventoId, null); } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/', 'layout');
   return { ok: 'Piantina tolta.' };
+}
+
+export async function copiaTavoliAzione(eventoId: string, daEventoId: string): Promise<EsitoAzione> {
+  const s = await admin();
+  let n: number;
+  try { n = await copiaTavoli(s, daEventoId, eventoId); } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: n === 0 ? 'Niente da copiare: i tavoli ci sono già tutti.' : `${n} ${n === 1 ? 'tavolo copiato' : 'tavoli copiati'}.` };
 }
 
 export async function eliminaTavoloAzione(id: string) {

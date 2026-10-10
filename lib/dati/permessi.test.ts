@@ -252,7 +252,9 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   assert.deepEqual([p1.prId, p1.stato, p1.spesaMinima], [pr.pr!.id, 'in_attesa', 200]);
   assert.ok(new Date(p1.scade).getTime() <= new Date(ev.data).getTime(), 'il termine non supera l’apertura');
   assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'A1')!.stato, 'riservato');
-  const r2 = await tv.prenotaTavolo({ ...chi, email: 'ugo@esempio.it', tavoloId: await id('A2') }, 'test-pr');
+  const stessoNumero = await tv.prenotaTavolo({ ...chi, email: 'ugo@esempio.it', telefono: '+39 333-1234567', tavoloId: await id('A2') }, 'test-pr');
+  assert.ok(!stessoNumero.ok && stessoNumero.campo === 'telefono', 'stesso telefono con un’altra email: non tiene fermo un secondo tavolo');
+  const r2 = await tv.prenotaTavolo({ ...chi, email: 'ugo@esempio.it', telefono: '347 1112223', tavoloId: await id('A2') }, 'test-pr');
   assert.equal(r2.ok && r2.prenotazione.prId, null, 'A2 è solo di Zarro: dal link di un altro PR resta a Maremma Musica');
 
   // Tavolo già preso, troppe persone, secondo tavolo con la stessa email, tavolo non in vendita
@@ -337,4 +339,42 @@ test('porta e tavoli: un QR per il gruppo, una persona a passaggio, non pagato n
   // Annullata: il QR non vale più
   await tv.annullaPrenotazione(admin, p.id);
   assert.equal((await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm4')).esito, 'annullato');
+});
+
+test('tavoli: copia da un’altra serata, recupero per email, promemoria una volta sola, CSV', async () => {
+  const tv = await import('./tavoli');
+  const admin = await sessione('admin@maremmamusica.test');
+  const staff = await sessione('porta@maremmamusica.test');
+  const d0 = await m.archivio.leggi();
+  const ev = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const nuova = d0.eventi.find((e) => e.slug === 'capodanno-in-pineta') ?? d0.eventi.find((e) => e.id !== ev.id && !d0.tavoli.some((t) => t.eventoId === e.id))!;
+  const diEv = (await m.admin.eventoAdmin(admin, ev.id))!.tavoli;
+  await m.admin.posizionaTavolo(admin, diEv[0].id, 20, 30);
+  await m.admin.salvaPiantina(admin, ev.id, '/media/sala.jpg');
+
+  assert.ok((await m.admin.serateConTavoli(admin, nuova.id)).some((x) => x.id === ev.id));
+  await assert.rejects(m.admin.copiaTavoli(staff, ev.id, nuova.id), /non_autorizzato/);
+  const prima = (await m.admin.eventoAdmin(admin, nuova.id))!.tavoli.length;
+  const n = await m.admin.copiaTavoli(admin, ev.id, nuova.id);
+  const copiati = (await m.admin.eventoAdmin(admin, nuova.id))!;
+  assert.equal(copiati.tavoli.length, prima + n);
+  assert.ok(n > 0 && copiati.tavoli.filter((t) => t.stato !== 'non_in_vendita').every((t) => t.stato === 'libero' && t.nota === null), 'arrivano liberi e senza nota');
+  const gemello = copiati.tavoli.find((t) => t.nome === diEv[0].nome)!;
+  assert.deepEqual([gemello.x, gemello.y, gemello.spesaMinima], [20, 30, diEv[0].spesaMinima]);
+  assert.equal(copiati.evento.piantinaUrl, '/media/sala.jpg');
+  assert.equal(await m.admin.copiaTavoli(admin, ev.id, nuova.id), 0, 'la seconda copia non duplica');
+
+  // Recupero e promemoria
+  const libero = copiati.tavoli.find((t) => t.stato === 'libero')!;
+  const r = await tv.prenotaTavolo({ tavoloId: libero.id, nome: 'Pia', cognome: 'Memo', email: 'pia@esempio.it', telefono: '320 5556667', persone: 2 }, null);
+  const p = r.ok ? r.prenotazione : null!;
+  assert.deepEqual((await tv.prenotazioniPerEmail('PIA@esempio.it')).map((v) => v.prenotazione.id), [p.id]);
+  assert.equal((await tv.promemoriaDaMandare(24)).some((v) => v.prenotazione.id === p.id), false, 'il termine è lontano: niente promemoria');
+  assert.equal((await tv.promemoriaDaMandare(24 * 5)).filter((v) => v.prenotazione.id === p.id).length, 1);
+  assert.equal((await tv.promemoriaDaMandare(24 * 5)).some((v) => v.prenotazione.id === p.id), false, 'il promemoria parte una volta sola');
+  assert.ok((await tv.emailAdmin()).includes('admin@maremmamusica.test'));
+
+  const csv = (await m.admin.csvTavoli(admin, nuova.id))!;
+  assert.ok(csv.nome.endsWith('-tavoli.csv') && csv.testo.includes('pia@esempio.it') && csv.testo.includes('in attesa di pagamento'));
+  await assert.rejects(m.admin.csvTavoli(staff, nuova.id), /non_autorizzato/);
 });

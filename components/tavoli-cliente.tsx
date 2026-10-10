@@ -81,6 +81,8 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
         <form action={invia} noValidate className="flex flex-col gap-[22px] border border-linea bg-notte-2 p-5">
           <input type="hidden" name="tavoloId" value={sel?.id ?? ''} />
           {prHandle && <input type="hidden" name="pr" value={prHandle} />}
+          {/* Campo trappola per i programmi automatici: fuori schermo, non raggiungibile da tastiera né letto ad alta voce. */}
+          <input type="text" name="sito" tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 opacity-0" />
           <div className="flex flex-col gap-[6px]">
             <span className="font-mono text-[11px] text-arancio">✦ {perCliente ? 'RICHIESTA PER UN CLIENTE' : 'LA TUA RICHIESTA'}</span>
             <span className="font-display text-[32px] font-black uppercase leading-none">{sel ? `Tavolo ${sel.nome}` : 'Scegli un tavolo'}</span>

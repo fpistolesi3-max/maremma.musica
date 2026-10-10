@@ -46,7 +46,7 @@ function normalizza(d: Archivio): Archivio {
     i.origine ??= 'lista';
     i.rifCassa ??= null;
   }
-  for (const p of d.prenotazioni) p.ingressi ??= [];
+  for (const p of d.prenotazioni) { p.ingressi ??= []; p.promemoriaAt ??= null; }
   for (const e of d.eventi) { e.prezzoCassa ??= null; e.piantinaUrl ??= null; }
   for (const t of d.tavoli) { t.x ??= null; t.y ??= null; t.prAbilitati ??= null; }
   return d;

@@ -263,6 +263,63 @@ export async function eliminaTavolo(s: Sessione, id: string) {
   });
 }
 
+/** Serate da cui si possono riprendere i tavoli (tutte quelle che ne hanno, tranne `esclusa`). */
+export async function serateConTavoli(s: Sessione, esclusa?: string) {
+  soloAdmin(s);
+  const d = await leggi();
+  return d.eventi
+    .filter((e) => e.id !== esclusa && d.tavoli.some((t) => t.eventoId === e.id))
+    .sort((a, b) => b.data.localeCompare(a.data))
+    .map((e) => ({ id: e.id, etichetta: `${dataCompleta(e.data)} · ${e.nome}${e.location ? ` · ${e.location}` : ''} (${d.tavoli.filter((t) => t.eventoId === e.id).length} tavoli)` }));
+}
+
+/**
+ * Riprende i tavoli di un'altra serata (stesso locale): nome, zona, posti, spesa minima, PR e posizione.
+ * Arrivano liberi e senza nota. Quelli con un nome già presente restano com'erano; la piantina si copia
+ * solo se la serata non ne ha una. Restituisce quanti ne ha aggiunti.
+ */
+export async function copiaTavoli(s: Sessione, daEventoId: string, aEventoId: string): Promise<number> {
+  soloAdmin(s);
+  if (daEventoId === aEventoId) throw new Error('Scegli un’altra serata');
+  return modifica((d) => {
+    const da = d.eventi.find((e) => e.id === daEventoId);
+    const a = d.eventi.find((e) => e.id === aEventoId);
+    if (!da || !a) throw new Error('Serata non trovata');
+    const chiave = (nome: string) => nome.trim().toLowerCase();
+    const presenti = new Set(d.tavoli.filter((t) => t.eventoId === a.id).map((t) => chiave(t.nome)));
+    const base = Math.max(-1, ...d.tavoli.filter((t) => t.eventoId === a.id).map((t) => t.ordine)) + 1;
+    const nuovi = d.tavoli
+      .filter((t) => t.eventoId === da.id && !presenti.has(chiave(t.nome)))
+      .sort((x, y) => x.ordine - y.ordine)
+      .map((t, k): Tavolo => ({ ...t, id: randomUUID(), eventoId: a.id, stato: t.stato === 'non_in_vendita' ? 'non_in_vendita' : 'libero', nota: null, ordine: base + k }));
+    d.tavoli.push(...nuovi);
+    a.piantinaUrl ??= da.piantinaUrl;
+    return nuovi.length;
+  });
+}
+
+export async function csvTavoli(s: Sessione, eventoId: string) {
+  soloAdmin(s);
+  const d = await leggi();
+  const evento = d.eventi.find((e) => e.id === eventoId);
+  if (!evento) return null;
+  const STATI = { in_attesa: 'in attesa di pagamento', confermata: 'pagata', annullata: 'annullata', scaduta: 'scaduta' };
+  const intestazione = ['Tavolo', 'Zona', 'Stato', 'Nome', 'Cognome', 'Email', 'Telefono', 'Persone', 'Entrati', 'Spesa minima', 'Lista', 'Inserita da', 'Richiesta il', 'Termine', 'Pagata il', 'Chiusa il', 'Codice'];
+  const quando = (iso: string | null) => (iso ? `${dataCompleta(iso)} ${oraDi(iso)}` : '');
+  const righe = d.prenotazioni
+    .filter((p) => p.eventoId === eventoId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map((p) => {
+      const t = d.tavoli.find((x) => x.id === p.tavoloId);
+      return [
+        t?.nome ?? '', t?.zona ?? '', prenotazioneScaduta(p) ? STATI.scaduta : STATI[p.stato], p.nome, p.cognome, p.email, p.telefono, p.persone, p.ingressi.length,
+        p.spesaMinima.toFixed(2).replace('.', ','), (p.prId ? d.pr.find((x) => x.id === p.prId)?.nomeDisplay : null) ?? 'Maremma Musica', p.inseritaDa,
+        quando(p.createdAt), quando(p.scade), quando(p.pagatoAt), quando(p.chiusaAt), p.codice,
+      ].map(cella).join(';');
+    });
+  return { nome: `${evento.slug}-tavoli.csv`, testo: '\ufeff' + [intestazione.join(';'), ...righe].join('\r\n') };
+}
+
 export async function creaPr(s: Sessione, input: { nome: string; handle: string; email: string }) {
   soloAdmin(s);
   const handle = input.handle.trim().toLowerCase();

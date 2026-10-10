@@ -165,12 +165,14 @@ export default async function PaginaEvento({ params }: Props) {
       </section>
 
       {/* Barra fissa in basso su telefono */}
-      <div className="fixed inset-x-0 bottom-0 z-20 flex items-center gap-[14px] border-t border-linea bg-notte px-4 pt-3 md:hidden" style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}>
+      <div className={`fixed inset-x-0 bottom-0 z-20 flex items-center border-t ${tavoli.length > 0 ? 'gap-2' : 'gap-[14px]'} border-linea bg-notte px-4 pt-3 md:hidden`} style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="whitespace-nowrap font-display text-[24px] font-black uppercase leading-none">{giorno2(e.data)} {meseCorto(e.data)}</span>
           <span className="truncate font-mono text-[10px] leading-[14px] text-osso-2">{e.nome.toUpperCase()}</span>
         </div>
-        <BottoneLista ep={ep} className="flex-none" style={{ minHeight: 52, padding: '0 16px' }} />
+        {/* Su telefono le due strade stanno qui, una accanto all'altra. */}
+        {tavoli.length > 0 && <Link href={`/tavoli/${e.slug}`} className="mm-btn mm-btn--linea flex-none" style={{ minHeight: 52, padding: '0 12px', fontSize: 13 }}>Tavolo</Link>}
+        <BottoneLista ep={ep} className="flex-none" style={{ minHeight: 52, padding: tavoli.length > 0 ? '0 12px' : '0 16px', fontSize: tavoli.length > 0 ? 13 : undefined }} />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
-import { eventoAdmin } from '@/lib/dati/admin';
+import { eventoAdmin, serateConTavoli } from '@/lib/dati/admin';
 import { prenotazioniAdmin } from '@/lib/dati/tavoli';
 import { prenotazioneAttiva } from '@/lib/regole';
 import { quandoScade } from '@/lib/tavolo-email';
@@ -12,6 +12,7 @@ import { Lotti } from '@/components/admin/lotti';
 import { Tavoli } from '@/components/admin/tavoli';
 import { MappaTavoli } from '@/components/admin/mappa-tavoli';
 import { Sezione } from '@/components/admin/sezione';
+import { CopiaTavoli } from '@/components/admin/copia-tavoli';
 
 export const metadata = { title: 'Modifica serata' };
 
@@ -25,7 +26,10 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
   if (!x) notFound();
   const e = x.evento;
   const { salvato } = await searchParams;
-  const prenotazioni = (await prenotazioniAdmin(s, id)).filter((v) => prenotazioneAttiva(v.prenotazione));
+  const tutte = await prenotazioniAdmin(s, id);
+  const prenotazioni = tutte.filter((v) => prenotazioneAttiva(v.prenotazione));
+  const chiuse = tutte.filter((v) => !prenotazioneAttiva(v.prenotazione));
+  const conTavoli = await serateConTavoli(s, id);
   const inAttesa = prenotazioni.filter((v) => v.prenotazione.stato === 'in_attesa').length;
   return (
     <>
@@ -53,7 +57,10 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
           <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} RISERVATI{inAttesa > 0 && <span className="text-attesa"> · {inAttesa} IN ATTESA DI PAGAMENTO</span>}</>
         )}>
           <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata in anticipo. Chi lo chiede dal sito (o il PR per lui) lo tiene fermo: quando ricevi i soldi premi &quot;Segna pagato&quot;, altrimenti dopo il termine torna libero da solo.</span>
-          <a href={`/tavoli/${e.slug}`} target="_blank" className="link-sottolineato self-start py-2">Apri la pagina dei tavoli →</a>
+          <div className="flex flex-wrap gap-x-6">
+            <a href={`/tavoli/${e.slug}`} target="_blank" className="link-sottolineato py-2">Apri la pagina dei tavoli →</a>
+            {tutte.length > 0 && <a href={`/api/admin/csv-tavoli/${e.id}`} className="link-sottolineato py-2">Esporta le prenotazioni (CSV)</a>}
+          </div>
           <MappaTavoli eventoId={e.id} piantinaUrl={e.piantinaUrl} tavoli={x.tavoli.map((t) => ({
             id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato, x: t.x, y: t.y,
           }))} />
@@ -69,6 +76,23 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
               } : null,
             };
           })} />
+          <CopiaTavoli eventoId={e.id} serate={conTavoli} haTavoli={x.tavoli.length > 0} />
+          {chiuse.length > 0 && (
+            <details className="border border-linea p-4">
+              <summary className="cursor-pointer font-display text-[22px] font-extrabold uppercase">Storico · {chiuse.length} {chiuse.length === 1 ? 'prenotazione chiusa' : 'prenotazioni chiuse'}</summary>
+              <div className="flex flex-col pt-3">
+                {chiuse.map((v) => (
+                  <div key={v.prenotazione.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-linea py-3">
+                    <span className="mm-chip mm-chip--annullato">{v.prenotazione.stato === 'scaduta' ? 'Scaduta' : 'Annullata'}</span>
+                    <span className="font-display text-[20px] font-extrabold uppercase leading-none">{v.tavolo.nome} · {v.prenotazione.nome} {v.prenotazione.cognome}</span>
+                    <span className="font-mono text-[11px] leading-4 text-osso-2">
+                      {v.prenotazione.persone} PERSONE · {euro(v.prenotazione.spesaMinima)} · {v.prenotazione.telefono} · LISTA: {v.lista.toUpperCase()} · RICHIESTA {quandoScade(v.prenotazione.createdAt).toUpperCase()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </Sezione>
       </FormSerata>
     </>

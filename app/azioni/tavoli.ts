@@ -6,9 +6,9 @@ import { redirect } from 'next/navigation';
 import { COOKIE_PR } from '@/lib/costanti';
 import { origineRichiesta, sessioneCorrente } from '@/lib/sessione';
 import {
-  annullaPrenotazione, confermaPrenotazione, prPrenotaTavolo, prenotaTavolo, prenotazionePubblica, type DatiPrenotazione,
+  annullaPrenotazione, confermaPrenotazione, emailAdmin, prPrenotaTavolo, prenotaTavolo, prenotazionePubblica, type DatiPrenotazione,
 } from '@/lib/dati/tavoli';
-import { inviaConfermaTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
+import { inviaAvvisoAdmin, inviaConfermaTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
 
 export interface StatoTavoloModulo {
   errori: Partial<Record<'nome' | 'cognome' | 'email' | 'telefono' | 'persone' | 'tavolo' | 'privacy' | 'generale', string>>;
@@ -26,6 +26,8 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
     tavoloId: testo(f, 'tavoloId'), nome: testo(f, 'nome'), cognome: testo(f, 'cognome'), email: testo(f, 'email'),
     telefono: testo(f, 'telefono'), persone: testo(f, 'persone'), privacy: f.get('privacy') ? '1' : '',
   };
+  // Campo trappola, invisibile alle persone: se arriva compilato è un programma, non un cliente.
+  if (testo(f, 'sito')) return { errori: { generale: 'Richiesta non valida.' }, valori };
   if (!valori.tavoloId) return { errori: { tavolo: 'Scegli un tavolo dalla mappa o dall’elenco.' }, valori };
   if (!valori.privacy) return { errori: { privacy: 'Per prenotare devi accettare l’informativa privacy.' }, valori };
   const dati: DatiPrenotazione = {
@@ -40,7 +42,11 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   const p = esito.prenotazione;
   const v = await prenotazionePubblica(p.id, p.email);
   try {
-    if (v) await inviaRichiestaTavolo(v, await origineRichiesta());
+    if (v) {
+      const origine = await origineRichiesta();
+      await inviaRichiestaTavolo(v, origine);
+      await inviaAvvisoAdmin(v, await emailAdmin(), origine);
+    }
   } catch (e) {
     // La prenotazione c'è comunque e si vede a schermo: non blocchiamo la persona.
     console.error('[tavoli] invio email non riuscito', e);

@@ -75,7 +75,7 @@ export default async function SerataLive({ params }: Props) {
             <section className="flex flex-col gap-[10px]">
               <div className="flex items-baseline justify-between gap-4">
                 <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Tavoli</h2>
-                <a href={`/admin/eventi/${e.id}/modifica#tavoli`} className="link-sottolineato whitespace-nowrap py-2">Gestisci i tavoli →</a>
+                <span className="flex gap-x-5"><a href={`/api/admin/csv-tavoli/${e.id}`} className="link-sottolineato whitespace-nowrap py-2">CSV</a><a href={`/admin/eventi/${e.id}/modifica#tavoli`} className="link-sottolineato whitespace-nowrap py-2">Gestisci i tavoli →</a></span>
               </div>
               <div className="grid grid-cols-2 border border-linea md:grid-cols-4">
                 <Numero etichetta="Pagati" valore={`${l.tavoli.pagati}/${l.tavoli.totale}`} colore="text-ok" nota={`${l.tavoli.entrati}/${l.tavoli.persone} PERSONE ENTRATE`} />

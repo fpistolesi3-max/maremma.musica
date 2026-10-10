@@ -19,7 +19,11 @@ export interface ValoriSerata {
  * fuori dal <form> perché un modulo non può contenerne un altro. Per questo la colonna della locandina
  * è a sua volta fuori dal <form> e i suoi campi ci si agganciano con l'attributo form.
  */
-export function FormSerata({ v, pr, children }: { v: ValoriSerata; pr: { id: string; nome: string; stato: string }[]; children?: React.ReactNode }) {
+export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
+  v: ValoriSerata; pr: { id: string; nome: string; stato: string }[]; children?: React.ReactNode;
+  /** Solo per la serata nuova: serate da cui riprendere tavoli e piantina al primo salvataggio. */
+  copiaTavoliDa?: { id: string; etichetta: string }[];
+}) {
   const [stato, invia, inCorso] = useActionState(salvaSerata, {} as EsitoAzione);
   const [tipo, setTipo] = useState(v.tipoIngresso);
   const [tutti, setTutti] = useState(v.prAbilitati === null);
@@ -108,6 +112,19 @@ export function FormSerata({ v, pr, children }: { v: ValoriSerata; pr: { id: str
           )}
           <span className="mm-campo__aiuto">Chi arriva dal link di un PR non abilitato finisce nella Lista Maremma Musica.</span>
         </Sezione>
+
+        {!v.id && copiaTavoliDa.length > 0 && (
+          <Sezione n="05" titolo="Tavoli">
+            <div className="mm-campo">
+              <label className="mm-campo__etichetta" htmlFor="f-copiaTavoliDa">Riprendi tavoli e piantina da</label>
+              <select id="f-copiaTavoliDa" name="copiaTavoliDa" defaultValue="" className="mm-campo__input">
+                <option value="">Nessuna: li aggiungo dopo</option>
+                {copiaTavoliDa.map((x) => <option key={x.id} value={x.id}>{x.etichetta}</option>)}
+              </select>
+              <span className="mm-campo__aiuto">Stesso locale di un&apos;altra serata? Parti dai suoi tavoli, già al loro posto sulla mappa: poi ritocchi solo i prezzi.</span>
+            </div>
+          </Sezione>
+        )}
       </form>
       {children}
       </div>

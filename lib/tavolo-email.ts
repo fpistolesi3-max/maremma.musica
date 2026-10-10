@@ -45,6 +45,29 @@ ${bottoneEmail(linkTavolo(origine, p.id, p.email), 'Vedi la prenotazione →')}`
   await inviaEmail({ a: p.email, oggetto: `Tavolo in attesa di pagamento · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Tavolo fermo.', corpo) });
 }
 
+/** Agli admin, appena arriva una richiesta: altrimenti la scoprono solo aprendo la serata. */
+export async function inviaAvvisoAdmin(v: PrenotazioneVista, destinatari: string[], origine: string) {
+  const { prenotazione: p, evento: e, tavolo: t } = v;
+  const corpo = `
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${escapeHtml(`${p.nome} ${p.cognome}`)} ha chiesto il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)}${p.inseritaDa === 'pr' ? ` (inserita dal PR ${escapeHtml(v.lista)})` : ''}. Resta fermo fino a <strong>${quandoScade(p.scade)}</strong>: quando ricevi i ${euro(p.spesaMinima)} segna il pagamento.</p>
+${riquadro(v, '')}
+<p style="font:400 14px/22px Arial,sans-serif;margin:0 0 24px;color:#e1d7c9;">Telefono ${escapeHtml(p.telefono)} · ${escapeHtml(p.email)}</p>
+${bottoneEmail(`${origine}/admin/eventi/${e.id}/modifica#tavoli`, 'Apri i tavoli →')}`;
+  for (const a of destinatari) {
+    await inviaEmail({ a, oggetto: `Nuova richiesta tavolo ${t.nome} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Richiesta tavolo.', corpo) });
+  }
+}
+
+/** Al cliente, quando il termine si avvicina e il pagamento non è ancora arrivato. */
+export async function inviaPromemoriaTavolo(v: PrenotazioneVista, origine: string) {
+  const { prenotazione: p, evento: e, tavolo: t } = v;
+  const corpo = `
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ciao ${escapeHtml(p.nome)}, il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)} è ancora in attesa del pagamento di <strong>${euro(p.spesaMinima)}</strong>. Il termine è <strong>${quandoScade(p.scade)}</strong>: dopo, la prenotazione decade e il tavolo torna libero.</p>
+${riquadro(v, '')}
+${bottoneEmail(linkTavolo(origine, p.id, p.email), 'Vedi la prenotazione →')}`;
+  await inviaEmail({ a: p.email, oggetto: `Il tuo tavolo sta per scadere · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Manca poco.', corpo) });
+}
+
 /** Pagamento ricevuto: arriva il QR del tavolo, uno per tutto il gruppo. */
 export async function inviaConfermaTavolo(v: PrenotazioneVista, origine: string) {
   const { prenotazione: p, evento: e, tavolo: t } = v;
