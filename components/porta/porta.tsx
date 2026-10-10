@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePorta, nuovoId } from './store';
 import { Fotocamera } from './fotocamera';
-import { cercaPerNome, decidiIngresso, trovaVoce, type EsitoPorta, type VocePorta } from '@/lib/porta-logica';
+import { cercaPerNome, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type VocePorta } from '@/lib/porta-logica';
 import type { MetodoPagamento } from '@/lib/dati/tipi';
 import { etichettaCanale } from '@/lib/canali';
 import { SchermoCassa } from './cassa';
@@ -63,8 +63,10 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
   }, [pronto, st.eventoId]);
 
   const evento = eventi.find((e) => e.id === st.eventoId) ?? null;
-  const totale = st.elenco.filter((v) => v.stato !== 'annullato' && v.stato !== 'rimborsato').length;
-  const entrati = st.elenco.filter((v) => v.stato === 'entrato').length;
+  // Si contano le persone: un tavolo vale per tutto il suo gruppo. I tavoli non ancora pagati non contano.
+  const contate = st.elenco.filter((v) => !v.tavolo || v.tavolo.pagato);
+  const totale = contate.reduce((n, v) => n + personeVoce(v), 0);
+  const entrati = contate.reduce((n, v) => n + entratiVoce(v), 0);
 
   const mostra = useCallback((esito: EsitoPorta) => {
     clearTimeout(ritorno.current);
@@ -191,7 +193,8 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
           <div className="flex flex-col border-b border-linea">
             {risultati.map((v) => {
               const dentro = v.stato === 'entrato';
-              const chip = dentro ? ['mm-chip mm-chip--entrato', `Entrato ${v.oraCheckIn ? oraDi(v.oraCheckIn) : ''}`]
+              const chip = v.tavolo && v.stato !== 'annullato' ? (v.tavolo.pagato ? [dentro ? 'mm-chip mm-chip--entrato' : 'mm-chip mm-chip--pagato', `Tavolo · ${v.tavolo.entrati}/${v.tavolo.persone} entrati`] : ['mm-chip mm-chip--incassare', 'Tavolo non pagato'])
+                : dentro ? ['mm-chip mm-chip--entrato', `Entrato ${v.oraCheckIn ? oraDi(v.oraCheckIn) : ''}`]
                 : v.stato === 'annullato' || v.stato === 'rimborsato' ? ['mm-chip mm-chip--annullato', 'Annullato']
                   : v.stato === 'pagato' ? ['mm-chip mm-chip--pagato', 'Pagato']
                     : v.importo > 0 ? ['mm-chip mm-chip--incassare', 'Da incassare'] : ['mm-chip mm-chip--lista', 'In lista'];
@@ -199,10 +202,10 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
                 <div key={v.id} className="flex items-center gap-3 border-t border-linea py-4">
                   <div className="flex min-w-0 flex-grow flex-col gap-[6px]">
                     <span className="font-display text-[24px] font-extrabold uppercase leading-none">{v.nome} {v.cognome}</span>
-                    <span className="font-mono text-[11px] leading-[14px] text-osso-2">{nascita(v.dataNascita)} · {testoLista(v).replace('Lista: ', '').toUpperCase()}</span>
+                    <span className="font-mono text-[11px] leading-[14px] text-osso-2">{v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()}` : nascita(v.dataNascita)} · {testoLista(v).replace('Lista: ', '').toUpperCase()}</span>
                     <span className={`${chip[0]} self-start`}>{chip[1]}</span>
                   </div>
-                  {!dentro && v.stato !== 'annullato' && v.stato !== 'rimborsato' && (
+                  {!dentro && v.stato !== 'annullato' && v.stato !== 'rimborsato' && (!v.tavolo || v.tavolo.pagato) && (
                     <button type="button" className="mm-btn mm-btn--primario" style={{ minHeight: 48, padding: '0 16px', fontSize: 13 }} onClick={() => entra(v, false)}>Apri</button>
                   )}
                 </div>
@@ -291,9 +294,11 @@ function Esito({ esito, metodo, setMetodo, onIncassa, onChiudi }: {
         <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
           <svg width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" /></svg>
           <span className="font-mono text-[13px] font-medium leading-[18px]">
-            {incasso ? `${euro(esito.incassato)} INCASSATI` : esito.primaPagato ? 'PAGATO' : v.importo > 0 ? 'PAGATO' : 'INGRESSO LIBERO'} · {oraDi(esito.ora)}
+            {v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()} · PAGATO` : incasso ? `${euro(esito.incassato)} INCASSATI` : esito.primaPagato ? 'PAGATO' : v.importo > 0 ? 'PAGATO' : 'INGRESSO LIBERO'} · {oraDi(esito.ora)}
           </span>
           <span className="font-display text-[104px] font-black uppercase leading-[.8]">{incasso ? 'Entrato' : 'Valido'}</span>
+          {/* Un QR per tutto il tavolo: ogni passaggio è una persona. */}
+          {v.tavolo && <span className="font-display text-[56px] font-black uppercase leading-[.85]">{v.tavolo.entrati} di {v.tavolo.persone}</span>}
           <div className={linea} />
           <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
           <span className="text-[17px] font-medium leading-6">{testoLista(v)}</span>
@@ -335,7 +340,9 @@ function Esito({ esito, metodo, setMetodo, onIncassa, onChiudi }: {
   }
 
   const v = 'voce' in esito ? esito.voce : null;
-  const dettaglio = esito.esito === 'gia_entrato'
+  const pieno = esito.esito === 'gia_entrato' && esito.voce.tavolo ? esito.voce.tavolo : null;
+  const dettaglio = pieno ? `TAVOLO ${pieno.nome.toUpperCase()} · ${pieno.entrati} DI ${pieno.persone} GIÀ ENTRATI`
+    : esito.esito === 'gia_entrato'
     ? `STESSO QR · ENTRATO ${esito.voce.oraCheckIn ? oraDi(esito.voce.oraCheckIn) : ''}${esito.voce.porta ? ` · ${esito.voce.porta.replace('P', 'PORTA ')}` : ''}`
     : esito.esito === 'annullato' ? 'QR ANNULLATO DALLA CREW' : esito.motivo.toUpperCase();
   return (
@@ -343,11 +350,13 @@ function Esito({ esito, metodo, setMetodo, onIncassa, onChiudi }: {
       <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
         {X}
         <span className="font-mono text-[13px] font-medium leading-[18px]">{dettaglio}</span>
-        <span className="font-display text-[100px] font-black uppercase leading-[.8]">{esito.esito === 'gia_entrato' ? <>Già<br />entrato</> : <>Non<br />valido</>}</span>
+        <span className="font-display text-[100px] font-black uppercase leading-[.8]">{pieno ? <>Tavolo<br />pieno</> : esito.esito === 'gia_entrato' ? <>Già<br />entrato</> : <>Non<br />valido</>}</span>
         <div className={linea} />
         {v && <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>}
         <span className="text-[17px] font-medium leading-6">
-          {esito.esito === 'gia_entrato' ? 'Controlla il documento. Se è un’altra persona, il QR è stato girato: non entra.'
+          {pieno ? 'Il tavolo è al completo: con questo QR non entra più nessuno. Chi è in più passa dalla cassa.'
+            : esito.esito === 'non_valido' && esito.motivo.startsWith('Tavolo') ? 'La prenotazione non è stata pagata: il QR non vale. Chiama la crew.'
+            : esito.esito === 'gia_entrato' ? 'Controlla il documento. Se è un’altra persona, il QR è stato girato: non entra.'
             : esito.esito === 'annullato' ? 'Questa iscrizione è stata annullata: non entra con questo QR.'
               : 'Controlla il documento e prova con "Cerca per nome".'}
         </span>

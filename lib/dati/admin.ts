@@ -104,6 +104,7 @@ export async function serataLive(s: Sessione, eventoId: string) {
       totale: tavoliSerata.length,
       liberi: tavoliSerata.filter((t) => t.stato === 'libero').length,
       pagati: pagate.length, incassato: somma(pagate), persone: pagate.reduce((t, p) => t + p.persone, 0),
+      entrati: pagate.reduce((t, p) => t + p.ingressi.length, 0),
       inAttesa: attese.length, atteso: somma(attese),
       perLista: listeTavoli,
     },

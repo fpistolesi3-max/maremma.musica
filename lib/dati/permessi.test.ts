@@ -302,3 +302,39 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   await tv.annullaPrenotazione(admin, p1.id);
   assert.equal((await tv.tavoliPubblici('halloween-party'))!.tavoli.find((t) => t.nome === 'A1')!.libero, true);
 });
+
+test('porta e tavoli: un QR per il gruppo, una persona a passaggio, non pagato non entra', async () => {
+  const tv = await import('./tavoli');
+  const admin = await sessione('admin@maremmamusica.test');
+  const staff = await sessione('porta@maremmamusica.test');
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  await m.admin.salvaTavolo(admin, { eventoId: ev.id, nome: 'P1', zona: null, posti: 4, spesaMinima: 150, stato: 'libero', nota: null, visibileDaPr: true, prAbilitati: null, ordine: 9 });
+  const tavoloId = (await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'P1')!.id;
+  const r = await tv.prenotaTavolo({ tavoloId, nome: 'Gino', cognome: 'Gruppo', email: 'gino@esempio.it', telefono: '333 7654321', persone: 2 }, null);
+  const p = r.ok ? r.prenotazione : null!;
+  const o = { incassa: false, metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+  const voce = async () => (await m.porta.elencoPorta(staff, ev.id)).find((v) => v.id === p.id)!;
+
+  // In attesa di pagamento: è in elenco ma il QR non vale
+  assert.deepEqual([(await voce()).origine, (await voce()).tavolo], ['tavolo', { nome: 'P1', persone: 2, entrati: 0, pagato: false }]);
+  const nonPagato = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm0');
+  assert.ok(nonPagato.esito === 'non_valido' && /non ancora pagato/.test(nonPagato.motivo));
+
+  await tv.confermaPrenotazione(admin, p.id);
+  const primo = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm1');
+  assert.ok(primo.esito === 'entrato' && primo.voce.tavolo!.entrati === 1 && primo.incassato === 0);
+  // La stessa sincronizzazione ripetuta non fa entrare un'altra persona
+  await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm1');
+  assert.equal((await voce()).tavolo!.entrati, 1);
+  assert.equal((await voce()).stato, 'pagato');
+  // Secondo del gruppo, col codice dettato: tavolo al completo
+  const secondo = await m.porta.checkIn(staff, ev.id, p.codice, { ...o, porta: 'P2' }, 'm2');
+  assert.ok(secondo.esito === 'entrato' && secondo.voce.stato === 'entrato');
+  const terzo = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm3');
+  assert.equal(terzo.esito, 'gia_entrato');
+  assert.equal((await m.admin.serataLive(admin, ev.id))!.tavoli.entrati, 2);
+
+  // Annullata: il QR non vale più
+  await tv.annullaPrenotazione(admin, p.id);
+  assert.equal((await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm4')).esito, 'annullato');
+});

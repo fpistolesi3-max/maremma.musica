@@ -93,6 +93,8 @@ export interface PrenotazioneTavolo {
   createdAt: string;
   pagatoAt: string | null;
   chiusaAt: string | null;        // annullata o scaduta
+  /** Persone del tavolo già entrate. `rif` è l'id creato dal telefono della porta: una sincronizzazione ripetuta non conta due volte. */
+  ingressi: { rif: string; ora: string; porta: string }[];
 }
 
 export interface Pr {

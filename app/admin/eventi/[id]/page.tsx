@@ -78,7 +78,7 @@ export default async function SerataLive({ params }: Props) {
                 <a href={`/admin/eventi/${e.id}/modifica#tavoli`} className="link-sottolineato whitespace-nowrap py-2">Gestisci i tavoli →</a>
               </div>
               <div className="grid grid-cols-2 border border-linea md:grid-cols-4">
-                <Numero etichetta="Pagati" valore={`${l.tavoli.pagati}/${l.tavoli.totale}`} colore="text-ok" nota={`${l.tavoli.persone} PERSONE`} />
+                <Numero etichetta="Pagati" valore={`${l.tavoli.pagati}/${l.tavoli.totale}`} colore="text-ok" nota={`${l.tavoli.entrati}/${l.tavoli.persone} PERSONE ENTRATE`} />
                 <Numero etichetta="Incassato tavoli" valore={euro(l.tavoli.incassato)} nota="PAGATO IN ANTICIPO" bordo />
                 <Numero etichetta="In attesa" valore={String(l.tavoli.inAttesa)} colore={l.tavoli.inAttesa ? 'text-attesa' : undefined} nota={`${euro(l.tavoli.atteso)} DA INCASSARE`} bordo />
                 <Numero etichetta="Liberi" valore={String(l.tavoli.liberi)} nota="ANCORA DA VENDERE" bordo />

@@ -114,7 +114,7 @@ async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavol
       nome: i.nome.trim(), cognome: i.cognome.trim(), email, telefono: i.telefono.trim(), persone: i.persone,
       spesaMinima: t.spesaMinima, stato: 'in_attesa', scade: scadenzaPagamento(adesso, evento),
       tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),
-      inseritaDa: opzioni.inseritaDa, consensoPrivacyAt: adesso.toISOString(), createdAt: adesso.toISOString(), pagatoAt: null, chiusaAt: null,
+      inseritaDa: opzioni.inseritaDa, consensoPrivacyAt: adesso.toISOString(), createdAt: adesso.toISOString(), pagatoAt: null, chiusaAt: null, ingressi: [],
     };
     d.prenotazioni.push(p);
     t.stato = 'riservato';
