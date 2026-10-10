@@ -26,6 +26,7 @@ export interface Evento {
   lineup: string[];
   infoArrivo: string | null;
   locandinaUrl: string | null;
+  piantinaUrl: string | null;     // foto o disegno della sala, sfondo della mappa dei tavoli
   prezzoLista: number;
   prezzoCassa: number | null;     // ingresso pagato in cassa senza lista; null = come la lista
   etaMinima: number;
@@ -61,6 +62,8 @@ export interface Tavolo {
   nota: string | null;            // solo admin: es. a chi è riservato
   visibileDaPr: boolean;
   ordine: number;
+  x: number | null;               // posizione sulla mappa, in % della piantina (0–100); null = non sulla mappa
+  y: number | null;
 }
 
 export interface Pr {

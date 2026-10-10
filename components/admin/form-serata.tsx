@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState } from 'react';
 import { salvaSerata, type EsitoAzione } from '@/app/azioni/admin';
 import { riduciImmagine } from './riduci-immagine';
+import { Sezione } from './sezione';
 
 export interface ValoriSerata {
   id: string | null; numero: string; nome: string; slug: string; giorno: string; apertura: string; chiusura: string;
@@ -19,6 +20,8 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
   const [tutti, setTutti] = useState(v.prAbilitati === null);
   const [anteprima, setAnteprima] = useState(v.locandinaUrl);
   const c = stato.campi ?? {};
+  // Una sezione chiusa con un campo da correggere si riapre da sola.
+  const conErrore = (...campi: string[]) => campi.some((k) => c[k]);
   // Il pulsante premuto (bozza / pubblica) viaggia in un campo nascosto: più affidabile del submitter.
   const azione = useRef<HTMLInputElement>(null);
 
@@ -33,7 +36,7 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
 
       <div className="flex flex-col self-start border-b border-linea">
         {stato.errore && <p role="alert" className="m-0 mt-6 border border-stop-testo px-4 py-3 text-[14px] text-stop-testo">{stato.errore}</p>}
-        <Sezione n="01" titolo="La serata">
+        <Sezione n="01" titolo="La serata" aperta={!v.id} forza={conErrore('nome', 'giorno', 'apertura', 'chiusura')}>
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
             <Campo nome="nome" etichetta="Titolo" v={v.nome} errore={c.nome} />
             <Campo nome="numero" etichetta="Numero" v={v.numero} aiuto="MM/0xx, in automatico" inputMode="numeric" />
@@ -64,7 +67,7 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
           <Area nome="infoArrivo" etichetta="Come arrivare" v={v.infoArrivo} aiuto="Parcheggio, navetta" righe={2} />
         </Sezione>
 
-        <Sezione n="03" titolo="Ingresso">
+        <Sezione n="03" titolo="Ingresso" forza={conErrore('tipoIngresso', 'prezzoLista', 'prezzoCassa', 'etaMinima')}>
           <div className="flex flex-col gap-2">
             <span className="mm-campo__etichetta" id="tipo-ingresso">Tipo di ingresso</span>
             <div role="radiogroup" aria-labelledby="tipo-ingresso" className="grid border border-linea-forte sm:grid-cols-3">
@@ -138,15 +141,6 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
         </div>
       </div>
     </form>
-  );
-}
-
-function Sezione({ n, titolo, children }: { n: string; titolo: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-4 border-t border-linea py-7 md:grid-cols-[180px_minmax(0,1fr)] md:gap-8">
-      <div className="flex flex-col gap-[6px]"><span className="font-mono text-[11px] text-arancio">{n}</span><span className="font-display text-[26px] font-black uppercase leading-none">{titolo}</span></div>
-      <div className="flex min-w-0 flex-col gap-[18px]">{children}</div>
-    </div>
   );
 }
 

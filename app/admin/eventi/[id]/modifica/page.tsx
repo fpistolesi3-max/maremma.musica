@@ -7,6 +7,8 @@ import { TestataAdmin } from '@/components/admin/ui';
 import { FormSerata } from '@/components/admin/form-serata';
 import { Lotti } from '@/components/admin/lotti';
 import { Tavoli } from '@/components/admin/tavoli';
+import { MappaTavoli } from '@/components/admin/mappa-tavoli';
+import { Sezione } from '@/components/admin/sezione';
 
 export const metadata = { title: 'Modifica serata' };
 
@@ -35,33 +37,27 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         tipoIngresso: e.tipoIngresso === 'libero' ? 'libero' : 'lista', prezzoLista: String(e.prezzoLista), prezzoCassa: e.prezzoCassa == null ? '' : String(e.prezzoCassa), etaMinima: String(e.etaMinima),
         locandinaUrl: e.locandinaUrl ?? '', pubblicato: e.pubblicato, prAbilitati: e.prAbilitati,
       }} />
-      <section id="lotti" className="flex scroll-mt-4 flex-col gap-4 border-t border-linea px-4 py-8 md:px-12">
-        <div className="flex flex-col gap-[6px]">
-          <span className="font-mono text-[11px] text-arancio">05</span>
-          <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Lotti</h2>
+      <div className="border-b border-linea px-4 md:px-12">
+        <Sezione id="lotti" n="05" titolo="Lotti" nota={`${x.lotti.length} ${x.lotti.length === 1 ? 'LOTTO' : 'LOTTI'}`}>
           <span className="text-[14px] text-osso-2">Si prende il primo lotto aperto, con posti liberi, nell&apos;ordine qui sotto. Il prezzo si paga alla porta.</span>
-        </div>
-        <Lotti eventoId={e.id} lotti={x.lotti.map((l) => ({
-          id: l.id, nome: l.nome, prezzo: l.prezzo, quantita: l.quantita, usati: x.usati[l.id] ?? 0,
-          dataInizio: locale(l.dataInizio), dataFine: locale(l.dataFine), visibileDaPr: l.visibileDaPr, ordine: l.ordine,
-        }))} />
-      </section>
-      <section id="tavoli" className="flex scroll-mt-4 flex-col gap-4 border-t border-linea px-4 py-8 md:px-12">
-        <div className="flex flex-col gap-[6px]">
-          <span className="font-mono text-[11px] text-arancio">06</span>
-          <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Tavoli</h2>
+          <Lotti eventoId={e.id} lotti={x.lotti.map((l) => ({
+            id: l.id, nome: l.nome, prezzo: l.prezzo, quantita: l.quantita, usati: x.usati[l.id] ?? 0,
+            dataInizio: locale(l.dataInizio), dataFine: locale(l.dataFine), visibileDaPr: l.visibileDaPr, ordine: l.ordine,
+          }))} />
+        </Sezione>
+        <Sezione id="tavoli" n="06" titolo="Tavoli" nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
+          <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} RISERVATI</>
+        )}>
           <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima. Per ora lo stato lo segni tu: la richiesta da cliente e PR arriva dopo.</span>
-          {x.tavoli.length > 0 && (
-            <span className="font-mono text-[11px] text-osso-2">
-              {x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} RISERVATI
-            </span>
-          )}
-        </div>
-        <Tavoli eventoId={e.id} tavoli={x.tavoli.map((t) => ({
-          id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato,
-          nota: t.nota ?? '', visibileDaPr: t.visibileDaPr, ordine: t.ordine,
-        }))} />
-      </section>
+          <MappaTavoli eventoId={e.id} piantinaUrl={e.piantinaUrl} tavoli={x.tavoli.map((t) => ({
+            id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato, x: t.x, y: t.y,
+          }))} />
+          <Tavoli eventoId={e.id} tavoli={x.tavoli.map((t) => ({
+            id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato,
+            nota: t.nota ?? '', visibileDaPr: t.visibileDaPr, ordine: t.ordine,
+          }))} />
+        </Sezione>
+      </div>
     </>
   );
 }

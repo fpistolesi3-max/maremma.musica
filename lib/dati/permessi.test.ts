@@ -204,6 +204,19 @@ test('tavoli: solo l’admin li crea e modifica, niente doppioni di nome nella s
   const dopo = (await m.admin.eventoAdmin(admin, ev.id))!.tavoli[0];
   assert.deepEqual([dopo.stato, dopo.nota, dopo.spesaMinima], ['riservato', 'Rossi', 350]);
 
+  // Mappa: la posizione resta dentro la piantina, sopravvive alla modifica del tavolo, si può togliere
+  assert.deepEqual([dopo.x, dopo.y], [null, null]);
+  await m.admin.posizionaTavolo(admin, dopo.id, 140, -3);
+  await m.admin.salvaTavolo(admin, { ...base, id: dopo.id, nome: 'T1 bis' });
+  const messo = (await m.admin.eventoAdmin(admin, ev.id))!.tavoli[0];
+  assert.deepEqual([messo.nome, messo.x, messo.y], ['T1 bis', 100, 0]);
+  await assert.rejects(m.admin.posizionaTavolo(staff, dopo.id, 10, 10), /non_autorizzato/);
+  await m.admin.posizionaTavolo(admin, dopo.id, null, null);
+  assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli[0].x, null);
+  await assert.rejects(m.admin.salvaPiantina(pr, ev.id, '/media/x.jpg'), /non_autorizzato/);
+  await m.admin.salvaPiantina(admin, ev.id, '/media/x.jpg');
+  assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.evento.piantinaUrl, '/media/x.jpg');
+
   await assert.rejects(m.admin.eliminaTavolo(staff, dopo.id), /non_autorizzato/);
   await m.admin.eliminaTavolo(admin, dopo.id);
   assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.length, 0);

@@ -138,7 +138,7 @@ export async function cambiaStatoIscrizione(s: Sessione, id: string, azione: 'an
   });
 }
 
-export type DatiEvento = Omit<Evento, 'id' | 'createdAt' | 'updatedAt' | 'numero'> & { numero?: number | null };
+export type DatiEvento = Omit<Evento, 'id' | 'createdAt' | 'updatedAt' | 'numero' | 'piantinaUrl'> & { numero?: number | null };
 
 export async function salvaEvento(s: Sessione, id: string | null, dati: DatiEvento): Promise<Evento> {
   soloAdmin(s);
@@ -152,7 +152,7 @@ export async function salvaEvento(s: Sessione, id: string | null, dati: DatiEven
       return e;
     }
     const numero = dati.numero ?? Math.max(0, ...d.eventi.map((e) => e.numero ?? 0)) + 1;
-    const e: Evento = { ...dati, id: randomUUID(), numero, createdAt: adesso, updatedAt: adesso };
+    const e: Evento = { ...dati, id: randomUUID(), numero, piantinaUrl: null, createdAt: adesso, updatedAt: adesso };
     d.eventi.push(e);
     // Ogni serata a lista nasce con un lotto base: si modifica poi dalla pagina della serata.
     if (e.tipoIngresso !== 'libero') {
@@ -189,7 +189,8 @@ export async function eliminaLotto(s: Sessione, id: string) {
   });
 }
 
-export async function salvaTavolo(s: Sessione, tavolo: Omit<Tavolo, 'id'> & { id?: string | null }) {
+/** La posizione sulla mappa non passa da qui: si cambia solo con posizionaTavolo. */
+export async function salvaTavolo(s: Sessione, tavolo: Omit<Tavolo, 'id' | 'x' | 'y'> & { id?: string | null }) {
   soloAdmin(s);
   await modifica((d) => {
     if (!d.eventi.some((e) => e.id === tavolo.eventoId)) throw new Error('Serata non trovata');
@@ -202,8 +203,30 @@ export async function salvaTavolo(s: Sessione, tavolo: Omit<Tavolo, 'id'> & { id
       if (!t) throw new Error('Tavolo non trovato');
       Object.assign(t, { ...tavolo, id: t.id });
     } else {
-      d.tavoli.push({ ...tavolo, id: randomUUID() });
+      d.tavoli.push({ ...tavolo, id: randomUUID(), x: null, y: null });
     }
+  });
+}
+
+/** Mette il tavolo sulla mappa (x, y in % della piantina) o lo toglie (null). */
+export async function posizionaTavolo(s: Sessione, id: string, x: number | null, y: number | null) {
+  soloAdmin(s);
+  const limita = (n: number) => Math.min(100, Math.max(0, Math.round(n * 10) / 10));
+  await modifica((d) => {
+    const t = d.tavoli.find((q) => q.id === id);
+    if (!t) throw new Error('Tavolo non trovato');
+    const valida = x != null && y != null && Number.isFinite(x) && Number.isFinite(y);
+    t.x = valida ? limita(x) : null;
+    t.y = valida ? limita(y) : null;
+  });
+}
+
+export async function salvaPiantina(s: Sessione, eventoId: string, url: string | null) {
+  soloAdmin(s);
+  await modifica((d) => {
+    const e = d.eventi.find((q) => q.id === eventoId);
+    if (!e) throw new Error('Serata non trovata');
+    e.piantinaUrl = url;
   });
 }
 
