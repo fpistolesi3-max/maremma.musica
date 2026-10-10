@@ -1,7 +1,8 @@
 'use client';
 
 import { QRCodeSVG } from 'qrcode.react';
-import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 
 /** QR del biglietto: moduli vinile su fondo osso, livello di correzione M. */
 export function QrBiglietto({ valore, etichetta }: { valore: string; etichetta: string }) {
@@ -86,5 +87,20 @@ export function BigliettiRicordati() {
         </a>
       ))}
     </div>
+  );
+}
+
+/**
+ * Menu telefono: resta un <details> (si apre anche senza JavaScript), ma si richiude quando si tocca
+ * una voce o si cambia pagina. La testata non si ricarica tra una pagina e l'altra, quindi da solo resterebbe aperto.
+ */
+export function MenuTelefono({ className, children }: { className?: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  const percorso = usePathname();
+  useEffect(() => { if (ref.current) ref.current.open = false; }, [percorso]);
+  return (
+    <details ref={ref} className={className} onClick={(e) => { if ((e.target as HTMLElement).closest('a')) e.currentTarget.open = false; }}>
+      {children}
+    </details>
   );
 }

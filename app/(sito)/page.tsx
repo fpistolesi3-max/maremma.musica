@@ -73,7 +73,7 @@ export default async function Home() {
       {/* PROSSIME DATE */}
       <section id="date" className="contenitore flex flex-col gap-6 pb-14 pt-8 md:gap-10 md:pb-24 md:pt-14">
         <div className="flex items-end justify-between">
-          <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Prossime<br />date</h2>
+          <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Prossime<br /><span className="text-arancio">date</span></h2>
           <span className="text-right font-mono text-[11px] leading-4 text-osso-2 md:text-[13px] md:leading-[18px]">
             {String(prossimi.length).padStart(2, '0')} SERATE
             {prossimi.length > 1 && <span className="hidden md:inline"><br />{meseCorto(prossimi[0].evento.data).toUpperCase()} → {meseCorto(prossimi[prossimi.length - 1].evento.data).toUpperCase()}</span>}
@@ -105,7 +105,7 @@ export default async function Home() {
       {/* SERATE PASSATE */}
       <section id="serate" className="contenitore flex flex-col gap-5 pb-14 md:gap-10 md:pb-[120px]">
         <div className="flex items-end justify-between">
-          <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Serate<br />passate</h2>
+          <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Serate<br /><span className="text-arancio">passate</span></h2>
           <Link href="/galleria" className="link-sottolineato hidden md:inline">Tutte le foto →</Link>
         </div>
         <div className="grid grid-cols-2 grid-rows-[220px_150px] gap-2 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-[260px_260px] md:gap-4">
