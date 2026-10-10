@@ -23,6 +23,8 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
   const e = stato.errori;
   const v = stato.valori;
   const [scelto, setScelto] = useState<string | null>(v.tavoloId ?? null);
+  // Un secondo tocco sullo stesso tavolo toglie la scelta.
+  const scegli = (id: string) => setScelto((s) => (s === id ? null : id));
   const sel = tavoli.find((t) => t.id === scelto && t.libero) ?? null;
   const sullaMappa = tavoli.filter((t) => t.x != null && t.y != null);
   const liberi = tavoli.filter((t) => t.libero);
@@ -42,7 +44,7 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
             {sullaMappa.map((t) => (
               <button key={t.id} type="button" disabled={!t.libero} aria-pressed={scelto === t.id}
                 aria-label={`${t.nome}, ${t.libero ? `libero, spesa minima ${euro(t.spesaMinima)}` : 'occupato'}`}
-                onClick={() => setScelto(t.id)}
+                onClick={() => scegli(t.id)}
                 className={`absolute flex h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border-2 px-2 font-mono text-[12px] font-semibold leading-none
                   ${!t.libero ? 'cursor-not-allowed border-linea-forte bg-notte-3 text-osso-3 line-through' : scelto === t.id ? 'z-10 border-arancio bg-arancio text-su-arancio outline outline-2 outline-offset-2 outline-osso' : 'border-ok bg-ok text-su-stato'}`}
                 style={{ left: `${t.x}%`, top: `${t.y}%` }}>
@@ -60,7 +62,7 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
 
       <div className="flex flex-col" role="radiogroup" aria-label="Tavoli">
         {tavoli.map((t, i) => (
-          <button key={t.id} type="button" role="radio" aria-checked={scelto === t.id} disabled={!t.libero} onClick={() => setScelto(t.id)}
+          <button key={t.id} type="button" role="radio" aria-checked={scelto === t.id} disabled={!t.libero} onClick={() => scegli(t.id)}
             className={`flex items-center justify-between gap-4 border-0 border-t border-linea bg-transparent px-0 py-4 text-left ${i === tavoli.length - 1 ? 'border-b' : ''} ${t.libero ? 'cursor-pointer text-osso' : 'cursor-not-allowed text-osso-3'}`}>
             <span className="flex min-w-0 flex-col gap-1">
               <span className={`font-display text-[26px] font-extrabold uppercase leading-none ${scelto === t.id ? 'text-arancio' : ''}`}>{t.nome}</span>

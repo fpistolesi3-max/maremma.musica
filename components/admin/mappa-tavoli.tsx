@@ -103,8 +103,9 @@ export function MappaTavoli({ eventoId, piantinaUrl, tavoli }: { eventoId: strin
               const tr = trascina.current;
               trascina.current = null;
               if (!tr) return;
-              if (tr.mosso) { const { x, y } = posizione(e); sposta(t.id, x, y); }
-              setScelto(t.id);
+              // Trascinato: resta selezionato. Solo toccato: un secondo tocco sullo stesso tavolo chiude il riquadro.
+              if (tr.mosso) { const { x, y } = posizione(e); sposta(t.id, x, y); setScelto(t.id); }
+              else setScelto((s) => (s === t.id ? null : t.id));
             }}
             onPointerCancel={() => { trascina.current = null; setPunti(tavoli); }}
             onKeyDown={(e) => {
