@@ -72,6 +72,25 @@ Location, orari, prezzo e posti di Halloween Party · regolamento del premio · 
 testi di chi siamo, residenti, foto · servizio email · revisione legale di privacy e termini.
 Le serate Solchi e Capodanno, i PR e le persone in lista sono esempi dei mockup: da togliere prima del lancio.
 
+## Istanza online di test (Vercel + Supabase)
+
+Serve per provare il sito dal telefono, sempre all'ultima versione. Ogni push sul branch collegato aggiorna l'indirizzo in 1–2 minuti.
+
+1. **Supabase** → nuovo progetto (regione EU). Applica le migrazioni di `supabase/migrations/` (SQL editor, o `supabase db push`);
+   per ora serve solo `20261005000000_archivio_mvp.sql` (tabella provvisoria + bucket `locandine`).
+   Copia *Project URL* e la chiave *service_role* (Settings → API).
+2. **Vercel** → *Add New Project* → importa il repo GitHub. Regione funzioni `fra1` (già in `vercel.json`).
+   In *Environment Variables* inserisci quelle di `.env.example`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MM_SEGRETO`,
+   `SITO_URL` (l'indirizzo `*.vercel.app` che Vercel assegna) e `MM_MODALITA_PROVA=1`. Poi *Deploy*.
+3. Al primo accesso l'archivio si crea da solo con i dati di esempio. `/accedi` mostra gli account di prova e `/dev/posta` la posta.
+   Con `MM_MODALITA_PROVA=1` chiunque abbia l'indirizzo entra come admin: tienilo solo con dati finti.
+4. **iPhone**: apri l'indirizzo in Safari → Condividi → *Aggiungi a Home*. Dall'icona la web-app ha cookie suoi: per entrare in area
+   PR/porta/admin usa il **codice a 6 cifre** (il link dell'email si aprirebbe in Safari).
+
+Limiti dell'archivio provvisorio: l'intero archivio è una riga `jsonb` (con controllo di versione contro le scritture simultanee),
+va bene per qualche decina di persone in prova, non per il lancio: prima va collegato lo schema relazionale. Le locandine vanno
+su Storage e il modulo le riduce prima dell'invio (limite 4 MB, quello di Vercel è 4,5 MB per richiesta).
+
 ## Test su iPhone / Instagram
 
 1. PC e iPhone sulla stessa Wi-Fi, `npm run dev`, apri `http://<IP-del-PC>:3000` su Safari.

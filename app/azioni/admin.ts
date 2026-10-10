@@ -1,15 +1,13 @@
 'use server';
 
 import { randomBytes } from 'node:crypto';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { sessioneCorrente, type Sessione } from '@/lib/sessione';
 import {
   cambiaStatoIscrizione, cambiaStatoPr, creaPr, creaStaff, eliminaLotto, rimuoviStaff, salvaEvento, salvaLotto, type DatiEvento,
 } from '@/lib/dati/admin';
-import { CARTELLA_MEDIA } from '@/lib/dati/archivio';
+import { salvaMedia } from '@/lib/dati/media';
 import { slugDa } from '@/lib/formato';
 import type { TipoIngresso } from '@/lib/dati/tipi';
 
@@ -34,15 +32,16 @@ function isoRoma(giorno: string, orario: string) {
   return new Date(`${giorno}T${orario}:00${segno}${String(Math.abs(Number(h))).padStart(2, '0')}:${m.padStart(2, '0')}`).toISOString();
 }
 
+// Su Vercel il corpo di una richiesta non supera ~4,5 MB: il modulo riduce la foto prima dell'invio (form-serata).
+const MAX_LOCANDINA = 4 * 1024 * 1024;
+
 async function salvaLocandina(file: File | null): Promise<string | null> {
   if (!file || file.size === 0) return null;
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('La locandina deve essere JPG, PNG o WebP');
-  if (file.size > 10 * 1024 * 1024) throw new Error('Locandina troppo pesante (massimo 10 MB)');
+  if (file.size > MAX_LOCANDINA) throw new Error('Locandina troppo pesante (massimo 4 MB)');
   const est = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.type];
   const nome = `${Date.now().toString(36)}-${randomBytes(4).toString('hex')}.${est}`;
-  await fs.mkdir(CARTELLA_MEDIA, { recursive: true });
-  await fs.writeFile(path.join(CARTELLA_MEDIA, nome), Buffer.from(await file.arrayBuffer()));
-  return `/media/${nome}`; // TODO: in produzione Supabase Storage (bucket "locandine")
+  return salvaMedia(nome, Buffer.from(await file.arrayBuffer()), file.type);
 }
 
 export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAzione> {

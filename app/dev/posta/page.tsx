@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { leggi } from '@/lib/dati/archivio';
+import { MAX_POSTA, leggi } from '@/lib/dati/archivio';
 import { dataPunti, ora } from '@/lib/formato';
 import { modalitaProva } from '@/lib/prova';
 
@@ -22,7 +22,7 @@ export default async function PostaDiProva({ searchParams }: { searchParams: Pro
         <div className="flex flex-col gap-1 border-b border-linea p-4">
           <span className="font-mono text-[11px] text-arancio">✦ SOLO SVILUPPO</span>
           <h1 className="m-0 font-display text-[36px] font-black uppercase leading-none">Posta di prova</h1>
-          <span className="text-[14px] text-osso-2">{posta.length} email · le ultime 200</span>
+          <span className="text-[14px] text-osso-2">{posta.length} email · le ultime {MAX_POSTA}</span>
         </div>
         <nav className="max-h-[40dvh] overflow-y-auto md:max-h-[calc(100dvh-110px)]">
           {posta.map((m) => (
