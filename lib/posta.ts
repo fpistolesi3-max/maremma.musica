@@ -1,6 +1,6 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import { modifica } from './dati/archivio';
+import { MAX_POSTA, modifica } from './dati/archivio';
 
 // Email transazionali. Finché il servizio vero non è configurato (TODO: cliente — es. Resend, Postmark,
 // Brevo) le email restano in archivio e si leggono su /dev/posta. Se in .env.local ci sono SMTP_HOST,
@@ -24,7 +24,7 @@ export async function inviaEmail(m: Messaggio) {
 
   await modifica((d) => {
     d.posta.unshift({ id: randomUUID(), a: m.a, oggetto: m.oggetto, html: htmlArchivio, inviataAt: new Date().toISOString(), via: viaSmtp ? 'smtp' : 'archivio' });
-    d.posta = d.posta.slice(0, 200);
+    d.posta = d.posta.slice(0, MAX_POSTA);
   });
 
   if (!viaSmtp) {

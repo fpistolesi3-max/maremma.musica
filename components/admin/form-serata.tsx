@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useState } from 'react';
 import { salvaSerata, type EsitoAzione } from '@/app/azioni/admin';
+import { riduciImmagine } from './riduci-immagine';
 
 export interface ValoriSerata {
   id: string | null; numero: string; nome: string; slug: string; giorno: string; apertura: string; chiusura: string;
@@ -110,7 +111,19 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
               <span className="font-display text-[28px] font-black uppercase leading-none">Scegli la locandina</span></>}
           <span className="text-[14px] leading-5 text-osso-2">JPG o PNG verticale, almeno 1080 × 1440 px.</span>
           <input type="file" name="locandina" accept="image/jpeg,image/png,image/webp" className="text-[13px] text-osso-2"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) setAnteprima(URL.createObjectURL(f)); }} />
+            onChange={async (e) => {
+              const campo = e.target;
+              const scelto = campo.files?.[0];
+              if (!scelto) return;
+              setAnteprima(URL.createObjectURL(scelto));
+              // Foto da telefono: troppo pesanti per l'invio. Si riducono prima (e anche la pagina pesa meno).
+              const ridotto = await riduciImmagine(scelto);
+              if (ridotto !== scelto) {
+                const dt = new DataTransfer();
+                dt.items.add(ridotto);
+                campo.files = dt.files;
+              }
+            }} />
         </label>
         {c.locandina && <span className="text-[14px] text-stop-testo">{c.locandina}</span>}
         <Campo nome="slug" etichetta="Indirizzo della pagina" v={v.slug} aiuto="/e/… — vuoto: dal titolo" errore={c.slug} />

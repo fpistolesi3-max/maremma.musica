@@ -4,9 +4,11 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { Archivio } from './tipi';
 import { datiIniziali } from './seed';
+import { archivioRemoto, storeSupabase } from './archivio-remoto';
 
-// Archivio locale su file (.data/db.json) per lo sviluppo offline.
-// Unico punto che tocca il salvataggio: quando arriverà Supabase si sostituisce questo modulo.
+// Unico punto che tocca il salvataggio. Due modi:
+// - locale (default): file .data/db.json, per lo sviluppo offline;
+// - Supabase: se ci sono SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (istanza online su Vercel).
 
 const CARTELLA = process.env.MM_CARTELLA_DATI || path.join(process.cwd(), '.data');
 const FILE = path.join(CARTELLA, 'db.json');
@@ -53,14 +55,27 @@ async function salva(dati: Archivio) {
   await fs.rename(tmp, FILE);
 }
 
+const remoto = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? archivioRemoto(
+    storeSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY),
+    () => datiIniziali(randomBytes(32).toString('base64url')),
+    normalizza,
+  )
+  : null;
+
+/** Quante email di prova tenere: nell'archivio remoto si rilegge tutto a ogni richiesta, meglio leggero. */
+export const MAX_POSTA = remoto ? 20 : 200;
+
 /** Lettura: restituisce l'archivio corrente (non modificarlo). */
 export async function leggi(): Promise<Readonly<Archivio>> {
+  if (remoto) return remoto.leggi();
   await cache.coda;
   return carica();
 }
 
 /** Scrittura: le modifiche passano una alla volta, così due iscrizioni non si pestano i piedi. */
 export function modifica<T>(fn: (dati: Archivio) => T | Promise<T>): Promise<T> {
+  if (remoto) return remoto.modifica(fn);
   const lavoro = cache.coda.then(async () => {
     const dati = await carica();
     const copia = structuredClone(dati);

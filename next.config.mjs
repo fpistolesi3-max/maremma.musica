@@ -18,6 +18,10 @@ const nextConfig = {
       // Il link di recupero contiene l'email: non passarla a siti terzi.
       { source: '/biglietto/:path*', headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }] },
       { source: '/:path*', headers: [{ key: 'X-Content-Type-Options', value: 'nosniff' }] },
+      // Istanza di test online: fuori da Google.
+      ...(process.env.MM_MODALITA_PROVA === '1'
+        ? [{ source: '/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }]
+        : []),
     ];
   },
 };

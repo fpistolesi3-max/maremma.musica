@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   applicationName: 'Maremma Musica',
   openGraph: { siteName: 'Maremma Musica', locale: 'it_IT', type: 'website' },
   formatDetection: { telephone: false },
+  // "Aggiungi a Home" su iPhone: schermo intero con il nome giusto sotto l'icona (apple-icon.png).
+  appleWebApp: { capable: true, title: 'Maremma Musica', statusBarStyle: 'black' },
 };
 
 export const viewport: Viewport = {
