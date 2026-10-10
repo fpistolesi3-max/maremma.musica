@@ -1,7 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { leggi, modifica } from './archivio';
-import type { Evento, Iscrizione, Lotto, StatoIscrizione } from './tipi';
+import type { Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
 import { eventoPassato, isAttiva, EMAIL_RE, HANDLE_RE } from '../regole';
@@ -37,7 +37,8 @@ export async function eventoAdmin(s: Sessione, id: string) {
   const evento = d.eventi.find((e) => e.id === id);
   if (!evento) return null;
   const lotti = d.lotti.filter((l) => l.eventoId === id).sort((a, b) => a.ordine - b.ordine);
-  return { evento, lotti, usati: usatiPerLotto(d, id), pr: d.pr.slice().sort((a, b) => a.nomeDisplay.localeCompare(b.nomeDisplay)) };
+  const tavoli = d.tavoli.filter((t) => t.eventoId === id).sort((a, b) => a.ordine - b.ordine);
+  return { evento, lotti, tavoli, usati: usatiPerLotto(d, id), pr: d.pr.slice().sort((a, b) => a.nomeDisplay.localeCompare(b.nomeDisplay)) };
 }
 
 export async function tuttiIPr(s: Sessione) {
@@ -185,6 +186,31 @@ export async function eliminaLotto(s: Sessione, id: string) {
   await modifica((d) => {
     if (d.iscrizioni.some((i) => i.lottoId === id)) throw new Error('Ci sono iscrizioni su questo lotto: chiudilo con una data di fine invece di eliminarlo');
     d.lotti = d.lotti.filter((l) => l.id !== id);
+  });
+}
+
+export async function salvaTavolo(s: Sessione, tavolo: Omit<Tavolo, 'id'> & { id?: string | null }) {
+  soloAdmin(s);
+  await modifica((d) => {
+    if (!d.eventi.some((e) => e.id === tavolo.eventoId)) throw new Error('Serata non trovata');
+    const nome = tavolo.nome.trim().toLowerCase();
+    if (d.tavoli.some((x) => x.eventoId === tavolo.eventoId && x.id !== tavolo.id && x.nome.trim().toLowerCase() === nome)) {
+      throw new Error(`C'è già un tavolo "${tavolo.nome.trim()}" in questa serata`);
+    }
+    if (tavolo.id) {
+      const t = d.tavoli.find((x) => x.id === tavolo.id);
+      if (!t) throw new Error('Tavolo non trovato');
+      Object.assign(t, { ...tavolo, id: t.id });
+    } else {
+      d.tavoli.push({ ...tavolo, id: randomUUID() });
+    }
+  });
+}
+
+export async function eliminaTavolo(s: Sessione, id: string) {
+  soloAdmin(s);
+  await modifica((d) => {
+    d.tavoli = d.tavoli.filter((t) => t.id !== id);
   });
 }
 

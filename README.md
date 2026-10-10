@@ -63,7 +63,7 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
   WhatsApp, Google, locandina, diretto). Il canale si riconosce dal social di provenienza o dal link
   etichettato `/e/[slug]?da=instagram` (la pagina dà i link pronti da copiare). Anche nella serata live
   dell'admin e alla porta ("Lista: Maremma Musica · da Instagram").
-- Admin: `/admin` serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con lotti · PR · iscrizioni
+- Admin: `/admin` serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con lotti e tavoli (spesa minima, zona, posti, stato) · PR · iscrizioni
   (annulla/rimborsa/CSV) · staff.
 
 ## Da completare con il cliente (`TODO: cliente` nel codice)

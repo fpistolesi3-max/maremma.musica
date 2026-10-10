@@ -38,6 +38,7 @@ function carica(): Promise<Archivio> {
 /** Aggiorna un archivio salvato con una versione precedente (campi aggiunti dopo). */
 function normalizza(d: Archivio): Archivio {
   d.consegne ??= [];
+  d.tavoli ??= [];
   for (const i of d.iscrizioni) {
     i.canale ??= 'diretto';
     i.consegnaId ??= null;

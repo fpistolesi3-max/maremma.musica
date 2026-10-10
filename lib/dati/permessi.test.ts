@@ -181,3 +181,31 @@ test('ingresso in cassa: niente email né QR, entra subito, non duplica, metrich
   const pr = await sessione('test-pr@maremmamusica.test');
   await assert.rejects(m.porta.registraCassa(pr, ev.id, 'tel-4', { nome: 'X', cognome: 'Y', dataNascita: '1990-01-01', importo: 10 }, o), /non_autorizzato/);
 });
+
+test('tavoli: solo l’admin li crea e modifica, niente doppioni di nome nella stessa serata', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const staff = await sessione('porta@maremmamusica.test');
+  const pr = await sessione('test-pr@maremmamusica.test');
+  const d0 = await m.archivio.leggi();
+  const ev = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const altra = d0.eventi.find((e) => e.slug !== 'halloween-party')!;
+  const base = { eventoId: ev.id, nome: 'T1', zona: 'Privé', posti: 8, spesaMinima: 300, stato: 'libero' as const, nota: null, visibileDaPr: true, ordine: 0 };
+
+  await m.admin.salvaTavolo(admin, base);
+  await assert.rejects(m.admin.salvaTavolo(admin, { ...base, nome: ' t1 ' }), /già un tavolo/);
+  await m.admin.salvaTavolo(admin, { ...base, eventoId: altra.id }); // stesso nome in un'altra serata: va bene
+  await assert.rejects(m.admin.salvaTavolo(admin, { ...base, nome: 'T9', eventoId: 'non-esiste' }), /Serata non trovata/);
+  await assert.rejects(m.admin.salvaTavolo(staff, { ...base, nome: 'T2' }), /non_autorizzato/);
+  await assert.rejects(m.admin.salvaTavolo(pr, { ...base, nome: 'T2' }), /non_autorizzato/);
+
+  const t = (await m.admin.eventoAdmin(admin, ev.id))!.tavoli;
+  assert.equal(t.length, 1);
+  await m.admin.salvaTavolo(admin, { ...base, id: t[0].id, stato: 'riservato', nota: 'Rossi', spesaMinima: 350 });
+  const dopo = (await m.admin.eventoAdmin(admin, ev.id))!.tavoli[0];
+  assert.deepEqual([dopo.stato, dopo.nota, dopo.spesaMinima], ['riservato', 'Rossi', 350]);
+
+  await assert.rejects(m.admin.eliminaTavolo(staff, dopo.id), /non_autorizzato/);
+  await m.admin.eliminaTavolo(admin, dopo.id);
+  assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.length, 0);
+  assert.equal((await m.admin.eventoAdmin(admin, altra.id))!.tavoli.length, 1, 'l’altra serata resta com’era');
+});

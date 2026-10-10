@@ -47,6 +47,22 @@ export interface Lotto {
   ordine: number;
 }
 
+export type StatoTavolo = 'libero' | 'riservato' | 'confermato' | 'non_in_vendita';
+
+/** Tavolo di una serata: si prende con una spesa minima, non a persona. */
+export interface Tavolo {
+  id: string;
+  eventoId: string;
+  nome: string;                   // T4, Privé 2…
+  zona: string | null;            // Pista, Privé, Terrazza…
+  posti: number | null;           // quante persone ci stanno; null = non indicato
+  spesaMinima: number;
+  stato: StatoTavolo;
+  nota: string | null;            // solo admin: es. a chi è riservato
+  visibileDaPr: boolean;
+  ordine: number;
+}
+
 export interface Pr {
   id: string;
   handle: string;
@@ -142,4 +158,5 @@ export interface Archivio {
   posta: EmailInviata[];
   porte: StatoPorta[];
   consegne: Consegna[];
+  tavoli: Tavolo[];
 }

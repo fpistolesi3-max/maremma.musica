@@ -5,11 +5,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { sessioneCorrente, type Sessione } from '@/lib/sessione';
 import {
-  cambiaStatoIscrizione, cambiaStatoPr, creaPr, creaStaff, eliminaLotto, rimuoviStaff, salvaEvento, salvaLotto, type DatiEvento,
+  cambiaStatoIscrizione, cambiaStatoPr, creaPr, creaStaff, eliminaLotto, eliminaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaTavolo, type DatiEvento,
 } from '@/lib/dati/admin';
 import { salvaMedia } from '@/lib/dati/media';
 import { slugDa } from '@/lib/formato';
-import type { TipoIngresso } from '@/lib/dati/tipi';
+import type { StatoTavolo, TipoIngresso } from '@/lib/dati/tipi';
 
 async function admin(): Promise<Sessione> {
   const s = await sessioneCorrente();
@@ -133,6 +133,37 @@ export async function eliminaLottoAzione(id: string) {
   try { await eliminaLotto(s, id); } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/', 'layout');
   return { ok: 'Lotto eliminato.' };
+}
+
+const STATI_TAVOLO: StatoTavolo[] = ['libero', 'riservato', 'confermato', 'non_in_vendita'];
+
+export async function salvaTavoloAzione(_p: EsitoAzione, f: FormData): Promise<EsitoAzione> {
+  const s = await admin();
+  const nome = t(f, 'nome');
+  const spesa = num(t(f, 'spesaMinima')) ?? 0;
+  const posti = num(t(f, 'posti'));
+  const stato = t(f, 'stato') as StatoTavolo;
+  if (!nome) return { errore: 'Dai un nome al tavolo (es. "T4" o "Privé 2").' };
+  if (nome.length > 40) return { errore: 'Nome troppo lungo.' };
+  if (Number.isNaN(spesa) || spesa < 0) return { errore: 'Spesa minima non valida.' };
+  if (posti != null && (Number.isNaN(posti) || posti < 1 || posti > 99)) return { errore: 'Posti: un numero da 1 a 99.' };
+  try {
+    await salvaTavolo(s, {
+      id: t(f, 'id') || null, eventoId: t(f, 'eventoId'), nome, zona: t(f, 'zona').slice(0, 40) || null,
+      posti: posti == null ? null : Math.round(posti), spesaMinima: spesa,
+      stato: STATI_TAVOLO.includes(stato) ? stato : 'libero', nota: t(f, 'nota').slice(0, 200) || null,
+      visibileDaPr: f.get('visibileDaPr') === 'on', ordine: Number(t(f, 'ordine') || 0),
+    });
+  } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: 'Tavolo salvato.' };
+}
+
+export async function eliminaTavoloAzione(id: string) {
+  const s = await admin();
+  try { await eliminaTavolo(s, id); } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: 'Tavolo eliminato.' };
 }
 
 export async function azioneIscrizione(id: string, azione: 'annulla' | 'rimborsa' | 'ripristina') {
