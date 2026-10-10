@@ -152,7 +152,9 @@ export async function salvaTavoloAzione(_p: EsitoAzione, f: FormData): Promise<E
       id: t(f, 'id') || null, eventoId: t(f, 'eventoId'), nome, zona: t(f, 'zona').slice(0, 40) || null,
       posti: posti == null ? null : Math.round(posti), spesaMinima: spesa,
       stato: STATI_TAVOLO.includes(stato) ? stato : 'libero', nota: t(f, 'nota').slice(0, 200) || null,
-      visibileDaPr: f.get('visibileDaPr') === 'on', ordine: Number(t(f, 'ordine') || 0),
+      // A chi è affidato: tutti i PR, nessuno, o solo quelli spuntati.
+      visibileDaPr: t(f, 'prChi') !== 'nessuno', prAbilitati: t(f, 'prChi') === 'alcuni' ? f.getAll('prAbilitati').map(String) : null,
+      ordine: Number(t(f, 'ordine') || 0),
     });
   } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/', 'layout');

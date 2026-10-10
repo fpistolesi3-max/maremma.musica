@@ -60,10 +60,39 @@ export interface Tavolo {
   spesaMinima: number;
   stato: StatoTavolo;
   nota: string | null;            // solo admin: es. a chi è riservato
-  visibileDaPr: boolean;
+  visibileDaPr: boolean;          // false = nessun PR lo può proporre
+  prAbilitati: string[] | null;   // a quali PR è affidato; null = tutti (se visibileDaPr)
   ordine: number;
   x: number | null;               // posizione sulla mappa, in % della piantina (0–100); null = non sulla mappa
   y: number | null;
+}
+
+export type StatoPrenotazione = 'in_attesa' | 'confermata' | 'annullata' | 'scaduta';
+
+/**
+ * Richiesta di un tavolo. Nasce "in attesa": il tavolo è fermo ma la spesa minima va pagata in anticipo
+ * entro `scade`, altrimenti decade. Quando l'admin segna il pagamento diventa "confermata" e il QR vale.
+ */
+export interface PrenotazioneTavolo {
+  id: string;
+  tavoloId: string;
+  eventoId: string;
+  prId: string | null;            // null = Maremma Musica
+  nome: string;
+  cognome: string;
+  email: string;
+  telefono: string;
+  persone: number;
+  spesaMinima: number;            // quella del tavolo al momento della richiesta
+  stato: StatoPrenotazione;
+  scade: string;                  // termine per pagare
+  tokenQr: string;                // un solo QR per tutto il tavolo
+  codice: string;
+  inseritaDa: 'cliente' | 'pr';
+  consensoPrivacyAt: string;
+  createdAt: string;
+  pagatoAt: string | null;
+  chiusaAt: string | null;        // annullata o scaduta
 }
 
 export interface Pr {
@@ -162,4 +191,5 @@ export interface Archivio {
   porte: StatoPorta[];
   consegne: Consegna[];
   tavoli: Tavolo[];
+  prenotazioni: PrenotazioneTavolo[];
 }

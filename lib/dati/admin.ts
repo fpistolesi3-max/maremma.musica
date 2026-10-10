@@ -4,7 +4,7 @@ import { leggi, modifica } from './archivio';
 import type { Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
-import { eventoPassato, isAttiva, EMAIL_RE, HANDLE_RE } from '../regole';
+import { eventoPassato, isAttiva, prenotazioneAttiva, prenotazioneScaduta, EMAIL_RE, HANDLE_RE } from '../regole';
 import { nascita, ora as oraDi, dataCompleta } from '../formato';
 import { usatiPerLotto } from './pubblico';
 
@@ -78,6 +78,21 @@ export async function serataLive(s: Sessione, eventoId: string) {
     perMezzora[Math.min(Math.max(k, 0), slot - 1)].n += 1;
   }
 
+  // Tavoli: quelli in attesa di pagamento sono soldi attesi, non incassati. Le prenotazioni col termine passato non contano.
+  const tavoliSerata = d.tavoli.filter((t) => t.eventoId === eventoId && t.stato !== 'non_in_vendita');
+  const prenotazioni = d.prenotazioni.filter((p) => p.eventoId === eventoId && prenotazioneAttiva(p) && !prenotazioneScaduta(p));
+  const pagate = prenotazioni.filter((p) => p.stato === 'confermata');
+  const attese = prenotazioni.filter((p) => p.stato === 'in_attesa');
+  const somma = (ps: typeof prenotazioni) => ps.reduce((t, p) => t + p.spesaMinima, 0);
+  const listeTavoli = [...new Set(prenotazioni.map((p) => p.prId))].map((prId) => {
+    const sue = prenotazioni.filter((p) => p.prId === prId);
+    const suePagate = sue.filter((p) => p.stato === 'confermata');
+    return {
+      prId, nome: (prId ? d.pr.find((p) => p.id === prId)?.nomeDisplay : null) ?? 'Maremma Musica',
+      pagati: suePagate.length, incassato: somma(suePagate), inAttesa: sue.length - suePagate.length, atteso: somma(sue) - somma(suePagate),
+    };
+  }).sort((a, b) => b.incassato - a.incassato || b.atteso - a.atteso);
+
   const nomeLista = (i: Iscrizione) => (i.origine === 'cassa' ? 'Cassa' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica');
   return {
     evento,
@@ -85,6 +100,13 @@ export async function serataLive(s: Sessione, eventoId: string) {
     entrati: entrati.length,
     entratiDaLista: entrati.filter((i) => i.origine !== 'cassa').length,
     cassa: { ingressi: cassa.length, incassato: cassa.reduce((t, i) => t + i.importo, 0) },
+    tavoli: {
+      totale: tavoliSerata.length,
+      liberi: tavoliSerata.filter((t) => t.stato === 'libero').length,
+      pagati: pagate.length, incassato: somma(pagate), persone: pagate.reduce((t, p) => t + p.persone, 0),
+      inAttesa: attese.length, atteso: somma(attese),
+      perLista: listeTavoli,
+    },
     incassato,
     incassatoPorta,
     fuori: attive.filter((i) => i.stato !== 'entrato').length,
@@ -201,7 +223,9 @@ export async function salvaTavolo(s: Sessione, tavolo: Omit<Tavolo, 'id' | 'x' |
     if (tavolo.id) {
       const t = d.tavoli.find((x) => x.id === tavolo.id);
       if (!t) throw new Error('Tavolo non trovato');
-      Object.assign(t, { ...tavolo, id: t.id });
+      // Con una prenotazione attiva lo stato del tavolo lo decide lei, non il modulo.
+      const occupato = d.prenotazioni.some((p) => p.tavoloId === t.id && prenotazioneAttiva(p));
+      Object.assign(t, { ...tavolo, id: t.id, stato: occupato ? t.stato : tavolo.stato });
     } else {
       d.tavoli.push({ ...tavolo, id: randomUUID(), x: null, y: null });
     }
@@ -233,6 +257,7 @@ export async function salvaPiantina(s: Sessione, eventoId: string, url: string |
 export async function eliminaTavolo(s: Sessione, id: string) {
   soloAdmin(s);
   await modifica((d) => {
+    if (d.prenotazioni.some((p) => p.tavoloId === id && prenotazioneAttiva(p))) throw new Error('Questo tavolo ha una prenotazione: annullala prima di eliminarlo');
     d.tavoli = d.tavoli.filter((t) => t.id !== id);
   });
 }

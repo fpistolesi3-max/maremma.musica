@@ -121,6 +121,6 @@ export function datiIniziali(segreto: string): Archivio {
   return {
     versione: 1, segreto,
     eventi: [halloween, solchi, capodanno, ricky], lotti, pr, iscrizioni, utenti,
-    accessi: [], posta: [], porte: [], consegne: [], tavoli: [],
+    accessi: [], posta: [], porte: [], consegne: [], tavoli: [], prenotazioni: [],
   };
 }

@@ -1,0 +1,71 @@
+'use server';
+
+import { cookies } from 'next/headers';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { COOKIE_PR } from '@/lib/costanti';
+import { origineRichiesta, sessioneCorrente } from '@/lib/sessione';
+import {
+  annullaPrenotazione, confermaPrenotazione, prPrenotaTavolo, prenotaTavolo, prenotazionePubblica, type DatiPrenotazione,
+} from '@/lib/dati/tavoli';
+import { inviaConfermaTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
+
+export interface StatoTavoloModulo {
+  errori: Partial<Record<'nome' | 'cognome' | 'email' | 'telefono' | 'persone' | 'tavolo' | 'privacy' | 'generale', string>>;
+  valori: Record<string, string>;
+}
+
+const testo = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
+
+/**
+ * Richiesta di un tavolo. Dal sito è del cliente (attribuita al PR del link, se quel tavolo gli è affidato);
+ * se chi invia è un PR con la sessione aperta la inserisce lui a nome del cliente.
+ */
+export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData): Promise<StatoTavoloModulo> {
+  const valori = {
+    tavoloId: testo(f, 'tavoloId'), nome: testo(f, 'nome'), cognome: testo(f, 'cognome'), email: testo(f, 'email'),
+    telefono: testo(f, 'telefono'), persone: testo(f, 'persone'), privacy: f.get('privacy') ? '1' : '',
+  };
+  if (!valori.tavoloId) return { errori: { tavolo: 'Scegli un tavolo dalla mappa o dall’elenco.' }, valori };
+  if (!valori.privacy) return { errori: { privacy: 'Per prenotare devi accettare l’informativa privacy.' }, valori };
+  const dati: DatiPrenotazione = {
+    tavoloId: valori.tavoloId, nome: valori.nome, cognome: valori.cognome, email: valori.email, telefono: valori.telefono, persone: Number(valori.persone),
+  };
+
+  const s = await sessioneCorrente();
+  const handle = testo(f, 'pr') || (await cookies()).get(COOKIE_PR)?.value || null;
+  const esito = s?.utente.ruolo === 'pr' && s.pr ? await prPrenotaTavolo(s, dati) : await prenotaTavolo(dati, handle);
+  if (!esito.ok) return { errori: { [esito.campo ?? 'generale']: esito.errore }, valori };
+
+  const p = esito.prenotazione;
+  const v = await prenotazionePubblica(p.id, p.email);
+  try {
+    if (v) await inviaRichiestaTavolo(v, await origineRichiesta());
+  } catch (e) {
+    // La prenotazione c'è comunque e si vede a schermo: non blocchiamo la persona.
+    console.error('[tavoli] invio email non riuscito', e);
+  }
+  revalidatePath('/', 'layout');
+  redirect(`${linkTavolo('', p.id, p.email)}&nuovo=1`);
+}
+
+export async function confermaPrenotazioneAzione(id: string): Promise<{ ok?: string; errore?: string }> {
+  const s = await sessioneCorrente();
+  if (!s || s.utente.ruolo !== 'admin') return { errore: 'Sessione scaduta: rientra.' };
+  try {
+    const v = await confermaPrenotazione(s, id);
+    try { await inviaConfermaTavolo(v, await origineRichiesta()); } catch (e) { console.error('[tavoli] invio email non riuscito', e); }
+  } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: 'Pagamento segnato: tavolo confermato.' };
+}
+
+export async function annullaPrenotazioneAzione(id: string): Promise<{ ok?: string; errore?: string }> {
+  const s = await sessioneCorrente();
+  if (!s) return { errore: 'Sessione scaduta: rientra.' };
+  try { await annullaPrenotazione(s, id); } catch (e) {
+    return { errore: (e as Error).message === 'non_autorizzato' ? 'Non puoi annullare questa prenotazione.' : (e as Error).message };
+  }
+  revalidatePath('/', 'layout');
+  return { ok: 'Prenotazione annullata: il tavolo è di nuovo libero.' };
+}

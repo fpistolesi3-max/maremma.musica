@@ -4,6 +4,9 @@ import { notFound } from 'next/navigation';
 import { sessioneCorrente } from '@/lib/sessione';
 import { eventiPubblici, prValido } from '@/lib/dati/pubblico';
 import { serateDelPr, totaliPr } from '@/lib/dati/area-pr';
+import { tavoliDelPr } from '@/lib/dati/tavoli';
+import { quandoScade } from '@/lib/tavolo-email';
+import { AzioniPrenotazione } from '@/components/tavoli-azioni';
 import { chipLista, isAttiva } from '@/lib/regole';
 import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, orari, quandoRelativo } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
@@ -84,6 +87,7 @@ async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string
   const primo = serata?.classifica[0];
   const mio = serata?.classifica.find((r) => r.sonoIo);
   const GIORNI = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
+  const tavoli = serata ? await tavoliDelPr(s, serata.evento.id) : null;
 
   return (
     <div className="mm-grana flex min-h-dvh flex-col">
@@ -171,6 +175,38 @@ async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string
                   <span className="text-right font-mono text-[11px] leading-4 text-ok">GIÀ CONSEGNATI<br />{euro(serata.soldi.consegnato)}</span>
                 </div>
               )}
+            </section>
+          )}
+
+          {serata && tavoli && (tavoli.affidati > 0 || tavoli.mie.length > 0) && (
+            <section className="flex flex-col gap-[14px] pt-8">
+              <div className="flex items-end justify-between">
+                <h2 className="m-0 font-display text-[36px] font-black uppercase leading-[.9]">Tavoli</h2>
+                <span className="font-mono text-[11px] text-osso-2">{tavoli.liberi} LIBERI SU {tavoli.affidati}</span>
+              </div>
+              {tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--linea self-start">Prenota per un cliente</Link>}
+              <span className="text-[14px] leading-5 text-osso-2">Oppure manda questo link: chi prenota da qui finisce nei tuoi tavoli.</span>
+              <CampoLink link={`/tavoli/${serata.evento.slug}?pr=${pr.handle}`} />
+              <div className="flex flex-col">
+                {tavoli.mie.map((v) => {
+                  const p = v.prenotazione;
+                  const chip = { in_attesa: ['mm-chip--incassare', 'Da pagare'], confermata: ['mm-chip--entrato', 'Pagato'], annullata: ['mm-chip--annullato', 'Annullata'], scaduta: ['mm-chip--annullato', 'Scaduta'] }[p.stato];
+                  return (
+                    <div key={p.id} className="flex flex-col gap-2 border-t border-linea py-4 last:border-b">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="font-display text-[24px] font-extrabold uppercase leading-none">{v.tavolo.nome}</span>
+                        <span className={`mm-chip ${chip[0]}`}>{chip[1]}</span>
+                        <span className="flex-grow text-right font-display text-[22px] font-extrabold leading-none">{euro(p.spesaMinima)}</span>
+                      </div>
+                      <span className="font-mono text-[11px] leading-4 text-osso-2">
+                        {`${p.nome} ${p.cognome}`.toUpperCase()} · {p.persone} PERSONE · {p.telefono}{p.stato === 'in_attesa' ? ` · DECADE ${quandoScade(p.scade).toUpperCase()}` : ''}
+                      </span>
+                      {p.stato === 'in_attesa' && <AzioniPrenotazione id={p.id} nome={`${p.nome} ${p.cognome}`} conferma={false} />}
+                    </div>
+                  );
+                })}
+              </div>
+              <span className="text-[13px] leading-5 text-osso-3">Il tavolo va pagato in anticipo: lo conferma la crew quando riceve i soldi. Dopo il termine torna libero.</span>
             </section>
           )}
 

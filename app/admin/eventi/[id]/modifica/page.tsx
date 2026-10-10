@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
 import { eventoAdmin } from '@/lib/dati/admin';
+import { prenotazioniAdmin } from '@/lib/dati/tavoli';
+import { prenotazioneAttiva } from '@/lib/regole';
+import { quandoScade } from '@/lib/tavolo-email';
 import { dataIso, euro, ora } from '@/lib/formato';
 import { TestataAdmin } from '@/components/admin/ui';
 import { FormSerata } from '@/components/admin/form-serata';
@@ -22,6 +25,8 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
   if (!x) notFound();
   const e = x.evento;
   const { salvato } = await searchParams;
+  const prenotazioni = (await prenotazioniAdmin(s, id)).filter((v) => prenotazioneAttiva(v.prenotazione));
+  const inAttesa = prenotazioni.filter((v) => v.prenotazione.stato === 'in_attesa').length;
   return (
     <>
       <TestataAdmin briciole={`SERATE / ${e.slug}`} titolo={e.nome}
@@ -45,16 +50,25 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
           }))} />
         </Sezione>
         <Sezione id="tavoli" n="06" titolo="Tavoli" nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
-          <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} RISERVATI</>
+          <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} RISERVATI{inAttesa > 0 && <span className="text-attesa"> · {inAttesa} IN ATTESA DI PAGAMENTO</span>}</>
         )}>
-          <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima. Per ora lo stato lo segni tu: la richiesta da cliente e PR arriva dopo.</span>
+          <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata in anticipo. Chi lo chiede dal sito (o il PR per lui) lo tiene fermo: quando ricevi i soldi premi &quot;Segna pagato&quot;, altrimenti dopo il termine torna libero da solo.</span>
+          <a href={`/tavoli/${e.slug}`} target="_blank" className="link-sottolineato self-start py-2">Apri la pagina dei tavoli →</a>
           <MappaTavoli eventoId={e.id} piantinaUrl={e.piantinaUrl} tavoli={x.tavoli.map((t) => ({
             id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato, x: t.x, y: t.y,
           }))} />
-          <Tavoli eventoId={e.id} tavoli={x.tavoli.map((t) => ({
-            id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato,
-            nota: t.nota ?? '', visibileDaPr: t.visibileDaPr, ordine: t.ordine,
-          }))} />
+          <Tavoli eventoId={e.id} pr={x.pr.filter((p) => p.stato === 'attivo').map((p) => ({ id: p.id, nome: p.nomeDisplay }))} tavoli={x.tavoli.map((t) => {
+            const v = prenotazioni.find((q) => q.prenotazione.tavoloId === t.id);
+            return {
+              id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato,
+              nota: t.nota ?? '', visibileDaPr: t.visibileDaPr, prAbilitati: t.prAbilitati, ordine: t.ordine,
+              prenotazione: v ? {
+                id: v.prenotazione.id, nome: `${v.prenotazione.nome} ${v.prenotazione.cognome}`, email: v.prenotazione.email, telefono: v.prenotazione.telefono,
+                persone: v.prenotazione.persone, spesaMinima: v.prenotazione.spesaMinima, stato: v.prenotazione.stato, lista: v.lista,
+                scade: quandoScade(v.prenotazione.scade), inseritaDa: v.prenotazione.inseritaDa,
+              } : null,
+            };
+          })} />
         </Sezione>
       </FormSerata>
     </>
