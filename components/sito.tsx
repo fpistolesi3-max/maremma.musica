@@ -5,8 +5,7 @@ import { MarchioLink } from './ui';
 // Testata e piede del sito pubblico (mockup Home desktop / telefono).
 
 const VOCI = [
-  { href: '/eventi', testo: 'Date' },
-  { href: '/eventi#archivio', testo: 'Serate passate' },
+  { href: '/eventi', testo: 'Serate' },
   { href: '/chi-siamo', testo: 'Crew' },
   { href: '/galleria', testo: 'Galleria' },
 ];

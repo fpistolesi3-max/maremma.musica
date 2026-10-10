@@ -6,7 +6,7 @@ import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, orari, parti }
 import { Locandina, luogo } from '@/components/evento';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = { title: 'Date', description: 'Le prossime serate techno di Maremma Musica e l’archivio di quelle passate.' };
+export const metadata: Metadata = { title: 'Serate', description: 'Le prossime serate techno di Maremma Musica e l’archivio di quelle passate.' };
 
 export default async function Eventi() {
   const { prossimi, passati } = await eventiPubblici();
@@ -14,7 +14,7 @@ export default async function Eventi() {
     <>
       <section className="contenitore flex flex-col gap-6 pb-14 pt-8 md:gap-10 md:pb-24 md:pt-14">
         <div className="flex items-end justify-between">
-          <h1 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Prossime<br />date</h1>
+          <h1 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Prossime<br /><span className="text-arancio">date</span></h1>
           <span className="text-right font-mono text-[11px] leading-4 text-osso-2 md:text-[13px]">{String(prossimi.length).padStart(2, '0')} SERATE</span>
         </div>
         {prossimi.length === 0 && <p className="border-y border-linea py-6 text-osso-2">Nessuna data in calendario, per ora. Seguici su Instagram.</p>}
@@ -44,7 +44,7 @@ export default async function Eventi() {
 
       <section id="archivio" className="border-t border-linea">
         <div className="contenitore flex flex-col gap-6 pb-14 pt-12 md:gap-10 md:pb-24 md:pt-16">
-          <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Serate<br />passate</h2>
+          <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Serate<br /><span className="text-arancio">passate</span></h2>
           {passati.length === 0 && <p className="text-osso-2">L’archivio si riempie dopo la prima serata.</p>}
           <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-5">
             {passati.map((e) => (
