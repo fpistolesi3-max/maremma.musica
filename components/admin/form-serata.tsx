@@ -13,8 +13,13 @@ export interface ValoriSerata {
   locandinaUrl: string; pubblicato: boolean; prAbilitati: string[] | null;
 }
 
-/** Nuova serata / modifica (mockup Admin · nuova serata). */
-export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome: string; stato: string }[] }) {
+/**
+ * Nuova serata / modifica (mockup Admin · nuova serata).
+ * `children` sono le sezioni con moduli propri (lotti, tavoli): stanno nella colonna di sinistra sotto le altre,
+ * fuori dal <form> perché un modulo non può contenerne un altro. Per questo la colonna della locandina
+ * è a sua volta fuori dal <form> e i suoi campi ci si agganciano con l'attributo form.
+ */
+export function FormSerata({ v, pr, children }: { v: ValoriSerata; pr: { id: string; nome: string; stato: string }[]; children?: React.ReactNode }) {
   const [stato, invia, inCorso] = useActionState(salvaSerata, {} as EsitoAzione);
   const [tipo, setTipo] = useState(v.tipoIngresso);
   const [tutti, setTutti] = useState(v.prAbilitati === null);
@@ -26,7 +31,9 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
   const azione = useRef<HTMLInputElement>(null);
 
   return (
-    <form action={invia} className="grid gap-12 px-4 pb-12 md:px-12 lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="grid gap-x-12 gap-y-8 px-4 pb-12 md:px-12 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="flex min-w-0 flex-col self-start border-b border-linea">
+      <form id="form-serata" action={invia} className="flex flex-col">
       <input type="hidden" name="id" value={v.id ?? ''} />
       <input type="hidden" name="locandinaAttuale" value={v.locandinaUrl} />
       <input type="hidden" name="pubblicato" value={v.pubblicato ? '1' : ''} />
@@ -34,7 +41,6 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
       <input type="hidden" name="prTutti" value={tutti ? '1' : ''} />
       <input type="hidden" name="azione" ref={azione} defaultValue="" />
 
-      <div className="flex flex-col self-start border-b border-linea">
         {stato.errore && <p role="alert" className="m-0 mt-6 border border-stop-testo px-4 py-3 text-[14px] text-stop-testo">{stato.errore}</p>}
         <Sezione n="01" titolo="La serata" aperta={!v.id} forza={conErrore('nome', 'giorno', 'apertura', 'chiusura')}>
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
@@ -102,8 +108,11 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
           )}
           <span className="mm-campo__aiuto">Chi arriva dal link di un PR non abilitato finisce nella Lista Maremma Musica.</span>
         </Sezione>
+      </form>
+      {children}
       </div>
 
+      {/* Su telefono finisce in fondo, dopo tutte le sezioni; su desktop resta accanto. */}
       <div className="flex flex-col gap-4 lg:pt-7">
         <span className="mm-campo__etichetta">Locandina</span>
         <label className="flex min-h-[320px] cursor-pointer flex-col items-center justify-center gap-4 border border-dashed border-linea-forte bg-vinile p-6 text-center">
@@ -113,7 +122,7 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
             : <><div className="mm-disco h-[120px] w-[120px]" style={{ boxShadow: 'none' }}><div className="mm-disco__foro" style={{ width: 10, height: 10, background: 'var(--vinile)' }} /></div>
               <span className="font-display text-[28px] font-black uppercase leading-none">Scegli la locandina</span></>}
           <span className="text-[14px] leading-5 text-osso-2">JPG o PNG verticale, almeno 1080 × 1440 px.</span>
-          <input type="file" name="locandina" accept="image/jpeg,image/png,image/webp" className="text-[13px] text-osso-2"
+          <input type="file" name="locandina" form="form-serata" accept="image/jpeg,image/png,image/webp" className="text-[13px] text-osso-2"
             onChange={async (e) => {
               const campo = e.target;
               const scelto = campo.files?.[0];
@@ -129,29 +138,29 @@ export function FormSerata({ v, pr }: { v: ValoriSerata; pr: { id: string; nome:
             }} />
         </label>
         {c.locandina && <span className="text-[14px] text-stop-testo">{c.locandina}</span>}
-        <Campo nome="slug" etichetta="Indirizzo della pagina" v={v.slug} aiuto="/e/… — vuoto: dal titolo" errore={c.slug} />
+        <Campo nome="slug" form="form-serata" etichetta="Indirizzo della pagina" v={v.slug} aiuto="/e/… — vuoto: dal titolo" errore={c.slug} />
         <div className="flex flex-col gap-2 border border-linea bg-notte-2 p-4">
           <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">ANTEPRIMA</span>
           <span className="text-[14px] leading-5">La locandina fa da sfondo sfocato alla prevendita: il modulo resta leggibile sopra qualsiasi colore.</span>
           {v.id && v.slug && <a href={`/e/${v.slug}/prevendita`} target="_blank" className="link-sottolineato self-start py-2">Apri la prevendita →</a>}
         </div>
         <div className="sticky bottom-0 flex gap-2 bg-notte py-3">
-          <button type="submit" onClick={() => { azione.current!.value = 'bozza'; }} className="mm-btn mm-btn--linea flex-1" disabled={inCorso}>{v.pubblicato ? 'Metti in bozza' : 'Salva bozza'}</button>
-          <button type="submit" onClick={() => { azione.current!.value = 'pubblica'; }} className="mm-btn mm-btn--primario flex-1" disabled={inCorso}>{v.pubblicato ? 'Salva' : 'Pubblica serata'}</button>
+          <button type="submit" form="form-serata" onClick={() => { azione.current!.value = 'bozza'; }} className="mm-btn mm-btn--linea flex-1" disabled={inCorso}>{v.pubblicato ? 'Metti in bozza' : 'Salva bozza'}</button>
+          <button type="submit" form="form-serata" onClick={() => { azione.current!.value = 'pubblica'; }} className="mm-btn mm-btn--primario flex-1" disabled={inCorso}>{v.pubblicato ? 'Salva' : 'Pubblica serata'}</button>
         </div>
       </div>
-    </form>
+    </div>
   );
 }
 
-function Campo({ nome, etichetta, v, tipo = 'text', aiuto, errore, inputMode }: {
-  nome: string; etichetta: string; v: string; tipo?: string; aiuto?: string; errore?: string; inputMode?: 'numeric' | 'decimal';
+function Campo({ nome, etichetta, v, tipo = 'text', aiuto, errore, inputMode, form }: {
+  nome: string; etichetta: string; v: string; tipo?: string; aiuto?: string; errore?: string; inputMode?: 'numeric' | 'decimal'; form?: string;
 }) {
   const id = `f-${nome}`;
   return (
     <div className={`mm-campo ${errore ? 'mm-campo--errore' : ''}`}>
       <label className="mm-campo__etichetta" htmlFor={id}>{etichetta}</label>
-      <input className="mm-campo__input" id={id} name={nome} type={tipo} defaultValue={v} inputMode={inputMode} aria-invalid={Boolean(errore)} aria-describedby={errore || aiuto ? `${id}-a` : undefined} />
+      <input className="mm-campo__input" id={id} name={nome} form={form} type={tipo} defaultValue={v} inputMode={inputMode} aria-invalid={Boolean(errore)} aria-describedby={errore || aiuto ? `${id}-a` : undefined} />
       {(errore || aiuto) && <span className="mm-campo__aiuto" id={`${id}-a`}>{errore ?? aiuto}</span>}
     </div>
   );

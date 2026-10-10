@@ -36,8 +36,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         locationSegreta: e.locationSegreta, infoArrivo: e.infoArrivo ?? '',
         tipoIngresso: e.tipoIngresso === 'libero' ? 'libero' : 'lista', prezzoLista: String(e.prezzoLista), prezzoCassa: e.prezzoCassa == null ? '' : String(e.prezzoCassa), etaMinima: String(e.etaMinima),
         locandinaUrl: e.locandinaUrl ?? '', pubblicato: e.pubblicato, prAbilitati: e.prAbilitati,
-      }} />
-      <div className="border-b border-linea px-4 md:px-12">
+      }}>
         <Sezione id="lotti" n="05" titolo="Lotti" nota={`${x.lotti.length} ${x.lotti.length === 1 ? 'LOTTO' : 'LOTTI'}`}>
           <span className="text-[14px] text-osso-2">Si prende il primo lotto aperto, con posti liberi, nell&apos;ordine qui sotto. Il prezzo si paga alla porta.</span>
           <Lotti eventoId={e.id} lotti={x.lotti.map((l) => ({
@@ -57,7 +56,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
             nota: t.nota ?? '', visibileDaPr: t.visibileDaPr, ordine: t.ordine,
           }))} />
         </Sezione>
-      </div>
+      </FormSerata>
     </>
   );
 }
