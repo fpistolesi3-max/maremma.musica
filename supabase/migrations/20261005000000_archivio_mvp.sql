@@ -13,6 +13,8 @@ create table if not exists public.archivio_mvp (
 -- RLS attiva e nessuna policy: anon e authenticated non vedono niente (iscrizioni, email, segreto).
 alter table public.archivio_mvp enable row level security;
 revoke all on public.archivio_mvp from anon, authenticated;
+-- Sui progetti nuovi i permessi automatici per l'API possono mancare: li diamo esplicitamente al server.
+grant all on table public.archivio_mvp to service_role;
 
 -- Locandine: bucket pubblico in lettura; si scrive solo dal server (service role).
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
