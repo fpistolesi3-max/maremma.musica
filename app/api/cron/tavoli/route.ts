@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/cron/tavoli — una volta al giorno (vercel.json): fa decadere le prenotazioni non pagate
- * e manda il promemoria a chi ha il termine entro 24 ore.
+ * e manda il promemoria a chi ha il termine entro 36 ore (così arriva sempre il giorno prima).
  * Vercel chiama con "Authorization: Bearer <CRON_SECRET>"; senza il segreto giusto non parte (in sviluppo sì).
  */
 export async function GET(req: Request) {

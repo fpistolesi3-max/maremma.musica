@@ -224,9 +224,13 @@ export async function salvaTavolo(s: Sessione, tavolo: Omit<Tavolo, 'id' | 'x' |
     if (tavolo.id) {
       const t = d.tavoli.find((x) => x.id === tavolo.id);
       if (!t) throw new Error('Tavolo non trovato');
-      // Con una prenotazione attiva lo stato del tavolo lo decide lei, non il modulo.
-      const occupato = d.prenotazioni.some((p) => p.tavoloId === t.id && prenotazioneAttiva(p));
-      Object.assign(t, { ...tavolo, id: t.id, stato: occupato ? t.stato : tavolo.stato });
+      // Con una prenotazione attiva lo stato del tavolo lo decide lei, non il modulo, e i posti non scendono sotto il gruppo.
+      const attiva = d.prenotazioni.find((p) => p.tavoloId === t.id && prenotazioneAttiva(p));
+      if (attiva && tavolo.posti != null && tavolo.posti < attiva.persone) {
+        throw new Error(`${t.nome} è prenotato per ${attiva.persone} persone: i posti non possono essere meno di ${attiva.persone}`);
+      }
+      // Un tavolo resta nella sua serata: per un'altra serata si copia.
+      Object.assign(t, { ...tavolo, id: t.id, eventoId: t.eventoId, stato: attiva ? t.stato : tavolo.stato });
     } else {
       d.tavoli.push({ ...tavolo, id: randomUUID(), x: null, y: null });
     }

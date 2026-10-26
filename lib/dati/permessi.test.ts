@@ -283,7 +283,8 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   await assert.rejects(tv.confermaPrenotazione(pr, p1.id), /non_autorizzato/);
   await assert.rejects(tv.prenotazioniAdmin(staff, ev.id), /non_autorizzato/);
   await tv.confermaPrenotazione(admin, p1.id);
-  await m.admin.salvaTavolo(admin, { ...base, id: await id('A1'), nome: 'A1', stato: 'libero' });
+  await assert.rejects(async () => m.admin.salvaTavolo(admin, { ...base, id: await id('A1'), nome: 'A1', posti: 3 }), /prenotato per 4 persone/, 'posti sotto il gruppo prenotato');
+  await m.admin.salvaTavolo(admin, { ...base, id: await id('A1'), nome: 'A1', stato: 'libero', posti: 4 });
   assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'A1')!.stato, 'confermato');
   await assert.rejects(async () => m.admin.eliminaTavolo(admin, await id('A1')), /prenotazione/);
   await assert.rejects(tv.annullaPrenotazione(pr, p1.id), /non_autorizzato/, 'pagata: il PR non la annulla più');
@@ -391,7 +392,10 @@ test('tavoli: copia da un’altra serata, recupero per email, promemoria una vol
   const p = r.ok ? r.prenotazione : null!;
   assert.deepEqual((await tv.prenotazioniPerEmail('PIA@esempio.it')).map((v) => v.prenotazione.id), [p.id]);
   assert.equal((await tv.promemoriaDaMandare(24)).some((v) => v.prenotazione.id === p.id), false, 'il termine è lontano: niente promemoria');
-  assert.equal((await tv.promemoriaDaMandare(24 * 5)).filter((v) => v.prenotazione.id === p.id).length, 1);
+  // Il controllo gira una volta al giorno: con il termine tra 30 ore il promemoria parte già oggi (finestra di 36 ore)
+  const fra = (ore: number) => new Date(new Date(p.scade).getTime() - ore * 3_600_000);
+  assert.equal((await tv.promemoriaDaMandare(undefined, fra(40))).some((v) => v.prenotazione.id === p.id), false, '40 ore prima: ancora presto');
+  assert.equal((await tv.promemoriaDaMandare(undefined, fra(30))).filter((v) => v.prenotazione.id === p.id).length, 1, '30 ore prima: parte');
   assert.equal((await tv.promemoriaDaMandare(24 * 5)).some((v) => v.prenotazione.id === p.id), false, 'il promemoria parte una volta sola');
   assert.ok((await tv.emailAdmin()).includes('admin@maremmamusica.test'));
 

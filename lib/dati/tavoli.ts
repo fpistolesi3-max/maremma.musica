@@ -263,8 +263,10 @@ export async function emailAdmin(): Promise<string[]> {
 /**
  * Prenotazioni in attesa il cui termine cade entro `ore`: le segna come avvisate e le restituisce,
  * così il promemoria parte una volta sola anche se il controllo gira più volte.
+ * 36 ore e non 24: il controllo gira una volta al giorno, così il promemoria arriva sempre il giorno prima
+ * del termine (con 24 ore poteva partire anche solo un'ora prima).
  */
-export async function promemoriaDaMandare(ore = 24, adesso = new Date()): Promise<PrenotazioneVista[]> {
+export async function promemoriaDaMandare(ore = 36, adesso = new Date()): Promise<PrenotazioneVista[]> {
   const limite = adesso.getTime() + ore * 3_600_000;
   return modifica((d) => {
     faiDecadere(d, adesso);
