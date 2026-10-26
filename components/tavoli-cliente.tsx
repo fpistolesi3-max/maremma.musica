@@ -15,11 +15,11 @@ const euro = (n: number) => `${n.toLocaleString('it-IT')} €`;
 /**
  * Scelta del tavolo (mappa se i tavoli sono stati posizionati, elenco sempre) e modulo di richiesta.
  * `perCliente`: la sta inserendo un PR a nome di un cliente. `chiuse`: la serata è iniziata, si guarda e basta.
- * `online`: si paga subito sul sito; `scadenza` è allora quanto resta fermo il tavolo durante il pagamento.
- * `nonAttivo`: il pagamento online non è ancora configurato, quindi i tavoli si guardano ma non si prenotano.
+ * Si paga sempre sul sito: `scadenza` è quanto resta fermo il tavolo durante il pagamento (o fino a quando vale il
+ * link mandato al cliente). `nonAttivo`: il pagamento online non è ancora configurato, i tavoli si guardano e basta.
  */
-export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perCliente = false, chiuse = false, online = false, nonAttivo = false }: {
-  tavoli: TavoloScelta[]; piantinaUrl: string | null; prHandle: string | null; scadenza: string; perCliente?: boolean; chiuse?: boolean; online?: boolean; nonAttivo?: boolean;
+export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perCliente = false, chiuse = false, nonAttivo = false }: {
+  tavoli: TavoloScelta[]; piantinaUrl: string | null; prHandle: string | null; scadenza: string; perCliente?: boolean; chiuse?: boolean; nonAttivo?: boolean;
 }) {
   const [stato, invia, inCorso] = useActionState(prenotaTavoloAzione, INIZIALE);
   const e = stato.errori;
@@ -101,9 +101,9 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
             <Campo id="tv-cognome" nome="cognome" etichetta="Cognome" errore={e.cognome} valore={v.cognome} autoComplete={perCliente ? 'off' : 'family-name'} />
           </div>
           <Campo id="tv-email" nome="email" etichetta={perCliente ? 'Email del cliente' : 'Email'} tipo="email" errore={e.email} valore={v.email} autoComplete={perCliente ? 'off' : 'email'} placeholder="nome@email.it"
-            aiuto={online && perCliente ? 'Lì arriva il link per pagare, poi il QR del tavolo.' : 'Lì arrivano la conferma e il QR del tavolo.'} />
+            aiuto={perCliente ? 'Lì arriva il link per pagare, poi il QR del tavolo.' : 'Lì arrivano la conferma e il QR del tavolo.'} />
           <div className="mm-campi-2">
-            <Campo id="tv-telefono" nome="telefono" etichetta="Telefono" tipo="tel" errore={e.telefono} valore={v.telefono} autoComplete={perCliente ? 'off' : 'tel'} aiuto={online ? 'Se serve contattarti per il tavolo.' : 'Per il pagamento anticipato.'} />
+            <Campo id="tv-telefono" nome="telefono" etichetta="Telefono" tipo="tel" errore={e.telefono} valore={v.telefono} autoComplete={perCliente ? 'off' : 'tel'} aiuto="Se serve contattarti per il tavolo." />
             <Campo id="tv-persone" nome="persone" etichetta="Quante persone" errore={e.persone} valore={v.persone} inputMode="numeric" aiuto={sel?.posti != null ? `Al massimo ${sel.posti}.` : undefined} />
           </div>
 
@@ -114,12 +114,11 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
           {e.privacy && <span className="-mt-2 text-[14px] leading-5 text-stop-testo">{e.privacy}</span>}
 
           <button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }} disabled={inCorso || !sel}>
-            {inCorso ? 'Un attimo…' : <>{online && !perCliente ? 'Continua al pagamento' : 'Chiedi il tavolo'} <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
+            {inCorso ? 'Un attimo…' : <>{perCliente ? 'Manda il link per pagare' : 'Continua al pagamento'} <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
           </button>
           <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
-            {!online ? `SI PAGA IN ANTICIPO · ENTRO ${scadenza.toUpperCase()} O IL TAVOLO TORNA LIBERO`
-              : perCliente ? `AL CLIENTE ARRIVA IL LINK PER PAGARE · IL TAVOLO RESTA FERMO FINO A ${scadenza.toUpperCase()}`
-                : `SI PAGA ONLINE ORA · CARTA, APPLE PAY, GOOGLE PAY · IL TAVOLO RESTA FERMO ${scadenza.toUpperCase()}`}
+            {perCliente ? `AL CLIENTE ARRIVA IL LINK PER PAGARE · IL TAVOLO RESTA FERMO FINO A ${scadenza.toUpperCase()}`
+              : `SI PAGA ONLINE ORA · CARTA, APPLE PAY, GOOGLE PAY · IL TAVOLO RESTA FERMO ${scadenza.toUpperCase()}`}
           </span>
         </form>
       )}

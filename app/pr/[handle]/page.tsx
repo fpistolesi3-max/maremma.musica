@@ -221,7 +221,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
                         <MandaLinkPagamento link={linkPagamento('', p.id, p.email)} telefono={p.telefono}
                           testo={`Ciao ${p.nome}, ti ho fermato il tavolo ${v.tavolo.nome} per ${serata.evento.nome}: paga qui ${euro(p.spesaMinima)} entro ${quandoScade(p.scade)} e ti arriva il QR.`} />
                       )}
-                      {p.stato === 'in_attesa' && <AzioniPrenotazione id={p.id} nome={`${p.nome} ${p.cognome}`} conferma={false} />}
+                      {p.stato === 'in_attesa' && <AzioniPrenotazione id={p.id} nome={`${p.nome} ${p.cognome}`} />}
                     </div>
                   );
                 })}

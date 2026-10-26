@@ -4,12 +4,15 @@ import { useActionState, useState, useTransition } from 'react';
 import { eliminaTavoloAzione, salvaTavoloAzione, type EsitoAzione } from '@/app/azioni/admin';
 import type { StatoPrenotazione, StatoTavolo } from '@/lib/dati/tipi';
 import { AzioniPrenotazione } from '@/components/tavoli-azioni';
+import { MandaLinkPagamento } from '@/components/area-pr-client';
 
 export interface PrenotazioneRiga {
   id: string; nome: string; email: string; telefono: string; persone: number; spesaMinima: number;
-  stato: StatoPrenotazione; lista: string; scade: string; inseritaDa: 'cliente' | 'pr';
+  stato: StatoPrenotazione; lista: string; scade: string; inseritaDa: 'cliente' | 'pr' | 'crew';
   pagamento: string | null;   // "Bonifico · 26.10 10:04 · admin@…": come e chi, se pagata
   online: boolean;            // si paga sul sito: in attesa vuol dire che il cliente sta pagando
+  linkPagamento: string;      // per rimandarlo al cliente (richieste con il link: PR o crew)
+  testoLink: string;
 }
 
 export interface RigaTavolo {
@@ -19,9 +22,11 @@ export interface RigaTavolo {
 }
 
 // Le stesse quattro parole di mappa, prenotazioni, area PR e pagina del cliente.
+// "In attesa di pagamento" e "Pagato" li decide una prenotazione pagata sul sito: a mano solo libero o non in vendita.
 const STATI: [StatoTavolo, string][] = [
   ['libero', 'Libero'], ['riservato', 'In attesa di pagamento'], ['confermato', 'Pagato'], ['non_in_vendita', 'Non in vendita'],
 ];
+const STATI_A_MANO = STATI.filter(([v]) => v === 'libero' || v === 'non_in_vendita');
 
 /** Tavoli della serata: nome, zona, posti, spesa minima, stato, a quali PR sono affidati e chi li ha chiesti. */
 export function Tavoli({ eventoId, tavoli, pr }: { eventoId: string; tavoli: RigaTavolo[]; pr: { id: string; nome: string }[] }) {
@@ -67,10 +72,11 @@ function Prenotazione({ p }: { p: PrenotazioneRiga }) {
       </div>
       <span className="font-mono text-[12px] leading-5 text-osso-2">
         <a href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`} className="text-osso">{p.telefono}</a> · <a href={`mailto:${p.email}`} className="text-osso">{p.email}</a>
-        <br />LISTA: {p.lista.toUpperCase()}{p.inseritaDa === 'pr' ? ' · INSERITA DAL PR' : ''}{attesa ? ` · ${p.online ? 'PAGAMENTO ONLINE IN CORSO, ' : ''}DECADE ${p.scade.toUpperCase()}` : ''}
+        <br />LISTA: {p.lista.toUpperCase()}{p.inseritaDa === 'pr' ? ' · INSERITA DAL PR' : p.inseritaDa === 'crew' ? ' · INSERITA DALLA CREW' : ''}{attesa ? ` · ${p.online ? 'PAGAMENTO ONLINE IN CORSO, ' : ''}DECADE ${p.scade.toUpperCase()}` : ''}
         {p.pagamento && <><br />PAGATO: {p.pagamento.toUpperCase()}</>}
       </span>
-      <AzioniPrenotazione id={p.id} nome={p.nome} conferma={attesa} pagata={!attesa} />
+      {attesa && p.online && p.inseritaDa !== 'cliente' && <MandaLinkPagamento link={p.linkPagamento} telefono={p.telefono} testo={p.testoLink} />}
+      <AzioniPrenotazione id={p.id} nome={p.nome} pagata={!attesa} />
     </div>
   );
 }
@@ -92,7 +98,7 @@ function FormTavolo({ eventoId, t, pr }: { eventoId: string; t: RigaTavolo; pr: 
         <label className="mm-campo__etichetta" htmlFor={`t-${p}-stato`}>Stato</label>
         {/* Con una prenotazione attiva lo stato lo decide lei (in attesa → riservato, pagata → confermato). */}
         <select id={`t-${p}-stato`} name="stato" defaultValue={t.stato} disabled={Boolean(t.prenotazione)} className="mm-campo__input" style={{ height: 44, fontSize: 15 }}>
-          {STATI.map(([v, testo]) => <option key={v} value={v}>{testo}</option>)}
+          {(t.prenotazione ? STATI : STATI_A_MANO).map(([v, testo]) => <option key={v} value={v}>{testo}</option>)}
         </select>
       </div>
       <div className="md:col-span-5"><Mini id={`t-${p}-nota`} nome="nota" etichetta="Nota (la vedi solo tu, es. a chi è riservato)" v={t.nota} /></div>

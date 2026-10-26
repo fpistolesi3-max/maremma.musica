@@ -66,7 +66,7 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
                 ) : (
                   <>
                     <p className="m-0 text-[17px] leading-[26px]">
-                      Il tavolo {v.tavolo.nome} è tenuto per te fino {v.prenotazione.inseritaDa === 'pr' ? 'a ' : ''}<strong>{v.prenotazione.inseritaDa === 'pr' ? quandoScade(v.prenotazione.scade) : `alle ${ora(v.prenotazione.scade)}`}</strong>. Paga online la spesa minima di <strong>{euro(v.prenotazione.spesaMinima)}</strong> e ti arriva subito il QR del tavolo.
+                      Il tavolo {v.tavolo.nome} è tenuto per te fino {v.prenotazione.inseritaDa !== 'cliente' ? 'a ' : ''}<strong>{v.prenotazione.inseritaDa !== 'cliente' ? quandoScade(v.prenotazione.scade) : `alle ${ora(v.prenotazione.scade)}`}</strong>. Paga online la spesa minima di <strong>{euro(v.prenotazione.spesaMinima)}</strong> e ti arriva subito il QR del tavolo.
                     </p>
                     {errore && <p role="alert" className="m-0 border border-stop-testo px-4 py-3 text-[14px] leading-5 text-stop-testo">Non siamo riusciti ad aprire il pagamento. Riprova tra poco.</p>}
                     <a href={linkPagamento('', v.prenotazione.id, v.prenotazione.email)} className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }}>
@@ -82,15 +82,12 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
                 )}
               </>
             )}
+            {/* Prenotazione segnata a mano prima che tutti i pagamenti passassero dal sito. */}
             {v.prenotazione.stato === 'in_attesa' && !online && (
               <>
-                <span className="font-mono text-[11px] leading-none tracking-[.06em] text-attesa">{nuovo ? '✓ RICHIESTA RICEVUTA' : '✦ IN ATTESA DI PAGAMENTO'}</span>
+                <span className="font-mono text-[11px] leading-none tracking-[.06em] text-attesa">✦ IN ATTESA DI PAGAMENTO</span>
                 <h1 className="m-0 font-display text-[64px] font-black uppercase leading-[.84]">Tavolo <span className="text-arancio">fermo.</span></h1>
-                <p className="m-0 text-[17px] leading-[26px]">
-                  Il tavolo {v.tavolo.nome} è a tuo nome, {v.prenotazione.nome}. Per confermarlo va pagata in anticipo la spesa minima di <strong>{euro(v.prenotazione.spesaMinima)}</strong> entro <strong>{quandoScade(v.prenotazione.scade)}</strong>.
-                </p>
-                {/* TODO: cliente — come si paga l'anticipo e a chi */}
-                <p className="m-0 text-[15px] leading-[22px] text-osso-2">Ti contattiamo noi al {v.prenotazione.telefono} per il pagamento. Se non arriva entro il termine la prenotazione decade e il tavolo torna libero.</p>
+                <p className="m-0 text-[17px] leading-[26px]">Il tavolo {v.tavolo.nome} è fermo a tuo nome fino a <strong>{quandoScade(v.prenotazione.scade)}</strong>, in attesa del pagamento di <strong>{euro(v.prenotazione.spesaMinima)}</strong>.</p>
               </>
             )}
             {v.prenotazione.stato === 'confermata' && (

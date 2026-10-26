@@ -14,3 +14,10 @@ alter table public.prenotazioni_tavoli
 create unique index prenotazioni_pagamento_id on public.prenotazioni_tavoli (pagamento_id) where pagamento_id is not null;
 -- Per l'admin: i pagamenti da restituire saltano all'occhio.
 create index prenotazioni_da_rimborsare on public.prenotazioni_tavoli (evento_id) where da_rimborsare;
+
+-- Tutti i pagamenti passano dal sito: per un tavolo venduto a voce la richiesta la inserisce la crew (admin) e il
+-- cliente paga dal link, come quando la inserisce il PR. 'crew' si aggiunge a chi può inserire una richiesta.
+-- I metodi a mano (bonifico, satispay, contanti, pos) restano nel tipo solo per le prenotazioni già segnate così.
+alter table public.prenotazioni_tavoli drop constraint if exists prenotazioni_tavoli_inserita_da_check;
+alter table public.prenotazioni_tavoli add constraint prenotazioni_tavoli_inserita_da_check
+  check (inserita_da in ('cliente', 'pr', 'crew'));

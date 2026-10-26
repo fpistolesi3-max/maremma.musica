@@ -1,14 +1,14 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { leggi, modifica, segreto } from './archivio';
-import type { Archivio, Evento, MetodoTavolo, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
+import type { Archivio, Evento, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { creaCodice, creaTokenQr } from '../qr-token';
-import { EMAIL_RE, ORE_MINIME_PROMEMORIA_PR, eventoPassato, prenotazioneAttiva, prenotazioneScaduta, richiesteTavoliAperte, scadenzaPagamento, scadenzaPagamentoOnline } from '../regole';
+import { EMAIL_RE, ORE_MINIME_PROMEMORIA_PR, eventoPassato, prenotazioneAttiva, prenotazioneScaduta, richiesteTavoliAperte, scadenzaPagamentoOnline } from '../regole';
 
-// Prenotazione dei tavoli. Il cliente (o il PR per lui) chiede un tavolo libero: resta bloccato in attesa
-// del pagamento anticipato della spesa minima. L'admin segna il pagamento e la prenotazione è confermata;
-// se il termine passa senza pagamento la prenotazione decade e il tavolo torna libero.
+// Prenotazione dei tavoli. Il cliente (o il PR o la crew per lui) chiede un tavolo libero: resta bloccato mentre
+// paga la spesa minima sul sito (tutti i pagamenti passano da lì). A pagamento riuscito la prenotazione si conferma
+// da sola; se il termine passa senza pagamento la prenotazione decade e il tavolo torna libero.
 // Come nel resto di lib/dati, ogni funzione controlla il ruolo di chi chiede.
 
 /** Il PR può proporre questo tavolo? Lo decide l'admin: a tutti, a nessuno o solo ad alcuni. */
@@ -91,8 +91,8 @@ function valida(i: DatiPrenotazione): EsitoPrenotazione | null {
 }
 
 /** Controlli e scrittura nello stesso passaggio: due richieste insieme non prendono lo stesso tavolo. */
-/** `online`: si paga sul sito, quindi il tavolo resta fermo solo per il tempo del pagamento. */
-async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavolo, e: Evento) => string | null; inseritaDa: 'cliente' | 'pr'; soloDelPr?: string; online?: boolean }): Promise<EsitoPrenotazione> {
+/** Si paga sempre sul sito: il tavolo resta fermo solo per il tempo del pagamento (o del link mandato al cliente). */
+async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavolo, e: Evento) => string | null; inseritaDa: PrenotazioneTavolo['inseritaDa']; soloDelPr?: string }): Promise<EsitoPrenotazione> {
   const errore = valida(i);
   if (errore) return errore;
   const chiave = await segreto();
@@ -134,10 +134,10 @@ async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavol
       id, tavoloId: t.id, eventoId: evento.id, prId: opzioni.prId(d, t, evento),
       nome: i.nome.trim(), cognome: i.cognome.trim(), email, telefono: i.telefono.trim(), persone: i.persone,
       spesaMinima: t.spesaMinima, stato: 'in_attesa',
-      scade: opzioni.online ? scadenzaPagamentoOnline(adesso, evento, opzioni.inseritaDa === 'pr') : scadenzaPagamento(adesso, evento),
+      scade: scadenzaPagamentoOnline(adesso, evento, opzioni.inseritaDa !== 'cliente'),
       tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),
       inseritaDa: opzioni.inseritaDa, consensoPrivacyAt: adesso.toISOString(), createdAt: adesso.toISOString(), pagatoAt: null, metodoPagamento: null, pagatoDa: null, chiusaAt: null, chiusaDa: null, promemoriaAt: null, avvisoChiusuraAt: null, ingressi: [],
-      pagamentoOnline: opzioni.online ? { sessione: null, pagamento: null, daRimborsare: false } : null,
+      pagamentoOnline: { sessione: null, pagamento: null, daRimborsare: false },
     };
     d.prenotazioni.push(p);
     t.stato = 'riservato';
@@ -149,9 +149,9 @@ async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavol
  * Richiesta dal sito. Se arriva dal link di un PR (attivo e abilitato per la serata) la prenotazione è sua,
  * qualunque tavolo scelga il cliente: "affidato" vale solo per i tavoli che il PR prenota lui per un cliente.
  */
-export function prenotaTavolo(i: DatiPrenotazione, handlePr: string | null, online = false): Promise<EsitoPrenotazione> {
+export function prenotaTavolo(i: DatiPrenotazione, handlePr: string | null): Promise<EsitoPrenotazione> {
   return crea(i, {
-    inseritaDa: 'cliente', online,
+    inseritaDa: 'cliente',
     prId: (d, _t, e) => prAttivoPerEvento(d, handlePr, e)?.id ?? null,
   });
 }
@@ -195,40 +195,6 @@ export async function prenotazioniAdmin(s: Sessione, eventoId: string): Promise<
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((p) => vista(d, p))
     .filter((v): v is PrenotazioneVista => v !== null);
-}
-
-export const METODI_TAVOLO: MetodoTavolo[] = ['bonifico', 'satispay', 'contanti', 'pos'];
-
-/**
- * L'admin ha ricevuto il pagamento anticipato: la prenotazione è confermata e il QR diventa valido.
- * Si segna come è arrivato e chi l'ha ricevuto. Vale anche per una prenotazione appena scaduta, se il
- * pagamento è arrivato in ritardo e il tavolo è ancora libero (nessun altro l'ha preso) e la serata non è passata.
- */
-export async function confermaPrenotazione(s: Sessione, id: string, metodo: MetodoTavolo): Promise<PrenotazioneVista> {
-  if (s.utente.ruolo !== 'admin') throw new Error('non_autorizzato');
-  if (!METODI_TAVOLO.includes(metodo)) throw new Error('Scegli come è arrivato il pagamento');
-  return modifica((d) => {
-    faiDecadere(d);
-    const p = d.prenotazioni.find((x) => x.id === id);
-    if (!p) throw new Error('Prenotazione non trovata');
-    const t = d.tavoli.find((x) => x.id === p.tavoloId);
-    if (p.stato === 'scaduta') {
-      const evento = d.eventi.find((e) => e.id === p.eventoId);
-      if (!evento || eventoPassato(evento)) throw new Error('La serata è passata: la prenotazione non si riattiva più');
-      const preso = !t || t.stato !== 'libero' || d.prenotazioni.some((x) => x.tavoloId === p.tavoloId && x.id !== p.id && prenotazioneAttiva(x));
-      if (preso) throw new Error('Il termine è passato e nel frattempo il tavolo è stato preso o tolto dalla vendita: serve un altro tavolo');
-      p.chiusaAt = null;
-      p.avvisoChiusuraAt = null;   // se l'email "chiusa" non è ancora partita, non parte più
-    } else if (p.stato !== 'in_attesa') {
-      throw new Error('Questa prenotazione non è più in attesa');
-    }
-    p.stato = 'confermata';
-    p.pagatoAt = new Date().toISOString();
-    p.metodoPagamento = metodo;
-    p.pagatoDa = s.utente.email;
-    if (t) t.stato = 'confermato';
-    return vista(d, p)!;
-  });
 }
 
 /**
@@ -282,9 +248,18 @@ export async function tavoliDelPr(s: Sessione, eventoId: string) {
 }
 
 /** Il PR inserisce la richiesta a nome di un cliente: solo sui tavoli che gli sono affidati. */
-export function prPrenotaTavolo(s: Sessione, i: DatiPrenotazione, online = false): Promise<EsitoPrenotazione> {
+export function prPrenotaTavolo(s: Sessione, i: DatiPrenotazione): Promise<EsitoPrenotazione> {
   const pr = soloPr(s);
-  return crea(i, { inseritaDa: 'pr', soloDelPr: pr.id, prId: () => pr.id, online });
+  return crea(i, { inseritaDa: 'pr', soloDelPr: pr.id, prId: () => pr.id });
+}
+
+/**
+ * Tavolo venduto a voce: l'admin inserisce la richiesta (qualunque tavolo, lista Maremma Musica) e il cliente
+ * riceve il link per pagare sul sito, come per il PR. Nessun pagamento si segna a mano.
+ */
+export function adminPrenotaTavolo(s: Sessione, i: DatiPrenotazione): Promise<EsitoPrenotazione> {
+  if (s.utente.ruolo !== 'admin') throw new Error('non_autorizzato');
+  return crea(i, { inseritaDa: 'crew', prId: () => null });
 }
 
 // ------------------------------------------------------------------ recupero e promemoria
@@ -307,9 +282,9 @@ export async function prenotazioniPerEmail(email: string): Promise<PrenotazioneV
 export async function chiuseDaAvvisare(adesso = new Date()): Promise<PrenotazioneVista[]> {
   return modifica((d) => {
     faiDecadere(d, adesso);
-    // Una pagina di pagamento online lasciata a metà dal cliente non è una prenotazione persa: lo sa già.
-    // Chi ha ricevuto il link dal PR invece no: va avvisato che il tavolo è tornato libero.
-    const da = d.prenotazioni.filter((p) => p.stato === 'scaduta' && !p.avvisoChiusuraAt && (!p.pagamentoOnline || p.inseritaDa === 'pr'));
+    // Una pagina di pagamento lasciata a metà dal cliente non è una prenotazione persa: lo sa già.
+    // Chi ha ricevuto il link (dal PR o dalla crew) invece no: va avvisato che il tavolo è tornato libero.
+    const da = d.prenotazioni.filter((p) => p.stato === 'scaduta' && !p.avvisoChiusuraAt && p.inseritaDa !== 'cliente');
     for (const p of da) p.avvisoChiusuraAt = adesso.toISOString();
     return da.map((p) => vista(d, p)).filter((v): v is PrenotazioneVista => v !== null && !eventoPassato(v.evento, adesso));
   });
@@ -327,32 +302,15 @@ export async function emailAdmin(): Promise<string[]> {
 }
 
 /**
- * Prenotazioni in attesa il cui termine cade entro `ore`: le segna come avvisate e le restituisce,
- * così il promemoria parte una volta sola anche se il controllo gira più volte.
- * 36 ore e non 24: il controllo gira una volta al giorno, così il promemoria arriva sempre il giorno prima
- * del termine (con 24 ore poteva partire anche solo un'ora prima).
- */
-export async function promemoriaDaMandare(ore = 36, adesso = new Date()): Promise<PrenotazioneVista[]> {
-  const limite = adesso.getTime() + ore * 3_600_000;
-  return modifica((d) => {
-    faiDecadere(d, adesso);
-    // Il pagamento online scade in pochi minuti (o in un giorno, se inserito dal PR): niente promemoria.
-    const daAvvisare = d.prenotazioni.filter((p) => p.stato === 'in_attesa' && !p.pagamentoOnline && !p.promemoriaAt && new Date(p.scade).getTime() <= limite);
-    for (const p of daAvvisare) p.promemoriaAt = adesso.toISOString();
-    return daAvvisare.map((p) => vista(d, p)).filter((v): v is PrenotazioneVista => v !== null);
-  });
-}
-
-/**
- * Richieste inserite dal PR con il pagamento online, ancora da pagare: il controllo del mattino ricorda al cliente
- * di pagare e avvisa il PR, che può scrivergli. Solo se il cliente ha il link da almeno qualche ora (chi l'ha appena
+ * Richieste inserite dal PR (o dalla crew), ancora da pagare: il controllo del mattino ricorda al cliente
+ * di pagare e avvisa il PR, che può contattare il cliente. Solo se il cliente ha il link da almeno qualche ora (chi l'ha appena
  * ricevuto non va disturbato) e una volta sola. `emailPr`: null se il PR non ha un accesso.
  */
 export async function promemoriaRichiestePr(adesso = new Date()): Promise<{ vista: PrenotazioneVista; emailPr: string | null }[]> {
   const minimo = ORE_MINIME_PROMEMORIA_PR * 3_600_000;
   return modifica((d) => {
     faiDecadere(d, adesso);
-    const da = d.prenotazioni.filter((p) => p.stato === 'in_attesa' && p.pagamentoOnline && p.inseritaDa === 'pr' && !p.promemoriaAt
+    const da = d.prenotazioni.filter((p) => p.stato === 'in_attesa' && p.pagamentoOnline && p.inseritaDa !== 'cliente' && !p.promemoriaAt
       && adesso.getTime() - new Date(p.createdAt).getTime() >= minimo && new Date(p.scade).getTime() > adesso.getTime());
     for (const p of da) p.promemoriaAt = adesso.toISOString();
     return da.flatMap((p) => {

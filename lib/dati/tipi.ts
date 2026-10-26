@@ -70,7 +70,10 @@ export interface Tavolo {
 /** rimborsata = era pagata, annullata e restituiti i soldi; annullata = chiusa senza rimborso. */
 export type StatoPrenotazione = 'in_attesa' | 'confermata' | 'annullata' | 'rimborsata' | 'scaduta';
 
-/** Come è arrivato l'anticipo del tavolo. online = pagato dal cliente sul sito (carta, Apple Pay, Google Pay). */
+/**
+ * Come è arrivato l'anticipo del tavolo. Tutti i pagamenti passano dal sito: online (carta, Apple Pay, Google Pay).
+ * Gli altri valori restano solo per le prenotazioni segnate a mano prima di questa regola.
+ */
 export type MetodoTavolo = 'bonifico' | 'satispay' | 'contanti' | 'pos' | 'online';
 
 /**
@@ -82,7 +85,7 @@ export interface PagamentoOnline { sessione: string | null; pagamento: string | 
 
 /**
  * Richiesta di un tavolo. Nasce "in attesa": il tavolo è fermo ma la spesa minima va pagata in anticipo
- * entro `scade`, altrimenti decade. Quando l'admin segna il pagamento diventa "confermata" e il QR vale.
+ * entro `scade` sul sito, altrimenti decade. A pagamento riuscito diventa "confermata" e il QR vale.
  */
 export interface PrenotazioneTavolo {
   id: string;
@@ -99,7 +102,7 @@ export interface PrenotazioneTavolo {
   scade: string;                  // termine per pagare
   tokenQr: string;                // un solo QR per tutto il tavolo
   codice: string;
-  inseritaDa: 'cliente' | 'pr';
+  inseritaDa: 'cliente' | 'pr' | 'crew';  // crew = l'admin, per un tavolo venduto a voce: il cliente paga dal link
   consensoPrivacyAt: string;
   createdAt: string;
   pagatoAt: string | null;
@@ -109,7 +112,7 @@ export interface PrenotazioneTavolo {
   chiusaDa: string | null;        // email di chi l'ha annullata o rimborsata; null = scaduta da sola
   promemoriaAt: string | null;    // promemoria del termine già mandato
   avvisoChiusuraAt: string | null; // email "prenotazione chiusa" già mandata al cliente
-  pagamentoOnline: PagamentoOnline | null; // null = si paga a mano (bonifico, Satispay…) e l'admin segna il pagamento
+  pagamentoOnline: PagamentoOnline | null; // null solo per le prenotazioni segnate a mano prima che tutto passasse dal sito
   /** Persone del tavolo già entrate. `rif` è l'id creato dal telefono della porta: una sincronizzazione ripetuta non conta due volte. */
   ingressi: { rif: string; ora: string; porta: string }[];
 }

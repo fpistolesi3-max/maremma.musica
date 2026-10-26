@@ -6,13 +6,12 @@ import { redirect } from 'next/navigation';
 import { COOKIE_PR } from '@/lib/costanti';
 import { origineRichiesta, sessioneCorrente } from '@/lib/sessione';
 import {
-  annullaPrenotazione, chiudiRimborsoDovuto, confermaPrenotazione, daPagareOnline, lasciaTavolo, pagamentoOnlineDi, prPrenotaTavolo, prenotaTavolo,
+  adminPrenotaTavolo, annullaPrenotazione, chiudiRimborsoDovuto, daPagareOnline, lasciaTavolo, pagamentoOnlineDi, prPrenotaTavolo, prenotaTavolo,
   prenotazionePubblica, type DatiPrenotazione,
 } from '@/lib/dati/tavoli';
-import { inviaChiusuraTavolo, inviaConfermaTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
+import { inviaChiusuraTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
 import { modoPagamentoTavoli, rimborsa } from '@/lib/pagamenti';
 import { apriPagamento } from '@/lib/pagamento-tavolo';
-import type { MetodoTavolo } from '@/lib/dati/tipi';
 
 export interface StatoTavoloModulo {
   errori: Partial<Record<'nome' | 'cognome' | 'email' | 'telefono' | 'persone' | 'tavolo' | 'privacy' | 'generale', string>>;
@@ -41,16 +40,18 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   const s = await sessioneCorrente();
   const handle = testo(f, 'pr') || (await cookies()).get(COOKIE_PR)?.value || null;
   const prSessione = s?.utente.ruolo === 'pr' && s.pr ? s.pr : null;
+  // L'admin che compila il modulo inserisce un tavolo venduto a voce: il cliente paga dal link che gli arriva.
+  const adminSessione = s?.utente.ruolo === 'admin' ? s : null;
   // Le prevendite si pagano con Stripe: senza pagamento online attivo i tavoli non si prenotano dal sito.
   const online = modoPagamentoTavoli() !== null;
   if (!online) return { errori: { generale: 'La prenotazione online dei tavoli non è ancora attiva.' }, valori };
-  const esito = prSessione ? await prPrenotaTavolo(s!, dati, online) : await prenotaTavolo(dati, handle, online);
+  const esito = prSessione ? await prPrenotaTavolo(s!, dati) : adminSessione ? await adminPrenotaTavolo(adminSessione, dati) : await prenotaTavolo(dati, handle);
   if (!esito.ok) return { errori: { [esito.campo ?? 'generale']: esito.errore }, valori };
 
   const p = esito.prenotazione;
   // Dal sito il cliente va subito alla pagina di pagamento, aperta qui: passando dal link /paga il redirect
   // di un'azione lascerebbe nel browser l'indirizzo sbagliato. Email e avviso agli admin partono a pagamento fatto.
-  if (!prSessione) {
+  if (!prSessione && !adminSessione) {
     revalidatePath('/', 'layout');
     let url = `${linkTavolo('', p.id, p.email)}&errore=pagamento`;
     try {
@@ -65,7 +66,7 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   try {
     if (v) {
       const origine = await origineRichiesta();
-      // Inserita dal PR: il cliente riceve il link per pagare; gli admin sapranno a pagamento fatto.
+      // Inserita dal PR o dalla crew: il cliente riceve il link per pagare; gli admin sapranno a pagamento fatto.
       await inviaRichiestaTavolo(v, origine);
     }
   } catch (e) {
@@ -75,18 +76,8 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   revalidatePath('/', 'layout');
   // Il PR torna nella sua area, con la conferma: la pagina della prenotazione è del cliente (gli arriva per email).
   if (prSessione && v) redirect(`/pr/${prSessione.handle}?serata=${v.evento.slug}&tavolo=${p.id}#tavoli`);
+  if (adminSessione) redirect(`/admin/eventi/${p.eventoId}/modifica?richiesta=${p.id}#tavoli`);
   redirect(`${linkTavolo('', p.id, p.email)}&nuovo=1`);
-}
-
-export async function confermaPrenotazioneAzione(id: string, metodo: MetodoTavolo): Promise<{ ok?: string; errore?: string }> {
-  const s = await sessioneCorrente();
-  if (!s || s.utente.ruolo !== 'admin') return { errore: 'Sessione scaduta: rientra.' };
-  try {
-    const v = await confermaPrenotazione(s, id, metodo);
-    try { await inviaConfermaTavolo(v, await origineRichiesta()); } catch (e) { console.error('[tavoli] invio email non riuscito', e); }
-  } catch (e) { return { errore: (e as Error).message }; }
-  revalidatePath('/', 'layout');
-  return { ok: 'Pagamento segnato: tavolo confermato.' };
 }
 
 /** `rimborso`: era pagata e i soldi sono stati restituiti (solo admin). Al cliente arriva l'email. */
