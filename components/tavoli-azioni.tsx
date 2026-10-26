@@ -28,16 +28,16 @@ export function AzioniPrenotazione({ id, nome, conferma, pagata = false, annulla
             {METODI.map(([v, testo]) => <option key={v} value={v}>{testo}</option>)}
           </select>
           <button type="button" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} disabled={inCorso || !metodo}
-            onClick={() => { if (metodo && confirm(`Confermi di aver ricevuto il pagamento di ${nome}? Gli arriva il QR del tavolo.`)) avvia(async () => setMsg(await confermaPrenotazioneAzione(id, metodo))); }}>{testoConferma}</button>
+            onClick={() => { if (metodo && confirm(`Confermi di aver ricevuto il pagamento di ${nome}? Al cliente arriva il QR del tavolo.`)) avvia(async () => setMsg(await confermaPrenotazioneAzione(id, metodo))); }}>{testoConferma}</button>
         </>
       )}
       {pagata && (
         <button type="button" className="mm-btn mm-btn--muto" style={{ minHeight: 44 }} disabled={inCorso}
-          onClick={() => { if (confirm(`Hai restituito i soldi a ${nome}? La prenotazione viene chiusa come rimborsata, il tavolo torna libero e gli arriva un'email.`)) avvia(async () => setMsg(await annullaPrenotazioneAzione(id, true))); }}>Rimborsa</button>
+          onClick={() => { if (confirm(`Hai restituito i soldi a ${nome}? La prenotazione viene chiusa come rimborsata, il tavolo torna libero e al cliente arriva un'email.`)) avvia(async () => setMsg(await annullaPrenotazioneAzione(id, true))); }}>Rimborsa</button>
       )}
       {annulla && (
         <button type="button" className="mm-btn mm-btn--muto" style={{ minHeight: 44 }} disabled={inCorso}
-          onClick={() => { if (confirm(pagata ? `Annullare la prenotazione pagata di ${nome} senza rimborso? Il tavolo torna libero e gli arriva un'email.` : `Annullare la prenotazione di ${nome}? Il tavolo torna libero e gli arriva un'email.`)) avvia(async () => setMsg(await annullaPrenotazioneAzione(id))); }}>{pagata ? 'Annulla senza rimborso' : 'Annulla'}</button>
+          onClick={() => { if (confirm(pagata ? `Annullare la prenotazione pagata di ${nome} senza rimborso? Il tavolo torna libero e al cliente arriva un'email.` : `Annullare la prenotazione di ${nome}? Il tavolo torna libero e al cliente arriva un'email.`)) avvia(async () => setMsg(await annullaPrenotazioneAzione(id))); }}>{pagata ? 'Annulla senza rimborso' : 'Annulla'}</button>
       )}
       {msg.errore && <span role="alert" className="text-[13px] text-stop-testo">{msg.errore}</span>}
       {msg.ok && <span className="text-[13px] text-ok">{msg.ok}</span>}
