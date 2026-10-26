@@ -515,6 +515,14 @@ test('tavoli: pagamento online, tavolo fermo pochi minuti, conferma automatica, 
   const p6 = r6.ok ? r6.prenotazione : null!;
   const ore = (new Date(p6.scade).getTime() - new Date(p6.createdAt).getTime()) / 3_600_000;
   assert.ok(p6.pagamentoOnline && Math.round(ore) === 24, 'dal PR: 24 ore');
+  // Il controllo del mattino: niente promemoria a chi ha appena ricevuto il link; dopo qualche ora sì, al cliente e al PR, una volta sola
+  assert.equal((await tv.promemoriaRichiestePr()).some((x) => x.vista.prenotazione.id === p6.id), false, 'link appena ricevuto');
+  const piuTardi = new Date(Date.now() + 4 * 3_600_000);
+  const promemoria = (await tv.promemoriaRichiestePr(piuTardi)).filter((x) => x.vista.prenotazione.id === p6.id);
+  assert.deepEqual(promemoria.map((x) => x.emailPr), ['test-pr@maremmamusica.test']);
+  assert.equal((await tv.promemoriaRichiestePr(piuTardi)).some((x) => x.vista.prenotazione.id === p6.id), false, 'una volta sola');
+  // Le richieste fatte dal cliente sul sito (30 minuti) non ricevono questo promemoria
+  assert.equal(promemoria.every((x) => x.vista.prenotazione.inseritaDa === 'pr'), true);
 
   // Firma del webhook di Stripe: valida solo con il segreto giusto, sul corpo esatto e non troppo vecchia
   const { createHmac } = await import('node:crypto');

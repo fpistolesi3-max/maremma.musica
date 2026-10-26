@@ -107,6 +107,8 @@ export function scadenzaPagamento(richiesta: Date, evento: Pick<Evento, 'data'>)
  */
 export const MINUTI_PAGAMENTO_ONLINE = 30;
 export const ORE_PAGAMENTO_ONLINE_PR = 24;
+/** Il promemoria della richiesta inserita dal PR parte solo se il cliente ha avuto il link da almeno queste ore. */
+export const ORE_MINIME_PROMEMORIA_PR = 3;
 
 /** Termine del pagamento online: pochi minuti (o qualche ora, se inserita dal PR), mai oltre l'apertura. */
 export function scadenzaPagamentoOnline(richiesta: Date, evento: Pick<Evento, 'data'>, daPr = false) {

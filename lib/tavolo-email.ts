@@ -96,6 +96,22 @@ ${bottoneEmail(linkTavolo(origine, p.id, p.email), 'Vedi la prenotazione →')}`
   await inviaEmail({ a: p.email, oggetto: `Il tuo tavolo sta per scadere · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Manca poco.', corpo) });
 }
 
+/** Richiesta inserita dal PR, ancora da pagare: al cliente il link per pagare, al PR l'avviso per scrivergli. */
+export async function inviaPromemoriaRichiestaPr(v: PrenotazioneVista, emailPr: string | null, origine: string) {
+  const { prenotazione: p, evento: e, tavolo: t } = v;
+  const cliente = `
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ciao ${escapeHtml(p.nome)}, il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)} è ancora fermo per te fino a <strong>${quandoScade(p.scade)}</strong>. Paga ora la spesa minima di <strong>${euro(p.spesaMinima)}</strong> e ti arriva subito il QR: dopo il termine il tavolo torna libero.</p>
+${riquadro(v, '')}
+${bottoneEmail(linkPagamento(origine, p.id, p.email), `Paga ${euro(p.spesaMinima)} →`)}`;
+  await inviaEmail({ a: p.email, oggetto: `Il tuo tavolo ti aspetta · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Manca il pagamento.', cliente) });
+  if (!emailPr) return;
+  const pr = `
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${escapeHtml(`${p.nome} ${p.cognome}`)} non ha ancora pagato il tavolo ${escapeHtml(t.nome)} che hai fermato per ${escapeHtml(e.nome)}. Scade <strong>${quandoScade(p.scade)}</strong>, poi torna libero: scrivi a ${escapeHtml(p.nome)} al <strong>${escapeHtml(p.telefono)}</strong>. Il link per pagare l'abbiamo appena rimandato per email.</p>
+${riquadro(v, '')}
+${bottoneEmail(`${origine}/pr`, 'Apri i tuoi tavoli →')}`;
+  await inviaEmail({ a: emailPr, oggetto: `Da pagare: tavolo ${t.nome} di ${p.nome} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Tavolo non pagato.', pr) });
+}
+
 /** La prenotazione è chiusa: decaduta senza pagamento, annullata dalla crew o rimborsata. Così nessuno arriva convinto di avere il tavolo. */
 export async function inviaChiusuraTavolo(v: PrenotazioneVista, origine: string) {
   const { prenotazione: p, evento: e, tavolo: t } = v;

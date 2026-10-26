@@ -4,7 +4,7 @@ import { leggi, modifica, segreto } from './archivio';
 import type { Archivio, Evento, MetodoTavolo, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { creaCodice, creaTokenQr } from '../qr-token';
-import { EMAIL_RE, eventoPassato, prenotazioneAttiva, prenotazioneScaduta, richiesteTavoliAperte, scadenzaPagamento, scadenzaPagamentoOnline } from '../regole';
+import { EMAIL_RE, ORE_MINIME_PROMEMORIA_PR, eventoPassato, prenotazioneAttiva, prenotazioneScaduta, richiesteTavoliAperte, scadenzaPagamento, scadenzaPagamentoOnline } from '../regole';
 
 // Prenotazione dei tavoli. Il cliente (o il PR per lui) chiede un tavolo libero: resta bloccato in attesa
 // del pagamento anticipato della spesa minima. L'admin segna il pagamento e la prenotazione è confermata;
@@ -333,6 +333,25 @@ export async function promemoriaDaMandare(ore = 36, adesso = new Date()): Promis
     const daAvvisare = d.prenotazioni.filter((p) => p.stato === 'in_attesa' && !p.pagamentoOnline && !p.promemoriaAt && new Date(p.scade).getTime() <= limite);
     for (const p of daAvvisare) p.promemoriaAt = adesso.toISOString();
     return daAvvisare.map((p) => vista(d, p)).filter((v): v is PrenotazioneVista => v !== null);
+  });
+}
+
+/**
+ * Richieste inserite dal PR con il pagamento online, ancora da pagare: il controllo del mattino ricorda al cliente
+ * di pagare e avvisa il PR, che può scrivergli. Solo se il cliente ha il link da almeno qualche ora (chi l'ha appena
+ * ricevuto non va disturbato) e una volta sola. `emailPr`: null se il PR non ha un accesso.
+ */
+export async function promemoriaRichiestePr(adesso = new Date()): Promise<{ vista: PrenotazioneVista; emailPr: string | null }[]> {
+  const minimo = ORE_MINIME_PROMEMORIA_PR * 3_600_000;
+  return modifica((d) => {
+    faiDecadere(d, adesso);
+    const da = d.prenotazioni.filter((p) => p.stato === 'in_attesa' && p.pagamentoOnline && p.inseritaDa === 'pr' && !p.promemoriaAt
+      && adesso.getTime() - new Date(p.createdAt).getTime() >= minimo && new Date(p.scade).getTime() > adesso.getTime());
+    for (const p of da) p.promemoriaAt = adesso.toISOString();
+    return da.flatMap((p) => {
+      const v = vista(d, p);
+      return v ? [{ vista: v, emailPr: d.utenti.find((u) => u.ruolo === 'pr' && u.prId === p.prId)?.email ?? null }] : [];
+    });
   });
 }
 
