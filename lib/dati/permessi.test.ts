@@ -470,6 +470,13 @@ test('tavoli: pagamento online, tavolo fermo pochi minuti, conferma automatica, 
   assert.deepEqual([pagata.stato, pagata.metodoPagamento, pagata.pagamentoOnline!.pagamento], ['confermata', 'online', 'pi_1']);
   assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'O1')!.stato, 'confermato');
   assert.equal(await tv.daPagareOnline(p2.id, chi.email), null, 'già pagata: niente nuova pagina di pagamento');
+  // Il controllo giornaliero chiede a Stripe solo delle pagine di pagamento rimaste senza esito
+  const r2b = await tv.prenotaTavolo({ ...chi, email: 'sospeso@esempio.it', telefono: '331 5550009', tavoloId: await id('O3') }, null, true);
+  const p2b = r2b.ok ? r2b.prenotazione : null!;
+  await tv.salvaSessionePagamento(p2b.id, 'cs_sospeso');
+  const daVerificare = (await tv.pagamentiDaVerificare()).map((x) => x.sessione);
+  assert.ok(daVerificare.includes('cs_sospeso') && !daVerificare.includes('cs_prova_1'), 'la pagata non si richiede');
+  await tv.lasciaTavolo(p2b.id, 'sospeso@esempio.it');
   // Il rimborso online sa quale pagamento restituire; solo l'admin
   assert.equal(await tv.pagamentoOnlineDi(admin, p2.id), 'pi_1');
   await assert.rejects(tv.pagamentoOnlineDi(staff, p2.id), /non_autorizzato/);

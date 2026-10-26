@@ -30,7 +30,7 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
   const { email, nuovo, pagato, annullato, errore } = await searchParams;
   let v = await prenotazionePubblica(id, email);
   // Di ritorno dal pagamento online: se il webhook non è ancora arrivato si chiede a Stripe e si rilegge.
-  if (v && v.prenotazione.stato === 'in_attesa' && v.prenotazione.pagamentoOnline && pagato) {
+  if (v && (v.prenotazione.stato === 'in_attesa' || v.prenotazione.stato === 'scaduta') && v.prenotazione.pagamentoOnline && pagato) {
     await verificaRitorno(v, await origineRichiesta());
     v = await prenotazionePubblica(id, email);
   }

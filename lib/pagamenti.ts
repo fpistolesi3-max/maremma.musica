@@ -2,15 +2,15 @@ import 'server-only';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { modalitaProva } from './prova';
 
-// Pagamento online dei tavoli. Con STRIPE_SECRET_KEY si usa Stripe Checkout (carta, Apple Pay, Google Pay);
-// senza chiave, in sviluppo e sull'istanza di prova, una pagina di pagamento finta (/dev/pagamento) che fa
-// tutto il giro senza soldi veri. Si accende con TAVOLI_PAGAMENTO_ONLINE=1: senza, si paga a mano come prima.
+// Pagamento online dei tavoli: le prevendite si pagano sempre con Stripe, alla serata si paga solo da bere.
+// Con STRIPE_SECRET_KEY si usa Stripe Checkout (carta, Apple Pay, Google Pay); senza chiave, in sviluppo e
+// sull'istanza di prova, una pagina di pagamento finta (/dev/pagamento) che fa tutto il giro senza soldi veri.
+// Sul sito vero senza chiave i tavoli non si prenotano (null): niente pagamenti a mano dal sito.
 // Niente libreria: bastano tre chiamate all'API di Stripe e la verifica della firma del webhook.
 
 export type ModoPagamento = 'stripe' | 'prova';
 
 export function modoPagamentoTavoli(): ModoPagamento | null {
-  if (process.env.TAVOLI_PAGAMENTO_ONLINE !== '1') return null;
   if (process.env.STRIPE_SECRET_KEY) return 'stripe';
   return modalitaProva() ? 'prova' : null;
 }

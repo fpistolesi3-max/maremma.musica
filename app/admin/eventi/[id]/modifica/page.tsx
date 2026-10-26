@@ -66,7 +66,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         <Sezione id="tavoli" n="06" titolo="Tavoli" nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
           <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} PRENOTATI{inAttesa > 0 && <span className="text-attesa"> · {inAttesa} IN ATTESA DI PAGAMENTO</span>}</>
         )}>
-          <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata in anticipo. Chi lo chiede dal sito (o il PR per lui) lo tiene fermo: quando ricevi i soldi premi &quot;Segna pagato&quot;, altrimenti dopo il termine torna libero da solo.</span>
+          <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata online con Stripe: il cliente paga sul sito (o dal link che gli arriva, se lo inserisce il PR) e la prenotazione si conferma da sola. Se non paga in tempo il tavolo torna libero. &quot;Segna pagato&quot; serve solo per i casi a mano, come un tavolo venduto a voce.</span>
           <div className="flex flex-wrap gap-x-6">
             <a href={`/tavoli/${e.slug}`} target="_blank" className="link-sottolineato py-2">Apri la pagina dei tavoli →</a>
             {tutte.length > 0 && <a href={`/api/admin/csv-tavoli/${e.id}`} className="link-sottolineato py-2">Esporta le prenotazioni (CSV)</a>}

@@ -1,5 +1,5 @@
 import 'server-only';
-import { confermaPagamentoOnline, emailAdmin, salvaSessionePagamento, type PrenotazioneVista } from './dati/tavoli';
+import { confermaPagamentoOnline, emailAdmin, pagamentiDaVerificare, salvaSessionePagamento, type PrenotazioneVista } from './dati/tavoli';
 import { creaCheckout, statoCheckout } from './pagamenti';
 import { inviaAvvisoAdmin, inviaConfermaTavolo, linkTavolo } from './tavolo-email';
 import { dataPunti } from './formato';
@@ -36,11 +36,30 @@ export async function registraPagamento(prenotazioneId: string, pagamento: strin
 /** Il cliente torna dalla pagina di pagamento: se il webhook non è ancora arrivato si chiede direttamente a Stripe. */
 export async function verificaRitorno(v: PrenotazioneVista, origine: string) {
   const sessione = v.prenotazione.pagamentoOnline?.sessione;
-  if (v.prenotazione.stato !== 'in_attesa' || !sessione) return;
+  // Anche scaduta: il pagamento può essere arrivato pochi secondi dopo il termine.
+  if ((v.prenotazione.stato !== 'in_attesa' && v.prenotazione.stato !== 'scaduta') || !sessione || v.prenotazione.pagamentoOnline?.pagamento) return;
   try {
     const s = await statoCheckout(sessione);
     if (s.pagato && s.pagamento) await registraPagamento(v.prenotazione.id, s.pagamento, origine);
   } catch (e) {
     console.error('[tavoli] verifica del pagamento non riuscita', e);
   }
+}
+
+/**
+ * Rete di sicurezza del cron: per ogni pagina di pagamento rimasta senza esito chiede a Stripe se è stata pagata
+ * e registra quelle pagate (che il webhook, per un problema di configurazione o di rete, non ha portato).
+ * Restituisce quante ne ha registrate.
+ */
+export async function verificaSospesi(origine: string) {
+  let registrati = 0;
+  for (const { id, sessione } of await pagamentiDaVerificare()) {
+    try {
+      const s = await statoCheckout(sessione);
+      if (s.pagato && s.pagamento && (await registraPagamento(id, s.pagamento, origine)) !== 'gia') registrati += 1;
+    } catch (e) {
+      console.error('[tavoli] verifica del pagamento non riuscita', id, e);
+    }
+  }
+  return registrati;
 }

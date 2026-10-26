@@ -391,6 +391,18 @@ export async function confermaPagamentoOnline(prenotazioneId: string, pagamento:
   });
 }
 
+/**
+ * Pagine di pagamento aperte senza un pagamento registrato, degli ultimi `giorni` (Stripe le tiene valide al
+ * massimo 24 ore): il controllo giornaliero chiede a Stripe se sono state pagate, nel caso il webhook non sia arrivato.
+ */
+export async function pagamentiDaVerificare(giorni = 3, adesso = new Date()): Promise<{ id: string; sessione: string }[]> {
+  const da = adesso.getTime() - giorni * 86_400_000;
+  return (await leggi()).prenotazioni
+    .filter((p) => p.pagamentoOnline?.sessione && !p.pagamentoOnline.pagamento && (p.stato === 'in_attesa' || p.stato === 'scaduta')
+      && new Date(p.createdAt).getTime() >= da)
+    .map((p) => ({ id: p.id, sessione: p.pagamentoOnline!.sessione! }));
+}
+
 /** Il cliente lascia il tavolo prima di pagare (dalla sua pagina): si libera subito per gli altri. */
 export async function lasciaTavolo(id: string, email: string): Promise<PrenotazioneVista | null> {
   return modifica((d) => {

@@ -5,6 +5,7 @@ import { sessioneCorrente } from '@/lib/sessione';
 import { eventiPubblici, prValido } from '@/lib/dati/pubblico';
 import { serateDelPr, totaliPr } from '@/lib/dati/area-pr';
 import { tavoliDelPr } from '@/lib/dati/tavoli';
+import { modoPagamentoTavoli } from '@/lib/pagamenti';
 import { quandoScade } from '@/lib/tavolo-email';
 import { AzioniPrenotazione } from '@/components/tavoli-azioni';
 import { chipLista, isAttiva } from '@/lib/regole';
@@ -90,6 +91,8 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
   const mio = serata?.classifica.find((r) => r.sonoIo);
   const GIORNI = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
   const tavoli = serata ? await tavoliDelPr(s, serata.evento.id) : null;
+  // I tavoli si pagano con Stripe: finché il pagamento online non è attivo non si prenotano.
+  const tavoliOnline = modoPagamentoTavoli() !== null;
   const appena = nuovoTavolo ? tavoli?.mie.find((v) => v.prenotazione.id === nuovoTavolo && v.prenotazione.stato === 'in_attesa') : undefined;
 
   return (
@@ -192,13 +195,13 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
                   ✓ Richiesta inserita: tavolo {appena.tavolo.nome} per {appena.prenotazione.nome} {appena.prenotazione.cognome}, fermo fino a {quandoScade(appena.prenotazione.scade)}. Al cliente arriva l&apos;email con il link.
                 </p>
               )}
-              {tavoli.aperte && tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--linea self-start">Prenota per un cliente</Link>}
-              {tavoli.aperte ? (
+              {tavoli.aperte && tavoliOnline && tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--linea self-start">Prenota per un cliente</Link>}
+              {tavoli.aperte && tavoliOnline ? (
                 <>
                   <span className="text-[14px] leading-5 text-osso-2">{tavoli.liberi > 0 ? 'Oppure manda questo link' : 'Manda questo link'}: chi prenota da qui finisce nei tuoi tavoli.</span>
                   <CampoLink link={`/tavoli/${serata.evento.slug}?pr=${pr.handle}`} />
                 </>
-              ) : <span className="text-[14px] leading-5 text-osso-2">La serata è iniziata: i tavoli non si chiedono più dal sito.</span>}
+              ) : <span className="text-[14px] leading-5 text-osso-2">{tavoli.aperte ? 'La prenotazione online dei tavoli non è ancora attiva.' : 'La serata è iniziata: i tavoli non si chiedono più dal sito.'}</span>}
               <div className="flex flex-col">
                 {tavoli.mie.map((v) => {
                   const p = v.prenotazione;
@@ -218,7 +221,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
                   );
                 })}
               </div>
-              <span className="text-[13px] leading-5 text-osso-3">Il tavolo va pagato in anticipo: lo conferma la crew quando riceve i soldi. Dopo il termine torna libero.</span>
+              <span className="text-[13px] leading-5 text-osso-3">Il cliente paga online: appena paga il tavolo è confermato e gli arriva il QR. I soldi non passano da te. Se non paga in tempo il tavolo torna libero.</span>
             </section>
           )}
 

@@ -6,11 +6,12 @@ import { redirect } from 'next/navigation';
 import { COOKIE_PR } from '@/lib/costanti';
 import { origineRichiesta, sessioneCorrente } from '@/lib/sessione';
 import {
-  annullaPrenotazione, chiudiRimborsoDovuto, confermaPrenotazione, emailAdmin, lasciaTavolo, pagamentoOnlineDi, prPrenotaTavolo, prenotaTavolo,
+  annullaPrenotazione, chiudiRimborsoDovuto, confermaPrenotazione, daPagareOnline, lasciaTavolo, pagamentoOnlineDi, prPrenotaTavolo, prenotaTavolo,
   prenotazionePubblica, type DatiPrenotazione,
 } from '@/lib/dati/tavoli';
-import { inviaAvvisoAdmin, inviaChiusuraTavolo, inviaConfermaTavolo, inviaRichiestaTavolo, linkPagamento, linkTavolo } from '@/lib/tavolo-email';
+import { inviaChiusuraTavolo, inviaConfermaTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
 import { modoPagamentoTavoli, rimborsa } from '@/lib/pagamenti';
+import { apriPagamento } from '@/lib/pagamento-tavolo';
 import type { MetodoTavolo } from '@/lib/dati/tipi';
 
 export interface StatoTavoloModulo {
@@ -40,23 +41,32 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   const s = await sessioneCorrente();
   const handle = testo(f, 'pr') || (await cookies()).get(COOKIE_PR)?.value || null;
   const prSessione = s?.utente.ruolo === 'pr' && s.pr ? s.pr : null;
+  // Le prevendite si pagano con Stripe: senza pagamento online attivo i tavoli non si prenotano dal sito.
   const online = modoPagamentoTavoli() !== null;
+  if (!online) return { errori: { generale: 'La prenotazione online dei tavoli non è ancora attiva.' }, valori };
   const esito = prSessione ? await prPrenotaTavolo(s!, dati, online) : await prenotaTavolo(dati, handle, online);
   if (!esito.ok) return { errori: { [esito.campo ?? 'generale']: esito.errore }, valori };
 
   const p = esito.prenotazione;
-  // Pagamento online dal sito: il cliente va subito a pagare. Email e avviso agli admin partono a pagamento fatto.
-  if (online && !prSessione) {
+  // Dal sito il cliente va subito alla pagina di pagamento, aperta qui: passando dal link /paga il redirect
+  // di un'azione lascerebbe nel browser l'indirizzo sbagliato. Email e avviso agli admin partono a pagamento fatto.
+  if (!prSessione) {
     revalidatePath('/', 'layout');
-    redirect(linkPagamento('', p.id, p.email));
+    let url = `${linkTavolo('', p.id, p.email)}&errore=pagamento`;
+    try {
+      const daPagare = await daPagareOnline(p.id, p.email);
+      if (daPagare) url = await apriPagamento(daPagare, await origineRichiesta());
+    } catch (e) {
+      console.error('[tavoli] pagina di pagamento non aperta', e);
+    }
+    redirect(url);
   }
   const v = await prenotazionePubblica(p.id, p.email);
   try {
     if (v) {
       const origine = await origineRichiesta();
-      // Con il pagamento online inserito dal PR il cliente riceve il link per pagare; gli admin sapranno a pagamento fatto.
+      // Inserita dal PR: il cliente riceve il link per pagare; gli admin sapranno a pagamento fatto.
       await inviaRichiestaTavolo(v, origine);
-      if (!online) await inviaAvvisoAdmin(v, await emailAdmin(), origine);
     }
   } catch (e) {
     // La prenotazione c'è comunque e si vede a schermo: non blocchiamo la persona.
