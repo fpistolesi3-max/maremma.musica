@@ -259,6 +259,8 @@ export async function eliminaTavolo(s: Sessione, id: string) {
   soloAdmin(s);
   await modifica((d) => {
     if (d.prenotazioni.some((p) => p.tavoloId === id && prenotazioneAttiva(p))) throw new Error('Questo tavolo ha una prenotazione: annullala prima di eliminarlo');
+    // Le prenotazioni chiuse restano nello storico e nel CSV legate al tavolo (come "on delete restrict" nello schema).
+    if (d.prenotazioni.some((p) => p.tavoloId === id)) throw new Error('Questo tavolo ha prenotazioni nello storico: invece di eliminarlo mettilo "Non in vendita"');
     d.tavoli = d.tavoli.filter((t) => t.id !== id);
   });
 }

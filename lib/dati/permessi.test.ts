@@ -303,6 +303,8 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   // L'admin annulla anche una pagata: il tavolo si libera
   await tv.annullaPrenotazione(admin, p1.id);
   assert.equal((await tv.tavoliPubblici('halloween-party'))!.tavoli.find((t) => t.nome === 'A1')!.libero, true);
+  // Con prenotazioni nello storico il tavolo non si elimina (lo schema le tiene legate): si mette non in vendita
+  await assert.rejects(async () => m.admin.eliminaTavolo(admin, await id('A1')), /storico/);
 
   // Due richieste nello stesso momento per lo stesso tavolo: una sola lo prende
   const insieme = await Promise.all([
