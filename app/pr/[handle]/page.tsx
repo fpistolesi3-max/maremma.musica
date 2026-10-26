@@ -101,7 +101,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
         <span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-full border border-linea-forte bg-notte-3 font-display text-[16px] font-black">{iniziali}</span>
       </header>
 
-      <main className="mx-auto grid w-full max-w-[1280px] gap-x-12 px-4 pb-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:px-10">
+      <main className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-x-12 px-4 pb-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:px-10">
         <div className="flex flex-col">
           <section className="flex flex-col gap-[10px] pb-6 pt-7">
             <h1 className="m-0 font-display text-[64px] font-black uppercase leading-[.84] md:text-[88px]">Ciao,<br />{pr.nomeDisplay.split(' ')[0]}.</h1>
