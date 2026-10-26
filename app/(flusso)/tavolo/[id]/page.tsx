@@ -15,7 +15,7 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ email?: 
 
 const STATI = {
   in_attesa: { chip: 'mm-chip mm-chip--incassare', testo: 'In attesa di pagamento' },
-  confermata: { chip: 'mm-chip mm-chip--entrato', testo: 'Confermato' },
+  confermata: { chip: 'mm-chip mm-chip--entrato', testo: 'Pagato' },
   annullata: { chip: 'mm-chip mm-chip--annullato', testo: 'Annullata' },
   rimborsata: { chip: 'mm-chip mm-chip--annullato', testo: 'Rimborsata' },
   scaduta: { chip: 'mm-chip mm-chip--annullato', testo: 'Scaduta' },

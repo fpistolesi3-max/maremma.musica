@@ -17,8 +17,9 @@ export interface RigaTavolo {
   prenotazione: PrenotazioneRiga | null;   // quella attiva, se c'è: decide lei lo stato del tavolo
 }
 
+// Le stesse quattro parole di mappa, prenotazioni, area PR e pagina del cliente.
 const STATI: [StatoTavolo, string][] = [
-  ['libero', 'Libero'], ['riservato', 'Riservato'], ['confermato', 'Confermato'], ['non_in_vendita', 'Non in vendita'],
+  ['libero', 'Libero'], ['riservato', 'In attesa di pagamento'], ['confermato', 'Pagato'], ['non_in_vendita', 'Non in vendita'],
 ];
 
 /** Tavoli della serata: nome, zona, posti, spesa minima, stato, a quali PR sono affidati e chi li ha chiesti. */

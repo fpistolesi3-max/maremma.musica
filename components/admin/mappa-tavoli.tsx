@@ -13,8 +13,8 @@ export interface PuntoTavolo {
 // Stato sempre con la parola in legenda, mai solo colore.
 const STATI: Record<StatoTavolo, { testo: string; classe: string }> = {
   libero: { testo: 'Libero', classe: 'border-ok bg-ok text-su-stato' },
-  riservato: { testo: 'Riservato', classe: 'border-attesa bg-attesa text-su-stato' },
-  confermato: { testo: 'Confermato', classe: 'border-arancio bg-arancio text-su-arancio' },
+  riservato: { testo: 'In attesa di pagamento', classe: 'border-attesa bg-attesa text-su-stato' },
+  confermato: { testo: 'Pagato', classe: 'border-arancio bg-arancio text-su-arancio' },
   non_in_vendita: { testo: 'Non in vendita', classe: 'border-linea-forte bg-notte-3 text-osso-2' },
 };
 
