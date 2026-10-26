@@ -18,7 +18,7 @@ import { esci } from '@/app/azioni/accesso';
 
 export const dynamic = 'force-dynamic';
 
-type Props = { params: Promise<{ handle: string }>; searchParams: Promise<{ serata?: string }> };
+type Props = { params: Promise<{ handle: string }>; searchParams: Promise<{ serata?: string; tavolo?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const pr = await prValido((await params).handle);
@@ -35,7 +35,8 @@ export default async function PaginaPr({ params, searchParams }: Props) {
   const pr = await prValido(handle);
   if (!pr) notFound();
   const s = await sessioneCorrente();
-  if (s?.utente.ruolo === 'pr' && s.pr?.id === pr.id) return <AreaPr sessioneHandle={pr.handle} serataScelta={(await searchParams).serata} />;
+  const { serata, tavolo } = await searchParams;
+  if (s?.utente.ruolo === 'pr' && s.pr?.id === pr.id) return <AreaPr sessioneHandle={pr.handle} serataScelta={serata} nuovoTavolo={tavolo} />;
   return <LinkGenerico handle={pr.handle} nome={pr.nomeDisplay} />;
 }
 
@@ -75,7 +76,8 @@ async function LinkGenerico({ handle, nome }: { handle: string; nome: string }) 
   );
 }
 
-async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string; serataScelta?: string }) {
+/** `nuovoTavolo`: id della richiesta appena inserita dal PR per un cliente, da confermare a schermo. */
+async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneHandle: string; serataScelta?: string; nuovoTavolo?: string }) {
   const s = (await sessioneCorrente())!;
   const pr = s.pr!;
   const serate = await serateDelPr(s);
@@ -88,6 +90,7 @@ async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string
   const mio = serata?.classifica.find((r) => r.sonoIo);
   const GIORNI = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
   const tavoli = serata ? await tavoliDelPr(s, serata.evento.id) : null;
+  const appena = nuovoTavolo ? tavoli?.mie.find((v) => v.prenotazione.id === nuovoTavolo && v.prenotazione.stato === 'in_attesa') : undefined;
 
   return (
     <div className="mm-grana flex min-h-dvh flex-col">
@@ -179,11 +182,16 @@ async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string
           )}
 
           {serata && tavoli && (tavoli.affidati > 0 || tavoli.mie.length > 0) && (
-            <section className="flex flex-col gap-[14px] pt-8">
+            <section id="tavoli" className="flex scroll-mt-4 flex-col gap-[14px] pt-8">
               <div className="flex items-end justify-between">
                 <h2 className="m-0 font-display text-[36px] font-black uppercase leading-[.9]">Tavoli</h2>
                 <span className="font-mono text-[11px] text-osso-2">{tavoli.liberi} LIBERI SU {tavoli.affidati}</span>
               </div>
+              {appena && (
+                <p role="status" className="m-0 border border-ok px-4 py-3 text-[14px] leading-5 text-ok">
+                  ✓ Richiesta inserita: tavolo {appena.tavolo.nome} per {appena.prenotazione.nome} {appena.prenotazione.cognome}, fermo fino a {quandoScade(appena.prenotazione.scade)}. Al cliente arriva l&apos;email con il link.
+                </p>
+              )}
               {tavoli.aperte && tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--linea self-start">Prenota per un cliente</Link>}
               {tavoli.aperte ? (
                 <>

@@ -36,7 +36,8 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
 
   const s = await sessioneCorrente();
   const handle = testo(f, 'pr') || (await cookies()).get(COOKIE_PR)?.value || null;
-  const esito = s?.utente.ruolo === 'pr' && s.pr ? await prPrenotaTavolo(s, dati) : await prenotaTavolo(dati, handle);
+  const prSessione = s?.utente.ruolo === 'pr' && s.pr ? s.pr : null;
+  const esito = prSessione ? await prPrenotaTavolo(s!, dati) : await prenotaTavolo(dati, handle);
   if (!esito.ok) return { errori: { [esito.campo ?? 'generale']: esito.errore }, valori };
 
   const p = esito.prenotazione;
@@ -52,6 +53,8 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
     console.error('[tavoli] invio email non riuscito', e);
   }
   revalidatePath('/', 'layout');
+  // Il PR torna nella sua area, con la conferma: la pagina della prenotazione è del cliente (gli arriva per email).
+  if (prSessione && v) redirect(`/pr/${prSessione.handle}?serata=${v.evento.slug}&tavolo=${p.id}#tavoli`);
   redirect(`${linkTavolo('', p.id, p.email)}&nuovo=1`);
 }
 
