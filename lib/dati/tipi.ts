@@ -67,7 +67,11 @@ export interface Tavolo {
   y: number | null;
 }
 
-export type StatoPrenotazione = 'in_attesa' | 'confermata' | 'annullata' | 'scaduta';
+/** rimborsata = era pagata, annullata e restituiti i soldi; annullata = chiusa senza rimborso. */
+export type StatoPrenotazione = 'in_attesa' | 'confermata' | 'annullata' | 'rimborsata' | 'scaduta';
+
+/** Come è arrivato l'anticipo del tavolo. */
+export type MetodoTavolo = 'bonifico' | 'satispay' | 'contanti' | 'pos';
 
 /**
  * Richiesta di un tavolo. Nasce "in attesa": il tavolo è fermo ma la spesa minima va pagata in anticipo
@@ -92,8 +96,12 @@ export interface PrenotazioneTavolo {
   consensoPrivacyAt: string;
   createdAt: string;
   pagatoAt: string | null;
-  chiusaAt: string | null;        // annullata o scaduta
+  metodoPagamento: MetodoTavolo | null;
+  pagatoDa: string | null;        // email di chi ha segnato il pagamento
+  chiusaAt: string | null;        // annullata, rimborsata o scaduta
+  chiusaDa: string | null;        // email di chi l'ha annullata o rimborsata; null = scaduta da sola
   promemoriaAt: string | null;    // promemoria del termine già mandato
+  avvisoChiusuraAt: string | null; // email "prenotazione chiusa" già mandata al cliente
   /** Persone del tavolo già entrate. `rif` è l'id creato dal telefono della porta: una sincronizzazione ripetuta non conta due volte. */
   ingressi: { rif: string; ora: string; porta: string }[];
 }

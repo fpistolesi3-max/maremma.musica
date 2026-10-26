@@ -280,9 +280,9 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   assert.equal((await tv.prenotazionePubblica(p1.id, 'RITA@esempio.it'))!.tavolo.nome, 'A1');
 
   // Solo l'admin segna il pagamento; con la prenotazione attiva lo stato del tavolo non si cambia a mano né si elimina
-  await assert.rejects(tv.confermaPrenotazione(pr, p1.id), /non_autorizzato/);
+  await assert.rejects(tv.confermaPrenotazione(pr, p1.id, 'bonifico'), /non_autorizzato/);
   await assert.rejects(tv.prenotazioniAdmin(staff, ev.id), /non_autorizzato/);
-  await tv.confermaPrenotazione(admin, p1.id);
+  await tv.confermaPrenotazione(admin, p1.id, 'bonifico');
   await assert.rejects(async () => m.admin.salvaTavolo(admin, { ...base, id: await id('A1'), nome: 'A1', posti: 3 }), /prenotato per 4 persone/, 'posti sotto il gruppo prenotato');
   await m.admin.salvaTavolo(admin, { ...base, id: await id('A1'), nome: 'A1', stato: 'libero', posti: 4 });
   assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'A1')!.stato, 'confermato');
@@ -299,7 +299,28 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   await m.archivio.modifica((d) => { d.prenotazioni.find((p) => p.id === p2)!.scade = new Date(Date.now() - 1000).toISOString(); });
   assert.equal((await tv.tavoliPubblici('halloween-party'))!.tavoli.find((t) => t.nome === 'A2')!.libero, true);
   assert.equal((await tv.prenotazionePubblica(p2, 'ugo@esempio.it'))!.prenotazione.stato, 'scaduta');
-  await assert.rejects(tv.confermaPrenotazione(admin, p2), /termine è passato/);
+
+  // Pagamento arrivato in ritardo e tavolo ancora libero: l'admin la riattiva, segnando come e chi
+  await assert.rejects(tv.confermaPrenotazione(admin, p2, 'assegno' as never), /Scegli come/);
+  const riattivata = (await tv.confermaPrenotazione(admin, p2, 'satispay')).prenotazione;
+  assert.deepEqual([riattivata.stato, riattivata.metodoPagamento, riattivata.pagatoDa, riattivata.chiusaAt], ['confermata', 'satispay', 'admin@maremmamusica.test', null]);
+  assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'A2')!.stato, 'confermato');
+
+  // Rimborso: solo l'admin e solo su una pagata; il tavolo si libera, la porta la vede rimborsata
+  await assert.rejects(tv.annullaPrenotazione(zarro, p2, true), /non_autorizzato/);
+  const rimborsata = (await tv.annullaPrenotazione(admin, p2, true))!.prenotazione;
+  assert.deepEqual([rimborsata.stato, rimborsata.chiusaDa], ['rimborsata', 'admin@maremmamusica.test']);
+  assert.equal((await m.porta.elencoPorta(staff, ev.id)).find((v) => v.id === p2)!.stato, 'rimborsato');
+  assert.equal(await tv.annullaPrenotazione(admin, p2), null, 'già chiusa: niente da fare');
+
+  // Scaduta ma nel frattempo il tavolo è di un altro: non si riattiva. Una in attesa non si rimborsa.
+  const r3 = await tv.prenotaTavolo({ ...chi, email: 'tre@esempio.it', telefono: '320 3000003', tavoloId: await id('A2') }, null);
+  const p3 = r3.ok ? r3.prenotazione.id : '';
+  await m.archivio.modifica((d) => { d.prenotazioni.find((p) => p.id === p3)!.scade = new Date(Date.now() - 1000).toISOString(); });
+  const r4 = await tv.prenotaTavolo({ ...chi, email: 'quattro@esempio.it', telefono: '320 4000004', tavoloId: await id('A2') }, null);
+  assert.ok(r4.ok);
+  await assert.rejects(tv.confermaPrenotazione(admin, p3, 'bonifico'), /stato preso/);
+  await assert.rejects(tv.annullaPrenotazione(admin, r4.ok ? r4.prenotazione.id : '', true), /solo una prenotazione pagata/);
 
   // L'admin annulla anche una pagata: il tavolo si libera
   await tv.annullaPrenotazione(admin, p1.id);
@@ -344,7 +365,7 @@ test('porta e tavoli: un QR per il gruppo, una persona a passaggio, non pagato n
   const nonPagato = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm0');
   assert.ok(nonPagato.esito === 'non_valido' && /non ancora pagato/.test(nonPagato.motivo));
 
-  await tv.confermaPrenotazione(admin, p.id);
+  await tv.confermaPrenotazione(admin, p.id, 'contanti');
   const primo = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm1');
   assert.ok(primo.esito === 'entrato' && primo.voce.tavolo!.entrati === 1 && primo.incassato === 0);
   // La stessa sincronizzazione ripetuta non fa entrare un'altra persona

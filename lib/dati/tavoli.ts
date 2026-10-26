@@ -1,7 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { leggi, modifica, segreto } from './archivio';
-import type { Archivio, Evento, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
+import type { Archivio, Evento, MetodoTavolo, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { creaCodice, creaTokenQr } from '../qr-token';
 import { EMAIL_RE, eventoPassato, prenotazioneAttiva, prenotazioneScaduta, richiesteTavoliAperte, scadenzaPagamento } from '../regole';
@@ -121,7 +121,7 @@ async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavol
       nome: i.nome.trim(), cognome: i.cognome.trim(), email, telefono: i.telefono.trim(), persone: i.persone,
       spesaMinima: t.spesaMinima, stato: 'in_attesa', scade: scadenzaPagamento(adesso, evento),
       tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),
-      inseritaDa: opzioni.inseritaDa, consensoPrivacyAt: adesso.toISOString(), createdAt: adesso.toISOString(), pagatoAt: null, chiusaAt: null, promemoriaAt: null, ingressi: [],
+      inseritaDa: opzioni.inseritaDa, consensoPrivacyAt: adesso.toISOString(), createdAt: adesso.toISOString(), pagatoAt: null, metodoPagamento: null, pagatoDa: null, chiusaAt: null, chiusaDa: null, promemoriaAt: null, avvisoChiusuraAt: null, ingressi: [],
     };
     d.prenotazioni.push(p);
     t.stato = 'riservato';
@@ -178,35 +178,61 @@ export async function prenotazioniAdmin(s: Sessione, eventoId: string): Promise<
     .filter((v): v is PrenotazioneVista => v !== null);
 }
 
-/** L'admin ha ricevuto il pagamento anticipato: la prenotazione è confermata e il QR diventa valido. */
-export async function confermaPrenotazione(s: Sessione, id: string): Promise<PrenotazioneVista> {
+export const METODI_TAVOLO: MetodoTavolo[] = ['bonifico', 'satispay', 'contanti', 'pos'];
+
+/**
+ * L'admin ha ricevuto il pagamento anticipato: la prenotazione è confermata e il QR diventa valido.
+ * Si segna come è arrivato e chi l'ha ricevuto. Vale anche per una prenotazione appena scaduta, se il
+ * pagamento è arrivato in ritardo e il tavolo è ancora libero (nessun altro l'ha preso) e la serata non è passata.
+ */
+export async function confermaPrenotazione(s: Sessione, id: string, metodo: MetodoTavolo): Promise<PrenotazioneVista> {
   if (s.utente.ruolo !== 'admin') throw new Error('non_autorizzato');
+  if (!METODI_TAVOLO.includes(metodo)) throw new Error('Scegli come è arrivato il pagamento');
   return modifica((d) => {
     faiDecadere(d);
     const p = d.prenotazioni.find((x) => x.id === id);
     if (!p) throw new Error('Prenotazione non trovata');
-    if (p.stato !== 'in_attesa') throw new Error(p.stato === 'scaduta' ? 'Il termine è passato e il tavolo è tornato libero: serve una nuova richiesta' : 'Questa prenotazione non è più in attesa');
+    const t = d.tavoli.find((x) => x.id === p.tavoloId);
+    if (p.stato === 'scaduta') {
+      const evento = d.eventi.find((e) => e.id === p.eventoId);
+      if (!evento || eventoPassato(evento)) throw new Error('La serata è passata: la prenotazione non si riattiva più');
+      const preso = !t || t.stato !== 'libero' || d.prenotazioni.some((x) => x.tavoloId === p.tavoloId && x.id !== p.id && prenotazioneAttiva(x));
+      if (preso) throw new Error('Il termine è passato e nel frattempo il tavolo è stato preso o tolto dalla vendita: serve un altro tavolo');
+      p.chiusaAt = null;
+      p.avvisoChiusuraAt = null;   // se l'email "chiusa" non è ancora partita, non parte più
+    } else if (p.stato !== 'in_attesa') {
+      throw new Error('Questa prenotazione non è più in attesa');
+    }
     p.stato = 'confermata';
     p.pagatoAt = new Date().toISOString();
-    const t = d.tavoli.find((x) => x.id === p.tavoloId);
+    p.metodoPagamento = metodo;
+    p.pagatoDa = s.utente.email;
     if (t) t.stato = 'confermato';
     return vista(d, p)!;
   });
 }
 
-/** Annulla e libera il tavolo. L'admin sempre; il PR solo le proprie e solo finché non sono pagate. */
-export async function annullaPrenotazione(s: Sessione, id: string) {
-  await modifica((d) => {
+/**
+ * Annulla e libera il tavolo. L'admin sempre; il PR solo le proprie e solo finché non sono pagate.
+ * `rimborso`: solo l'admin e solo su una pagata, i soldi sono stati restituiti (stato "rimborsata").
+ * Restituisce la prenotazione chiusa (per l'email al cliente) o null se era già chiusa.
+ */
+export async function annullaPrenotazione(s: Sessione, id: string, rimborso = false): Promise<PrenotazioneVista | null> {
+  return modifica((d) => {
     const p = d.prenotazioni.find((x) => x.id === id);
     if (!p) throw new Error('Prenotazione non trovata');
     const admin = s.utente.ruolo === 'admin';
     const suaInAttesa = s.utente.ruolo === 'pr' && s.pr && p.prId === s.pr.id && p.stato === 'in_attesa';
     if (!admin && !suaInAttesa) throw new Error('non_autorizzato');
-    if (!prenotazioneAttiva(p)) return;
-    p.stato = 'annullata';
+    if (!prenotazioneAttiva(p)) return null;
+    if (rimborso && p.stato !== 'confermata') throw new Error('Si rimborsa solo una prenotazione pagata');
+    p.stato = rimborso ? 'rimborsata' : 'annullata';
     p.chiusaAt = new Date().toISOString();
+    p.chiusaDa = s.utente.email;
+    p.avvisoChiusuraAt = p.chiusaAt;   // l'email parte subito, dall'azione
     const t = d.tavoli.find((x) => x.id === p.tavoloId);
     if (t && (t.stato === 'riservato' || t.stato === 'confermato')) t.stato = 'libero';
+    return vista(d, p);
   });
 }
 

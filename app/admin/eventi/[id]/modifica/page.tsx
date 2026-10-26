@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
 import { eventoAdmin, serateConTavoli } from '@/lib/dati/admin';
 import { prenotazioniAdmin } from '@/lib/dati/tavoli';
-import { prenotazioneAttiva } from '@/lib/regole';
+import { eventoPassato, prenotazioneAttiva } from '@/lib/regole';
 import { quandoScade } from '@/lib/tavolo-email';
 import { dataIso, euro, ora } from '@/lib/formato';
 import { TestataAdmin } from '@/components/admin/ui';
@@ -13,6 +13,8 @@ import { Tavoli } from '@/components/admin/tavoli';
 import { MappaTavoli } from '@/components/admin/mappa-tavoli';
 import { Sezione } from '@/components/admin/sezione';
 import { CopiaTavoli } from '@/components/admin/copia-tavoli';
+import { AzioniPrenotazione } from '@/components/tavoli-azioni';
+import type { PrenotazioneTavolo } from '@/lib/dati/tipi';
 
 export const metadata = { title: 'Modifica serata' };
 
@@ -31,6 +33,12 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
   const chiuse = tutte.filter((v) => !prenotazioneAttiva(v.prenotazione));
   const conTavoli = await serateConTavoli(s, id);
   const inAttesa = prenotazioni.filter((v) => v.prenotazione.stato === 'in_attesa').length;
+  const METODI = { bonifico: 'Bonifico', satispay: 'Satispay', contanti: 'Contanti', pos: 'POS' };
+  /** "Bonifico · 26.10 alle 10:04 · admin@…": come è arrivato il pagamento e chi l'ha segnato. */
+  const pagamento = (p: PrenotazioneTavolo) => (p.pagatoAt ? [p.metodoPagamento ? METODI[p.metodoPagamento] : null, quandoScade(p.pagatoAt), p.pagatoDa].filter(Boolean).join(' · ') : null);
+  // Stessa regola di confermaPrenotazione: scaduta, serata non passata, tavolo libero e senza altre prenotazioni.
+  const riattivabile = (p: PrenotazioneTavolo) => p.stato === 'scaduta' && !eventoPassato(e)
+    && x.tavoli.some((t) => t.id === p.tavoloId && t.stato === 'libero') && !prenotazioni.some((q) => q.prenotazione.tavoloId === p.tavoloId);
   return (
     <>
       <TestataAdmin briciole={`SERATE / ${e.slug}`} titolo={e.nome}
@@ -72,7 +80,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
               prenotazione: v ? {
                 id: v.prenotazione.id, nome: `${v.prenotazione.nome} ${v.prenotazione.cognome}`, email: v.prenotazione.email, telefono: v.prenotazione.telefono,
                 persone: v.prenotazione.persone, spesaMinima: v.prenotazione.spesaMinima, stato: v.prenotazione.stato, lista: v.lista,
-                scade: quandoScade(v.prenotazione.scade), inseritaDa: v.prenotazione.inseritaDa,
+                scade: quandoScade(v.prenotazione.scade), inseritaDa: v.prenotazione.inseritaDa, pagamento: pagamento(v.prenotazione),
               } : null,
             };
           })} />
@@ -81,15 +89,27 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
             <details className="border border-linea p-4">
               <summary className="cursor-pointer font-display text-[22px] font-extrabold uppercase">Storico · {chiuse.length} {chiuse.length === 1 ? 'prenotazione chiusa' : 'prenotazioni chiuse'}</summary>
               <div className="flex flex-col pt-3">
-                {chiuse.map((v) => (
-                  <div key={v.prenotazione.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-linea py-3">
-                    <span className="mm-chip mm-chip--annullato">{v.prenotazione.stato === 'scaduta' ? 'Scaduta' : 'Annullata'}</span>
-                    <span className="font-display text-[20px] font-extrabold uppercase leading-none">{v.tavolo.nome} · {v.prenotazione.nome} {v.prenotazione.cognome}</span>
-                    <span className="font-mono text-[11px] leading-4 text-osso-2">
-                      {v.prenotazione.persone} PERSONE · {euro(v.prenotazione.spesaMinima)} · {v.prenotazione.telefono} · LISTA: {v.lista.toUpperCase()} · RICHIESTA {quandoScade(v.prenotazione.createdAt).toUpperCase()}
-                    </span>
-                  </div>
-                ))}
+                {chiuse.map((v) => {
+                  const p = v.prenotazione;
+                  return (
+                    <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-linea py-3">
+                      <span className="mm-chip mm-chip--annullato">{{ scaduta: 'Scaduta', annullata: 'Annullata', rimborsata: 'Rimborsata', in_attesa: '', confermata: '' }[p.stato]}</span>
+                      <span className="font-display text-[20px] font-extrabold uppercase leading-none">{v.tavolo.nome} · {p.nome} {p.cognome}</span>
+                      <span className="w-full font-mono text-[11px] leading-4 text-osso-2">
+                        {p.persone} PERSONE · {euro(p.spesaMinima)} · {p.telefono} · LISTA: {v.lista.toUpperCase()} · RICHIESTA {quandoScade(p.createdAt).toUpperCase()}
+                        {pagamento(p) && ` · PAGATO: ${pagamento(p)!.toUpperCase()}`}
+                        {p.chiusaAt && ` · ${p.stato === 'scaduta' ? 'DECADUTA' : 'CHIUSA'} ${quandoScade(p.chiusaAt).toUpperCase()}${p.chiusaDa ? ` DA ${p.chiusaDa.toUpperCase()}` : ''}`}
+                      </span>
+                      {/* Pagamento arrivato dopo il termine: se il tavolo è ancora libero la prenotazione si riattiva. */}
+                      {riattivabile(p) && (
+                        <div className="flex w-full flex-col gap-2 pt-2">
+                          <span className="text-[13px] text-osso-2">Il pagamento è arrivato in ritardo? Il tavolo è ancora libero: segnalo pagato e la prenotazione torna valida.</span>
+                          <AzioniPrenotazione id={p.id} nome={`${p.nome} ${p.cognome}`} conferma annulla={false} testoConferma="Pagato in ritardo: riattiva" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </details>
           )}

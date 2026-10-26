@@ -7,6 +7,7 @@ import { calcolaClassifica } from './classifica';
 import { eventoPassato, isAttiva, prenotazioneAttiva, prenotazioneScaduta, EMAIL_RE, HANDLE_RE } from '../regole';
 import { nascita, ora as oraDi, dataCompleta } from '../formato';
 import { usatiPerLotto } from './pubblico';
+import { applicaScadenze } from './tavoli';
 
 // Admin: vede e modifica tutto (policy "…_admin" nello schema Supabase).
 
@@ -33,6 +34,8 @@ export async function elencoSerate(s: Sessione) {
 
 export async function eventoAdmin(s: Sessione, id: string) {
   soloAdmin(s);
+  // Prima le scadenze: altrimenti un tavolo appena decaduto risulterebbe ancora in attesa di pagamento.
+  await applicaScadenze();
   const d = await leggi();
   const evento = d.eventi.find((e) => e.id === id);
   if (!evento) return null;
@@ -309,8 +312,8 @@ export async function csvTavoli(s: Sessione, eventoId: string) {
   const d = await leggi();
   const evento = d.eventi.find((e) => e.id === eventoId);
   if (!evento) return null;
-  const STATI = { in_attesa: 'in attesa di pagamento', confermata: 'pagata', annullata: 'annullata', scaduta: 'scaduta' };
-  const intestazione = ['Tavolo', 'Zona', 'Stato', 'Nome', 'Cognome', 'Email', 'Telefono', 'Persone', 'Entrati', 'Spesa minima', 'Lista', 'Inserita da', 'Richiesta il', 'Termine', 'Pagata il', 'Chiusa il', 'Codice'];
+  const STATI = { in_attesa: 'in attesa di pagamento', confermata: 'pagata', annullata: 'annullata', rimborsata: 'rimborsata', scaduta: 'scaduta' };
+  const intestazione = ['Tavolo', 'Zona', 'Stato', 'Nome', 'Cognome', 'Email', 'Telefono', 'Persone', 'Entrati', 'Spesa minima', 'Lista', 'Inserita da', 'Richiesta il', 'Termine', 'Pagata il', 'Metodo', 'Pagamento segnato da', 'Chiusa il', 'Chiusa da', 'Codice'];
   const quando = (iso: string | null) => (iso ? `${dataCompleta(iso)} ${oraDi(iso)}` : '');
   const righe = d.prenotazioni
     .filter((p) => p.eventoId === eventoId)
@@ -320,7 +323,7 @@ export async function csvTavoli(s: Sessione, eventoId: string) {
       return [
         t?.nome ?? '', t?.zona ?? '', prenotazioneScaduta(p) ? STATI.scaduta : STATI[p.stato], p.nome, p.cognome, p.email, p.telefono, p.persone, p.ingressi.length,
         p.spesaMinima.toFixed(2).replace('.', ','), (p.prId ? d.pr.find((x) => x.id === p.prId)?.nomeDisplay : null) ?? 'Maremma Musica', p.inseritaDa,
-        quando(p.createdAt), quando(p.scade), quando(p.pagatoAt), quando(p.chiusaAt), p.codice,
+        quando(p.createdAt), quando(p.scade), quando(p.pagatoAt), p.metodoPagamento ?? '', p.pagatoDa ?? '', quando(p.chiusaAt), p.chiusaDa ?? '', p.codice,
       ].map(cella).join(';');
     });
   return { nome: `${evento.slug}-tavoli.csv`, testo: '\ufeff' + [intestazione.join(';'), ...righe].join('\r\n') };

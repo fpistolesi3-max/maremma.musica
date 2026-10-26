@@ -9,6 +9,7 @@ import {
   annullaPrenotazione, confermaPrenotazione, emailAdmin, prPrenotaTavolo, prenotaTavolo, prenotazionePubblica, type DatiPrenotazione,
 } from '@/lib/dati/tavoli';
 import { inviaAvvisoAdmin, inviaConfermaTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
+import type { MetodoTavolo } from '@/lib/dati/tipi';
 
 export interface StatoTavoloModulo {
   errori: Partial<Record<'nome' | 'cognome' | 'email' | 'telefono' | 'persone' | 'tavolo' | 'privacy' | 'generale', string>>;
@@ -58,23 +59,26 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   redirect(`${linkTavolo('', p.id, p.email)}&nuovo=1`);
 }
 
-export async function confermaPrenotazioneAzione(id: string): Promise<{ ok?: string; errore?: string }> {
+export async function confermaPrenotazioneAzione(id: string, metodo: MetodoTavolo): Promise<{ ok?: string; errore?: string }> {
   const s = await sessioneCorrente();
   if (!s || s.utente.ruolo !== 'admin') return { errore: 'Sessione scaduta: rientra.' };
   try {
-    const v = await confermaPrenotazione(s, id);
+    const v = await confermaPrenotazione(s, id, metodo);
     try { await inviaConfermaTavolo(v, await origineRichiesta()); } catch (e) { console.error('[tavoli] invio email non riuscito', e); }
   } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/', 'layout');
   return { ok: 'Pagamento segnato: tavolo confermato.' };
 }
 
-export async function annullaPrenotazioneAzione(id: string): Promise<{ ok?: string; errore?: string }> {
+/** `rimborso`: era pagata e i soldi sono stati restituiti (solo admin). */
+export async function annullaPrenotazioneAzione(id: string, rimborso = false): Promise<{ ok?: string; errore?: string }> {
   const s = await sessioneCorrente();
   if (!s) return { errore: 'Sessione scaduta: rientra.' };
-  try { await annullaPrenotazione(s, id); } catch (e) {
+  try {
+    await annullaPrenotazione(s, id, rimborso);
+  } catch (e) {
     return { errore: (e as Error).message === 'non_autorizzato' ? 'Non puoi annullare questa prenotazione.' : (e as Error).message };
   }
   revalidatePath('/', 'layout');
-  return { ok: 'Prenotazione annullata: il tavolo è di nuovo libero.' };
+  return { ok: rimborso ? 'Rimborso segnato: il tavolo è di nuovo libero.' : 'Prenotazione annullata: il tavolo è di nuovo libero.' };
 }

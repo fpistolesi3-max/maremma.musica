@@ -7,7 +7,7 @@ import { decidiIngresso, trovaVoce, type DatiCassa, type EsitoPorta, type Opzion
 import { randomUUID } from 'node:crypto';
 import { creaCodice, creaTokenQr } from '../qr-token';
 import { etaSufficiente, giaIscritto } from '../regole';
-import { eventoPassato, prenotazioneScaduta } from '../regole';
+import { eventoPassato, prenotazioneAttiva, prenotazioneScaduta } from '../regole';
 
 // Porta: staff e admin. Lo staff vede le iscrizioni ma dei PR solo il nome della lista
 // (equivalente di porta_elenco() nello schema Supabase).
@@ -28,11 +28,11 @@ function voce(d: Readonly<Archivio>, i: Iscrizione): VocePorta {
 function voceTavolo(d: Readonly<Archivio>, p: PrenotazioneTavolo): VocePorta {
   const pr = p.prId ? d.pr.find((x) => x.id === p.prId) : null;
   const t = d.tavoli.find((x) => x.id === p.tavoloId);
-  const chiusa = p.stato === 'annullata' || p.stato === 'scaduta' || prenotazioneScaduta(p);
+  const chiusa = !prenotazioneAttiva(p) || prenotazioneScaduta(p);
   const ultimo = p.ingressi[p.ingressi.length - 1];
   return {
     id: p.id, token: p.tokenQr, codice: p.codice, nome: p.nome, cognome: p.cognome, dataNascita: '',
-    stato: chiusa ? 'annullato' : p.ingressi.length >= p.persone ? 'entrato' : p.stato === 'confermata' ? 'pagato' : 'in_lista',
+    stato: p.stato === 'rimborsata' ? 'rimborsato' : chiusa ? 'annullato' : p.ingressi.length >= p.persone ? 'entrato' : p.stato === 'confermata' ? 'pagato' : 'in_lista',
     importo: p.spesaMinima, oraCheckIn: ultimo?.ora ?? null, porta: ultimo?.porta ?? null,
     lista: pr?.nomeDisplay ?? 'Maremma Musica', canale: 'diretto', origine: 'tavolo',
     tavolo: { nome: t?.nome ?? 'Tavolo', persone: p.persone, entrati: p.ingressi.length, pagato: p.stato === 'confermata' },

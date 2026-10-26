@@ -202,7 +202,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
               <div className="flex flex-col">
                 {tavoli.mie.map((v) => {
                   const p = v.prenotazione;
-                  const chip = { in_attesa: ['mm-chip--incassare', 'Da pagare'], confermata: ['mm-chip--entrato', 'Pagato'], annullata: ['mm-chip--annullato', 'Annullata'], scaduta: ['mm-chip--annullato', 'Scaduta'] }[p.stato];
+                  const chip = { in_attesa: ['mm-chip--incassare', 'Da pagare'], confermata: ['mm-chip--entrato', 'Pagato'], annullata: ['mm-chip--annullato', 'Annullata'], rimborsata: ['mm-chip--annullato', 'Rimborsata'], scaduta: ['mm-chip--annullato', 'Scaduta'] }[p.stato];
                   return (
                     <div key={p.id} className="flex flex-col gap-2 border-t border-linea py-4 last:border-b">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
