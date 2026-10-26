@@ -21,7 +21,7 @@ export interface StatoTavoloModulo {
 const testo = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 
 /**
- * Richiesta di un tavolo. Dal sito è del cliente (attribuita al PR del link, se quel tavolo gli è affidato);
+ * Richiesta di un tavolo. Dal sito è del cliente (attribuita al PR del link, qualunque tavolo scelga);
  * se chi invia è un PR con la sessione aperta la inserisce lui a nome del cliente.
  */
 export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData): Promise<StatoTavoloModulo> {

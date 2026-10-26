@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /**
  * /tavoli/[slug] — scelta e richiesta di un tavolo. Con ?pr=handle (o dopo essere passati dal link di un PR)
- * la prenotazione è attribuita a lui, se quel tavolo gli è affidato. Il PR con la sessione aperta
+ * la prenotazione è attribuita a lui, qualunque tavolo scelga il cliente. Il PR con la sessione aperta
  * vede solo i tavoli affidati a lui e inserisce la richiesta a nome del cliente.
  */
 export default async function PaginaTavoli({ params, searchParams }: Props) {

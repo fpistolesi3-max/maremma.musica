@@ -145,11 +145,14 @@ async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavol
   });
 }
 
-/** Richiesta dal sito. Se arriva dal link di un PR a cui quel tavolo è affidato, la prenotazione è sua. */
+/**
+ * Richiesta dal sito. Se arriva dal link di un PR (attivo e abilitato per la serata) la prenotazione è sua,
+ * qualunque tavolo scelga il cliente: "affidato" vale solo per i tavoli che il PR prenota lui per un cliente.
+ */
 export function prenotaTavolo(i: DatiPrenotazione, handlePr: string | null, online = false): Promise<EsitoPrenotazione> {
   return crea(i, {
     inseritaDa: 'cliente', online,
-    prId: (d, t, e) => { const pr = prAttivoPerEvento(d, handlePr, e); return pr && prPuoProporre(t, pr.id) ? pr.id : null; },
+    prId: (d, _t, e) => prAttivoPerEvento(d, handlePr, e)?.id ?? null,
   });
 }
 

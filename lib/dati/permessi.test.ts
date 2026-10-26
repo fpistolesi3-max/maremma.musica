@@ -245,7 +245,7 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   // Il PR con la sessione vede solo quelli affidati a lui
   assert.deepEqual((await tv.tavoliPubblici('halloween-party', 'test-pr', true))!.tavoli.map((t) => t.nome), ['A1']);
 
-  // Richiesta dal link del PR: sua se il tavolo gli è affidato, altrimenti Maremma Musica
+  // Richiesta dal link del PR: sempre sua, anche su un tavolo affidato ad altri PR o a nessuno
   const r1 = await tv.prenotaTavolo({ ...chi, tavoloId: await id('A1') }, 'test-pr');
   assert.ok(r1.ok);
   const p1 = r1.ok ? r1.prenotazione : null!;
@@ -255,7 +255,11 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   const stessoNumero = await tv.prenotaTavolo({ ...chi, email: 'ugo@esempio.it', telefono: '+39 333-1234567', tavoloId: await id('A2') }, 'test-pr');
   assert.ok(!stessoNumero.ok && stessoNumero.campo === 'telefono', 'stesso telefono con un’altra email: non tiene fermo un secondo tavolo');
   const r2 = await tv.prenotaTavolo({ ...chi, email: 'ugo@esempio.it', telefono: '347 1112223', tavoloId: await id('A2') }, 'test-pr');
-  assert.equal(r2.ok && r2.prenotazione.prId, null, 'A2 è solo di Zarro: dal link di un altro PR resta a Maremma Musica');
+  assert.equal(r2.ok && r2.prenotazione.prId, pr.pr!.id, 'A2 è affidato solo a Zarro, ma il cliente è arrivato dal link di Test PR: è di Test PR');
+  // Senza link (o con il link di un PR non attivo) resta a Maremma Musica
+  const senza = await tv.prenotaTavolo({ ...chi, email: 'senza@esempio.it', telefono: '347 1112299', tavoloId: await id('A3') }, 'nessuno-cosi');
+  assert.equal(senza.ok && senza.prenotazione.prId, null);
+  await tv.annullaPrenotazione(admin, senza.ok ? senza.prenotazione.id : '');
 
   // Tavolo già preso, troppe persone, secondo tavolo con la stessa email, tavolo non in vendita
   const preso = await tv.prenotaTavolo({ ...chi, email: 'altro@esempio.it', tavoloId: await id('A1') }, null);
@@ -271,7 +275,8 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   const nonSuo = await tv.prPrenotaTavolo(pr, { ...chi, email: 'c1@esempio.it', tavoloId: await id('A3') });
   assert.ok(!nonSuo.ok && nonSuo.campo === 'tavolo');
   await assert.rejects(async () => tv.prPrenotaTavolo(staff, { ...chi, tavoloId: await id('A3') }), /non_autorizzato/);
-  assert.deepEqual((await tv.tavoliDelPr(pr, ev.id)).mie.map((v) => v.prenotazione.id), [p1.id]);
+  // Nell'area del PR ci sono anche le prenotazioni arrivate dal suo link su tavoli non affidati a lui
+  assert.deepEqual((await tv.tavoliDelPr(pr, ev.id)).mie.map((v) => v.prenotazione.id).sort(), [p1.id, r2.ok ? r2.prenotazione.id : ''].sort());
   assert.equal((await tv.tavoliDelPr(zarro, ev.id)).mie.length, 0);
   await assert.rejects(tv.tavoliDelPr(staff, ev.id), /non_autorizzato/);
 
@@ -292,7 +297,7 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
 
   const live = (await m.admin.serataLive(admin, ev.id))!.tavoli;
   assert.deepEqual([live.totale, live.pagati, live.incassato, live.persone, live.inAttesa, live.atteso, live.liberi], [3, 1, 200, 4, 1, 200, 1]);
-  assert.deepEqual(live.perLista.map((r) => [r.nome, r.pagati, r.inAttesa]), [['Test PR', 1, 0], ['Maremma Musica', 0, 1]]);
+  assert.deepEqual(live.perLista.map((r) => [r.nome, r.pagati, r.inAttesa]), [['Test PR', 1, 1]]);
 
   // Termine passato senza pagamento: la prenotazione decade da sola e il tavolo torna libero
   const p2 = r2.ok ? r2.prenotazione.id : '';
