@@ -5,7 +5,8 @@ import { notFound } from 'next/navigation';
 import { COOKIE_PR } from '@/lib/costanti';
 import { sessioneCorrente } from '@/lib/sessione';
 import { tavoliPubblici } from '@/lib/dati/tavoli';
-import { scadenzaPagamento } from '@/lib/regole';
+import { MINUTI_PAGAMENTO_ONLINE, scadenzaPagamento, scadenzaPagamentoOnline } from '@/lib/regole';
+import { modoPagamentoTavoli } from '@/lib/pagamenti';
 import { quandoScade } from '@/lib/tavolo-email';
 import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
@@ -34,6 +35,7 @@ export default async function PaginaTavoli({ params, searchParams }: Props) {
   const x = await tavoliPubblici(slug, handle, Boolean(comePr));
   if (!x) notFound();
   const e = x.evento;
+  const online = modoPagamentoTavoli() !== null;
 
   return (
     <div className="mm-grana flex min-h-dvh flex-col">
@@ -50,12 +52,14 @@ export default async function PaginaTavoli({ params, searchParams }: Props) {
           <h1 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[80px]">Prenota <span className="text-arancio">un tavolo</span></h1>
           <span className="font-mono text-[11px] leading-4 text-osso-2">{e.nome.toUpperCase()} · {luogoTesto(e).toUpperCase()}</span>
           <p className="m-0 text-[16px] leading-6 text-osso-2">
-            Il tavolo si prende con una spesa minima, da pagare in anticipo. Dopo la richiesta resta fermo a tuo nome: se il pagamento non arriva in tempo torna libero.
+            {online
+              ? 'Il tavolo si prende con una spesa minima, pagata subito online: scegli il tavolo, paga e ti arriva il QR per tutto il gruppo. Alla porta basta mostrarlo.'
+              : 'Il tavolo si prende con una spesa minima, da pagare in anticipo. Dopo la richiesta resta fermo a tuo nome: se il pagamento non arriva in tempo torna libero.'}
           </p>
           {x.pr && <CampoLista nome={x.pr.nomeDisplay} ufficiale={false} nota={comePr ? 'Vedi solo i tavoli affidati a te: la prenotazione resta nella tua lista.' : `Sei entrato dal link di ${x.pr.nomeDisplay}.`} />}
         </div>
-        <PrenotaTavolo tavoli={x.tavoli} piantinaUrl={e.piantinaUrl} prHandle={x.pr?.handle ?? null} perCliente={Boolean(comePr)} chiuse={!x.aperte}
-          scadenza={quandoScade(scadenzaPagamento(new Date(), e))} />
+        <PrenotaTavolo tavoli={x.tavoli} piantinaUrl={e.piantinaUrl} prHandle={x.pr?.handle ?? null} perCliente={Boolean(comePr)} chiuse={!x.aperte} online={online}
+          scadenza={!online ? quandoScade(scadenzaPagamento(new Date(), e)) : comePr ? quandoScade(scadenzaPagamentoOnline(new Date(), e, true)) : `${MINUTI_PAGAMENTO_ONLINE} minuti`} />
       </main>
     </div>
   );

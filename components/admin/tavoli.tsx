@@ -9,6 +9,7 @@ export interface PrenotazioneRiga {
   id: string; nome: string; email: string; telefono: string; persone: number; spesaMinima: number;
   stato: StatoPrenotazione; lista: string; scade: string; inseritaDa: 'cliente' | 'pr';
   pagamento: string | null;   // "Bonifico · 26.10 10:04 · admin@…": come e chi, se pagata
+  online: boolean;            // si paga sul sito: in attesa vuol dire che il cliente sta pagando
 }
 
 export interface RigaTavolo {
@@ -66,7 +67,7 @@ function Prenotazione({ p }: { p: PrenotazioneRiga }) {
       </div>
       <span className="font-mono text-[12px] leading-5 text-osso-2">
         <a href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`} className="text-osso">{p.telefono}</a> · <a href={`mailto:${p.email}`} className="text-osso">{p.email}</a>
-        <br />LISTA: {p.lista.toUpperCase()}{p.inseritaDa === 'pr' ? ' · INSERITA DAL PR' : ''}{attesa ? ` · DECADE ${p.scade.toUpperCase()}` : ''}
+        <br />LISTA: {p.lista.toUpperCase()}{p.inseritaDa === 'pr' ? ' · INSERITA DAL PR' : ''}{attesa ? ` · ${p.online ? 'PAGAMENTO ONLINE IN CORSO, ' : ''}DECADE ${p.scade.toUpperCase()}` : ''}
         {p.pagamento && <><br />PAGATO: {p.pagamento.toUpperCase()}</>}
       </span>
       <AzioniPrenotazione id={p.id} nome={p.nome} conferma={attesa} pagata={!attesa} />

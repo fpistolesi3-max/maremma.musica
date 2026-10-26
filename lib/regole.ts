@@ -100,6 +100,20 @@ export function scadenzaPagamento(richiesta: Date, evento: Pick<Evento, 'data'>)
   return new Date(Math.min(richiesta.getTime() + GIORNI_PAGAMENTO_TAVOLO * 86_400_000, new Date(evento.data).getTime())).toISOString();
 }
 
+/**
+ * Pagamento online: il tavolo resta fermo solo mentre il cliente paga. 30 minuti è il minimo che Stripe
+ * accetta per la scadenza della pagina di pagamento. Se la richiesta la inserisce il PR, il cliente riceve
+ * il link per email e ha più tempo.
+ */
+export const MINUTI_PAGAMENTO_ONLINE = 30;
+export const ORE_PAGAMENTO_ONLINE_PR = 24;
+
+/** Termine del pagamento online: pochi minuti (o qualche ora, se inserita dal PR), mai oltre l'apertura. */
+export function scadenzaPagamentoOnline(richiesta: Date, evento: Pick<Evento, 'data'>, daPr = false) {
+  const durata = daPr ? ORE_PAGAMENTO_ONLINE_PR * 3_600_000 : MINUTI_PAGAMENTO_ONLINE * 60_000;
+  return new Date(Math.min(richiesta.getTime() + durata, new Date(evento.data).getTime())).toISOString();
+}
+
 /** Le richieste dei tavoli si chiudono all'apertura: dopo, il termine per pagare sarebbe già passato. */
 export function richiesteTavoliAperte(evento: Pick<Evento, 'data'>, adesso = new Date()) {
   return new Date(evento.data).getTime() > adesso.getTime();

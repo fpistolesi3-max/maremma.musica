@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { prenotazionePubblica } from '@/lib/dati/tavoli';
-import { quandoScade } from '@/lib/tavolo-email';
-import { euro, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
+import { linkPagamento, quandoScade } from '@/lib/tavolo-email';
+import { verificaRitorno } from '@/lib/pagamento-tavolo';
+import { origineRichiesta } from '@/lib/sessione';
+import { lasciaTavoloAzione } from '@/app/azioni/tavoli';
+import { euro, giorno2, giornoSett, meseCorto, numeroEvento, ora, orari } from '@/lib/formato';
 import { mostraCodice } from '@/lib/qr-token';
 import { luogoTesto } from '@/lib/luogo';
 import { QrBiglietto } from '@/components/client';
@@ -11,7 +14,7 @@ import { Monogramma } from '@/components/ui';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Il tuo tavolo', robots: { index: false, follow: false } };
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ email?: string; nuovo?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ email?: string; nuovo?: string; pagato?: string; annullato?: string; errore?: string }> };
 
 const STATI = {
   in_attesa: { chip: 'mm-chip mm-chip--incassare', testo: 'In attesa di pagamento' },
@@ -24,8 +27,16 @@ const STATI = {
 /** /tavolo/[id]?email=… — stato della prenotazione; il QR del tavolo compare a pagamento ricevuto. */
 export default async function PaginaTavolo({ params, searchParams }: Props) {
   const { id } = await params;
-  const { email, nuovo } = await searchParams;
-  const v = await prenotazionePubblica(id, email);
+  const { email, nuovo, pagato, annullato, errore } = await searchParams;
+  let v = await prenotazionePubblica(id, email);
+  // Di ritorno dal pagamento online: se il webhook non è ancora arrivato si chiede a Stripe e si rilegge.
+  if (v && v.prenotazione.stato === 'in_attesa' && v.prenotazione.pagamentoOnline && pagato) {
+    await verificaRitorno(v, await origineRichiesta());
+    v = await prenotazionePubblica(id, email);
+  }
+  const online = Boolean(v?.prenotazione.pagamentoOnline);
+  // Pagato ma la conferma non è ancora arrivata: la pagina si ricarica da sola tra qualche secondo.
+  const inVerifica = Boolean(v && online && pagato && v.prenotazione.stato === 'in_attesa');
 
   return (
     <div className="mm-grana mm-curve flex min-h-dvh flex-col bg-notte bg-[position:-1000px_-80px]">
@@ -45,7 +56,33 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
       ) : (
         <main className="mx-auto flex w-full max-w-[440px] flex-grow flex-col gap-7 px-4 pb-16 pt-6">
           <section className="flex flex-col gap-[14px]">
-            {v.prenotazione.stato === 'in_attesa' && (
+            {inVerifica && <meta httpEquiv="refresh" content="3" />}
+            {v.prenotazione.stato === 'in_attesa' && online && (
+              <>
+                <span className="font-mono text-[11px] leading-none tracking-[.06em] text-attesa">{inVerifica ? '✦ PAGAMENTO IN VERIFICA' : annullato ? '✕ PAGAMENTO NON COMPLETATO' : '✦ MANCA SOLO IL PAGAMENTO'}</span>
+                <h1 className="m-0 font-display text-[64px] font-black uppercase leading-[.84]">{inVerifica ? <>Un <span className="text-arancio">attimo.</span></> : <>Tavolo <span className="text-arancio">fermo.</span></>}</h1>
+                {inVerifica ? (
+                  <p className="m-0 text-[17px] leading-[26px]">Stiamo ricevendo la conferma del pagamento: la pagina si aggiorna da sola e ti arriva anche l&apos;email con il QR.</p>
+                ) : (
+                  <>
+                    <p className="m-0 text-[17px] leading-[26px]">
+                      Il tavolo {v.tavolo.nome} è tenuto per te fino {v.prenotazione.inseritaDa === 'pr' ? 'a ' : ''}<strong>{v.prenotazione.inseritaDa === 'pr' ? quandoScade(v.prenotazione.scade) : `alle ${ora(v.prenotazione.scade)}`}</strong>. Paga online la spesa minima di <strong>{euro(v.prenotazione.spesaMinima)}</strong> e ti arriva subito il QR del tavolo.
+                    </p>
+                    {errore && <p role="alert" className="m-0 border border-stop-testo px-4 py-3 text-[14px] leading-5 text-stop-testo">Non siamo riusciti ad aprire il pagamento. Riprova tra poco.</p>}
+                    <a href={linkPagamento('', v.prenotazione.id, v.prenotazione.email)} className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }}>
+                      Paga {euro(v.prenotazione.spesaMinima)} <span className="mm-btn__freccia" aria-hidden="true">→</span>
+                    </a>
+                    <span className="text-center font-mono text-[11px] leading-4 text-osso-2">CARTA · APPLE PAY · GOOGLE PAY · SE NON PAGHI IN TEMPO IL TAVOLO TORNA LIBERO</span>
+                    <form action={lasciaTavoloAzione} className="self-center">
+                      <input type="hidden" name="id" value={v.prenotazione.id} />
+                      <input type="hidden" name="email" value={v.prenotazione.email} />
+                      <button type="submit" className="mm-btn mm-btn--muto">Lascia libero il tavolo</button>
+                    </form>
+                  </>
+                )}
+              </>
+            )}
+            {v.prenotazione.stato === 'in_attesa' && !online && (
               <>
                 <span className="font-mono text-[11px] leading-none tracking-[.06em] text-attesa">{nuovo ? '✓ RICHIESTA RICEVUTA' : '✦ IN ATTESA DI PAGAMENTO'}</span>
                 <h1 className="m-0 font-display text-[64px] font-black uppercase leading-[.84]">Tavolo <span className="text-arancio">fermo.</span></h1>

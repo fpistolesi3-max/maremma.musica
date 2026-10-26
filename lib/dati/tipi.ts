@@ -70,8 +70,15 @@ export interface Tavolo {
 /** rimborsata = era pagata, annullata e restituiti i soldi; annullata = chiusa senza rimborso. */
 export type StatoPrenotazione = 'in_attesa' | 'confermata' | 'annullata' | 'rimborsata' | 'scaduta';
 
-/** Come è arrivato l'anticipo del tavolo. */
-export type MetodoTavolo = 'bonifico' | 'satispay' | 'contanti' | 'pos';
+/** Come è arrivato l'anticipo del tavolo. online = pagato dal cliente sul sito (carta, Apple Pay, Google Pay). */
+export type MetodoTavolo = 'bonifico' | 'satispay' | 'contanti' | 'pos' | 'online';
+
+/**
+ * Pagamento online di una prenotazione. `sessione`: l'ultima pagina di pagamento aperta (Stripe o di prova);
+ * `pagamento`: l'id del pagamento riuscito, serve per il rimborso; `daRimborsare`: il pagamento è arrivato quando
+ * la prenotazione era già chiusa e il tavolo di un altro, quindi i soldi vanno restituiti.
+ */
+export interface PagamentoOnline { sessione: string | null; pagamento: string | null; daRimborsare: boolean }
 
 /**
  * Richiesta di un tavolo. Nasce "in attesa": il tavolo è fermo ma la spesa minima va pagata in anticipo
@@ -102,6 +109,7 @@ export interface PrenotazioneTavolo {
   chiusaDa: string | null;        // email di chi l'ha annullata o rimborsata; null = scaduta da sola
   promemoriaAt: string | null;    // promemoria del termine già mandato
   avvisoChiusuraAt: string | null; // email "prenotazione chiusa" già mandata al cliente
+  pagamentoOnline: PagamentoOnline | null; // null = si paga a mano (bonifico, Satispay…) e l'admin segna il pagamento
   /** Persone del tavolo già entrate. `rif` è l'id creato dal telefono della porta: una sincronizzazione ripetuta non conta due volte. */
   ingressi: { rif: string; ora: string; porta: string }[];
 }

@@ -6,9 +6,11 @@ import { redirect } from 'next/navigation';
 import { COOKIE_PR } from '@/lib/costanti';
 import { origineRichiesta, sessioneCorrente } from '@/lib/sessione';
 import {
-  annullaPrenotazione, confermaPrenotazione, emailAdmin, prPrenotaTavolo, prenotaTavolo, prenotazionePubblica, type DatiPrenotazione,
+  annullaPrenotazione, chiudiRimborsoDovuto, confermaPrenotazione, emailAdmin, lasciaTavolo, pagamentoOnlineDi, prPrenotaTavolo, prenotaTavolo,
+  prenotazionePubblica, type DatiPrenotazione,
 } from '@/lib/dati/tavoli';
-import { inviaAvvisoAdmin, inviaChiusuraTavolo, inviaConfermaTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
+import { inviaAvvisoAdmin, inviaChiusuraTavolo, inviaConfermaTavolo, inviaRichiestaTavolo, linkPagamento, linkTavolo } from '@/lib/tavolo-email';
+import { modoPagamentoTavoli, rimborsa } from '@/lib/pagamenti';
 import type { MetodoTavolo } from '@/lib/dati/tipi';
 
 export interface StatoTavoloModulo {
@@ -38,16 +40,23 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   const s = await sessioneCorrente();
   const handle = testo(f, 'pr') || (await cookies()).get(COOKIE_PR)?.value || null;
   const prSessione = s?.utente.ruolo === 'pr' && s.pr ? s.pr : null;
-  const esito = prSessione ? await prPrenotaTavolo(s!, dati) : await prenotaTavolo(dati, handle);
+  const online = modoPagamentoTavoli() !== null;
+  const esito = prSessione ? await prPrenotaTavolo(s!, dati, online) : await prenotaTavolo(dati, handle, online);
   if (!esito.ok) return { errori: { [esito.campo ?? 'generale']: esito.errore }, valori };
 
   const p = esito.prenotazione;
+  // Pagamento online dal sito: il cliente va subito a pagare. Email e avviso agli admin partono a pagamento fatto.
+  if (online && !prSessione) {
+    revalidatePath('/', 'layout');
+    redirect(linkPagamento('', p.id, p.email));
+  }
   const v = await prenotazionePubblica(p.id, p.email);
   try {
     if (v) {
       const origine = await origineRichiesta();
+      // Con il pagamento online inserito dal PR il cliente riceve il link per pagare; gli admin sapranno a pagamento fatto.
       await inviaRichiestaTavolo(v, origine);
-      await inviaAvvisoAdmin(v, await emailAdmin(), origine);
+      if (!online) await inviaAvvisoAdmin(v, await emailAdmin(), origine);
     }
   } catch (e) {
     // La prenotazione c'è comunque e si vede a schermo: non blocchiamo la persona.
@@ -75,6 +84,10 @@ export async function annullaPrenotazioneAzione(id: string, rimborso = false): P
   const s = await sessioneCorrente();
   if (!s) return { errore: 'Sessione scaduta: rientra.' };
   try {
+    // Pagata online: prima si restituiscono i soldi sul servizio di pagamento, poi si chiude. Se il rimborso
+    // non va a buon fine la prenotazione resta com'è.
+    const pagamento = rimborso ? await pagamentoOnlineDi(s, id) : null;
+    if (pagamento) await rimborsa(pagamento);
     const v = await annullaPrenotazione(s, id, rimborso);
     if (v) { try { await inviaChiusuraTavolo(v, await origineRichiesta()); } catch (e) { console.error('[tavoli] invio email non riuscito', e); } }
   } catch (e) {
@@ -82,4 +95,28 @@ export async function annullaPrenotazioneAzione(id: string, rimborso = false): P
   }
   revalidatePath('/', 'layout');
   return { ok: rimborso ? 'Rimborso segnato: il tavolo è di nuovo libero.' : 'Prenotazione annullata: il tavolo è di nuovo libero.' };
+}
+
+/** Pagamento online arrivato quando la prenotazione era già chiusa: si restituiscono i soldi (solo admin). */
+export async function rimborsaPagamentoTardivoAzione(id: string): Promise<{ ok?: string; errore?: string }> {
+  const s = await sessioneCorrente();
+  if (!s || s.utente.ruolo !== 'admin') return { errore: 'Sessione scaduta: rientra.' };
+  try {
+    const pagamento = await pagamentoOnlineDi(s, id);
+    if (!pagamento) return { errore: 'Nessun pagamento online da rimborsare' };
+    await rimborsa(pagamento);
+    const v = await chiudiRimborsoDovuto(s, id);
+    if (v) { try { await inviaChiusuraTavolo(v, await origineRichiesta()); } catch (e) { console.error('[tavoli] invio email non riuscito', e); } }
+  } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: 'Rimborsato.' };
+}
+
+/** Il cliente lascia libero il tavolo prima di pagare, dalla sua pagina. */
+export async function lasciaTavoloAzione(f: FormData) {
+  const id = testo(f, 'id');
+  const email = testo(f, 'email');
+  const v = await lasciaTavolo(id, email);
+  revalidatePath('/', 'layout');
+  redirect(v ? `/tavoli/${v.evento.slug}` : linkTavolo('', id, email));
 }
