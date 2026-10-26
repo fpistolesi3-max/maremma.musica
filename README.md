@@ -7,7 +7,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (10 test: token QR, età, doppioni, lotti, porta, permessi), `npm run typecheck`,
+Altri comandi: `npm test` (25 test: token QR, età, doppioni, lotti, porta, permessi, tavoli), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -44,7 +44,7 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
 - Prevendita: `/e/[slug]/prevendita?pr=[handle]` e il link PR `/e/[slug]/[handle]` (Lista bloccata).
   Il link PR lascia un cookie di 3 giorni: vince l'ultimo link visitato. Senza link: "Lista: Maremma Musica".
 - Biglietto: `/biglietto/[id]?email=…` (conferma, PDF, calendario), recupero da `/biglietto`.
-- Tavoli: `/tavoli/[slug]` (mappa e richiesta; `?pr=[handle]` la attribuisce al PR, se quel tavolo gli è affidato) e `/tavolo/[id]?email=…` (stato della prenotazione e, a pagamento ricevuto, il QR unico del tavolo). La spesa minima si paga in anticipo: il tavolo resta fermo 3 giorni (`GIORNI_PAGAMENTO_TAVOLO`, mai oltre l'apertura), poi la prenotazione decade e torna libero. L'admin segna il pagamento dalla serata; il PR vede solo i propri tavoli e può inserire la richiesta per un cliente. Alla porta il QR del tavolo vale per tutto il gruppo: ogni passaggio fa entrare una persona fino al numero prenotato ("3 di 6"), poi "Tavolo pieno"; un tavolo non pagato non entra. Funziona anche offline come il resto dello scanner. Gli admin ricevono un'email a ogni richiesta; una volta al giorno `/api/cron/tavoli` (cron in `vercel.json`, protetto da `CRON_SECRET`) manda il promemoria a chi ha il termine entro 24 ore e fa decadere le prenotazioni scadute. Tavoli e piantina si riprendono da un'altra serata (stesso locale), anche creando la serata. "Il mio QR" rimanda anche i link dei tavoli; storico e CSV delle prenotazioni nella serata.
+- Tavoli: `/tavoli/[slug]` (mappa e richiesta; `?pr=[handle]` la attribuisce al PR, se quel tavolo gli è affidato) e `/tavolo/[id]?email=…` (stato della prenotazione e, a pagamento ricevuto, il QR unico del tavolo). La spesa minima si paga in anticipo: il tavolo resta fermo 3 giorni (`GIORNI_PAGAMENTO_TAVOLO`, mai oltre l'apertura), poi la prenotazione decade e torna libero. Dall'apertura della serata i tavoli non si chiedono più dal sito. L'admin segna il pagamento dalla serata; il PR vede solo i propri tavoli e può inserire la richiesta per un cliente (poi torna nella sua area con la conferma). Alla porta il QR del tavolo vale per tutto il gruppo: ogni passaggio fa entrare una persona fino al numero prenotato ("3 di 6"), poi "Tavolo pieno"; un tavolo non pagato non entra. Funziona anche offline come il resto dello scanner. Gli admin ricevono un'email a ogni richiesta; una volta al giorno `/api/cron/tavoli` (cron in `vercel.json`, protetto da `CRON_SECRET`) manda il promemoria a chi ha il termine entro 36 ore (così arriva sempre il giorno prima) e fa decadere le prenotazioni scadute. Tavoli e piantina si riprendono da un'altra serata (stesso locale), anche creando la serata. "Il mio QR" rimanda anche i link dei tavoli; storico e CSV delle prenotazioni nella serata. Un tavolo con prenotazioni nello storico non si elimina: si mette "Non in vendita".
 - PR: `/pr/[handle]` — chi apre il link vede le prossime serate; il PR entrato vede la sua area.
 - Porta: `/door` — fotocamera o codice, "cerca per nome", contatore live, funziona senza rete
   (elenco e ingressi in coda salvati sul telefono, sincronizzati al ritorno del segnale).
@@ -78,7 +78,8 @@ Le serate Solchi e Capodanno, i PR e le persone in lista sono esempi dei mockup:
 Serve per provare il sito dal telefono, sempre all'ultima versione. Ogni push sul branch collegato aggiorna l'indirizzo in 1–2 minuti.
 
 1. **Supabase** → nuovo progetto (regione EU). Applica le migrazioni di `supabase/migrations/` (SQL editor, o `supabase db push`);
-   per ora serve solo `20261005000000_archivio_mvp.sql` (tabella provvisoria + bucket `locandine`).
+   per ora serve solo `20261005000000_archivio_mvp.sql` (tabella provvisoria + bucket `locandine`). Le migrazioni dei tavoli
+   (`20261006…`–`20261010…`) sono per lo schema relazionale, con le stesse regole di `lib/dati/tavoli.ts` e `lib/dati/porta.ts`.
    Copia *Project URL* e la chiave *service_role* (Settings → API).
 2. **Vercel** → *Add New Project* → importa il repo GitHub. Regione funzioni `fra1` (già in `vercel.json`).
    In *Environment Variables* inserisci quelle di `.env.example`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MM_SEGRETO`,
