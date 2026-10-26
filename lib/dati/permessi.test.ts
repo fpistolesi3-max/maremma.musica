@@ -523,6 +523,12 @@ test('tavoli: pagamento online, tavolo fermo pochi minuti, conferma automatica, 
   assert.equal((await tv.promemoriaRichiestePr(piuTardi)).some((x) => x.vista.prenotazione.id === p6.id), false, 'una volta sola');
   // Le richieste fatte dal cliente sul sito (30 minuti) non ricevono questo promemoria
   assert.equal(promemoria.every((x) => x.vista.prenotazione.inseritaDa === 'pr'), true);
+  // Scaduta senza pagamento: il cliente che aveva il link dal PR viene avvisato (una volta), e il PR ha un'email a cui scrivere
+  await m.archivio.modifica((d) => { d.prenotazioni.find((p) => p.id === p6.id)!.scade = new Date(Date.now() - 1000).toISOString(); });
+  assert.equal((await tv.chiuseDaAvvisare()).filter((v) => v.prenotazione.id === p6.id).length, 1);
+  assert.equal((await tv.chiuseDaAvvisare()).some((v) => v.prenotazione.id === p6.id), false, 'una volta sola');
+  assert.equal(await tv.emailDelPr(p6.prId), 'test-pr@maremmamusica.test');
+  assert.equal(await tv.emailDelPr(null), null);
 
   // Firma del webhook di Stripe: valida solo con il segreto giusto, sul corpo esatto e non troppo vecchia
   const { createHmac } = await import('node:crypto');

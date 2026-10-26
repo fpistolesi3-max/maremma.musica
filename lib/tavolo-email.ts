@@ -112,6 +112,16 @@ ${bottoneEmail(`${origine}/pr`, 'Apri i tuoi tavoli →')}`;
   await inviaEmail({ a: emailPr, oggetto: `Da pagare: tavolo ${t.nome} di ${p.nome} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Tavolo non pagato.', pr) });
 }
 
+/** Al PR: la richiesta che aveva fermato per un cliente è scaduta senza pagamento, il tavolo è di nuovo in vendita. */
+export async function inviaScadutaAlPr(v: PrenotazioneVista, emailPr: string, origine: string) {
+  const { prenotazione: p, evento: e, tavolo: t } = v;
+  const corpo = `
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${escapeHtml(`${p.nome} ${p.cognome}`)} non ha pagato il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)} entro il termine: la richiesta è scaduta e il tavolo è tornato libero. Se ${escapeHtml(p.nome)} lo vuole ancora, inserisci una nuova richiesta dalla tua area.</p>
+${riquadro(v, '')}
+${bottoneEmail(`${origine}/pr`, 'Apri i tuoi tavoli →')}`;
+  await inviaEmail({ a: emailPr, oggetto: `Scaduto: tavolo ${t.nome} di ${p.nome} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Tavolo tornato libero.', corpo) });
+}
+
 /** La prenotazione è chiusa: decaduta senza pagamento, annullata dalla crew o rimborsata. Così nessuno arriva convinto di avere il tavolo. */
 export async function inviaChiusuraTavolo(v: PrenotazioneVista, origine: string) {
   const { prenotazione: p, evento: e, tavolo: t } = v;

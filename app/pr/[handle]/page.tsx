@@ -6,13 +6,13 @@ import { eventiPubblici, prValido } from '@/lib/dati/pubblico';
 import { serateDelPr, totaliPr } from '@/lib/dati/area-pr';
 import { tavoliDelPr } from '@/lib/dati/tavoli';
 import { modoPagamentoTavoli } from '@/lib/pagamenti';
-import { quandoScade } from '@/lib/tavolo-email';
+import { linkPagamento, quandoScade } from '@/lib/tavolo-email';
 import { AzioniPrenotazione } from '@/components/tavoli-azioni';
 import { chipLista, isAttiva } from '@/lib/regole';
 import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, orari, quandoRelativo } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
 import { CampoLink } from '@/components/client';
-import { CondividiLink, ListaPr } from '@/components/area-pr-client';
+import { CondividiLink, ListaPr, MandaLinkPagamento } from '@/components/area-pr-client';
 import { CampoLista, Monogramma } from '@/components/ui';
 import { Locandina } from '@/components/evento';
 import { esci } from '@/app/azioni/accesso';
@@ -216,12 +216,17 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
                       <span className="font-mono text-[11px] leading-4 text-osso-2">
                         {`${p.nome} ${p.cognome}`.toUpperCase()} · {p.persone} PERSONE · {p.telefono}{p.stato === 'in_attesa' ? ` · DECADE ${quandoScade(p.scade).toUpperCase()}` : ''}
                       </span>
+                      {/* Richiesta fermata dal PR con il pagamento online: può rimandare il link al cliente. */}
+                      {p.stato === 'in_attesa' && p.pagamentoOnline && p.inseritaDa === 'pr' && (
+                        <MandaLinkPagamento link={linkPagamento('', p.id, p.email)} telefono={p.telefono}
+                          testo={`Ciao ${p.nome}, ti ho fermato il tavolo ${v.tavolo.nome} per ${serata.evento.nome}: paga qui ${euro(p.spesaMinima)} entro ${quandoScade(p.scade)} e ti arriva il QR.`} />
+                      )}
                       {p.stato === 'in_attesa' && <AzioniPrenotazione id={p.id} nome={`${p.nome} ${p.cognome}`} conferma={false} />}
                     </div>
                   );
                 })}
               </div>
-              <span className="text-[13px] leading-5 text-osso-3">Il cliente paga online: appena paga il tavolo è confermato e gli arriva il QR. I soldi non passano da te. Se non paga in tempo il tavolo torna libero.</span>
+              <span className="text-[13px] leading-5 text-osso-3">Il cliente paga online: appena paga, il tavolo è confermato e il QR arriva per email. I soldi non passano da te. Se non paga in tempo il tavolo torna libero.</span>
             </section>
           )}
 

@@ -307,11 +307,18 @@ export async function prenotazioniPerEmail(email: string): Promise<PrenotazioneV
 export async function chiuseDaAvvisare(adesso = new Date()): Promise<PrenotazioneVista[]> {
   return modifica((d) => {
     faiDecadere(d, adesso);
-    // Una pagina di pagamento online lasciata a metà non è una prenotazione persa: il cliente lo sa già.
-    const da = d.prenotazioni.filter((p) => p.stato === 'scaduta' && !p.avvisoChiusuraAt && !p.pagamentoOnline);
+    // Una pagina di pagamento online lasciata a metà dal cliente non è una prenotazione persa: lo sa già.
+    // Chi ha ricevuto il link dal PR invece no: va avvisato che il tavolo è tornato libero.
+    const da = d.prenotazioni.filter((p) => p.stato === 'scaduta' && !p.avvisoChiusuraAt && (!p.pagamentoOnline || p.inseritaDa === 'pr'));
     for (const p of da) p.avvisoChiusuraAt = adesso.toISOString();
     return da.map((p) => vista(d, p)).filter((v): v is PrenotazioneVista => v !== null && !eventoPassato(v.evento, adesso));
   });
+}
+
+/** Email di accesso del PR (per gli avvisi sui suoi tavoli); null se non ha un accesso. */
+export async function emailDelPr(prId: string | null): Promise<string | null> {
+  if (!prId) return null;
+  return (await leggi()).utenti.find((u) => u.ruolo === 'pr' && u.prId === prId)?.email ?? null;
 }
 
 /** Email degli admin: ricevono l'avviso quando arriva una richiesta. */

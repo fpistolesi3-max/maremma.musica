@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { applicaScadenze, chiuseDaAvvisare, promemoriaDaMandare, promemoriaRichiestePr } from '@/lib/dati/tavoli';
-import { inviaChiusuraTavolo, inviaPromemoriaRichiestaPr, inviaPromemoriaTavolo } from '@/lib/tavolo-email';
+import { applicaScadenze, chiuseDaAvvisare, emailDelPr, promemoriaDaMandare, promemoriaRichiestePr } from '@/lib/dati/tavoli';
+import { inviaChiusuraTavolo, inviaPromemoriaRichiestaPr, inviaPromemoriaTavolo, inviaScadutaAlPr } from '@/lib/tavolo-email';
 import { verificaSospesi } from '@/lib/pagamento-tavolo';
 import { modalitaProva } from '@/lib/prova';
 
@@ -33,7 +33,13 @@ export async function GET(req: Request) {
   }
   let avvisati = 0;
   for (const v of await chiuseDaAvvisare()) {
-    try { await inviaChiusuraTavolo(v, origine); avvisati += 1; } catch (e) { console.error('[tavoli] avviso di chiusura non inviato', e); }
+    try {
+      await inviaChiusuraTavolo(v, origine);
+      avvisati += 1;
+      // Richiesta inserita dal PR e mai pagata: lo sa anche lui.
+      const emailPr = v.prenotazione.inseritaDa === 'pr' ? await emailDelPr(v.prenotazione.prId) : null;
+      if (emailPr) await inviaScadutaAlPr(v, emailPr, origine);
+    } catch (e) { console.error('[tavoli] avviso di chiusura non inviato', e); }
   }
   return NextResponse.json({ ok: true, pagamenti, promemoria: inviati, decadute: avvisati }, { headers: { 'Cache-Control': 'no-store' } });
 }

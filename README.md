@@ -50,7 +50,9 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
   (`MINUTI_PAGAMENTO_ONLINE`, il minimo di Stripe); a pagamento fatto la prenotazione si conferma da sola e parte il QR,
   senza "Segna pagato". Chi chiude la pagina di pagamento può riprovare subito o lasciare libero il tavolo dalla sua pagina.
   Se il PR inserisce la richiesta, il cliente riceve per email il link per pagare e ha 24 ore; se non ha ancora pagato, il controllo
-  del mattino (dopo almeno 3 ore dal link, `ORE_MINIME_PROMEMORIA_PR`) gli rimanda il link e avvisa il PR, che può contattare il cliente. La conferma arriva dal webhook
+  del mattino (dopo almeno 3 ore dal link, `ORE_MINIME_PROMEMORIA_PR`) gli rimanda il link e avvisa il PR, che può contattare il cliente; se scade senza pagamento lo sanno sia il cliente sia il PR. Nell'area del PR, sulle richieste
+  ancora da pagare, "Manda il link su WhatsApp" (al numero del cliente) e "Copia il link per pagare". Anche il link dei tavoli
+  del PR (`/tavoli/[serata]?pr=…`) il sito lo ricorda per 3 giorni, come quello della lista. La conferma arriva dal webhook
   `/api/pagamenti/stripe` (firma con `STRIPE_WEBHOOK_SECRET`) e, se tarda, dal ritorno del cliente sulla sua pagina. Un pagamento
   arrivato quando il tavolo era già di un altro finisce nello storico come "da rimborsare"; "Rimborsa" restituisce i soldi
   su Stripe. Senza chiave Stripe, in sviluppo e sull'istanza di prova, c'è la pagina finta `/dev/pagamento`: tutto il giro
