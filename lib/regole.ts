@@ -100,6 +100,11 @@ export function scadenzaPagamento(richiesta: Date, evento: Pick<Evento, 'data'>)
   return new Date(Math.min(richiesta.getTime() + GIORNI_PAGAMENTO_TAVOLO * 86_400_000, new Date(evento.data).getTime())).toISOString();
 }
 
+/** Le richieste dei tavoli si chiudono all'apertura: dopo, il termine per pagare sarebbe già passato. */
+export function richiesteTavoliAperte(evento: Pick<Evento, 'data'>, adesso = new Date()) {
+  return new Date(evento.data).getTime() > adesso.getTime();
+}
+
 /** Tiene occupato il tavolo: in attesa di pagamento o già pagata. */
 export const prenotazioneAttiva = (p: Pick<PrenotazioneTavolo, 'stato'>) => p.stato === 'in_attesa' || p.stato === 'confermata';
 

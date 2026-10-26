@@ -54,7 +54,7 @@ export default async function PaginaTavoli({ params, searchParams }: Props) {
           </p>
           {x.pr && <CampoLista nome={x.pr.nomeDisplay} ufficiale={false} nota={comePr ? 'Vedi solo i tavoli affidati a te: la prenotazione resta nella tua lista.' : `Sei entrato dal link di ${x.pr.nomeDisplay}.`} />}
         </div>
-        <PrenotaTavolo tavoli={x.tavoli} piantinaUrl={e.piantinaUrl} prHandle={x.pr?.handle ?? null} perCliente={Boolean(comePr)}
+        <PrenotaTavolo tavoli={x.tavoli} piantinaUrl={e.piantinaUrl} prHandle={x.pr?.handle ?? null} perCliente={Boolean(comePr)} chiuse={!x.aperte}
           scadenza={quandoScade(scadenzaPagamento(new Date(), e))} />
       </main>
     </div>

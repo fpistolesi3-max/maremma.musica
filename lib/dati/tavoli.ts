@@ -4,7 +4,7 @@ import { leggi, modifica, segreto } from './archivio';
 import type { Archivio, Evento, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { creaCodice, creaTokenQr } from '../qr-token';
-import { EMAIL_RE, eventoPassato, prenotazioneAttiva, prenotazioneScaduta, scadenzaPagamento } from '../regole';
+import { EMAIL_RE, eventoPassato, prenotazioneAttiva, prenotazioneScaduta, richiesteTavoliAperte, scadenzaPagamento } from '../regole';
 
 // Prenotazione dei tavoli. Il cliente (o il PR per lui) chiede un tavolo libero: resta bloccato in attesa
 // del pagamento anticipato della spesa minima. L'admin segna il pagamento e la prenotazione è confermata;
@@ -55,6 +55,7 @@ export interface TavoliSerata {
   evento: Evento;
   tavoli: TavoloPubblico[];
   pr: Pr | null;            // PR del link, se valido per la serata
+  aperte: boolean;          // false = la serata è iniziata: niente più richieste online
 }
 
 /** Tavoli in vendita di una serata pubblicata e non passata. `soloDelPr`: solo quelli affidati a quel PR. */
@@ -69,7 +70,7 @@ export async function tavoliPubblici(slug: string, handlePr?: string | null, sol
     .filter((t) => !soloDelPr || (pr && prPuoProporre(t, pr.id)))
     .sort((a, b) => a.ordine - b.ordine)
     .map((t) => ({ id: t.id, nome: t.nome, zona: t.zona, posti: t.posti, spesaMinima: t.spesaMinima, x: t.x, y: t.y, libero: t.stato === 'libero' }));
-  return { evento, tavoli, pr };
+  return { evento, tavoli, pr, aperte: richiesteTavoliAperte(evento) };
 }
 
 export interface DatiPrenotazione {
@@ -99,6 +100,7 @@ async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavol
     const t = d.tavoli.find((x) => x.id === i.tavoloId);
     const evento = t && d.eventi.find((e) => e.id === t.eventoId);
     if (!t || !evento || !evento.pubblicato || eventoPassato(evento)) return { ok: false, campo: 'tavolo', errore: 'Questo tavolo non è più disponibile.' };
+    if (!richiesteTavoliAperte(evento)) return { ok: false, campo: 'tavolo', errore: 'La serata è già iniziata: i tavoli non si chiedono più dal sito.' };
     if (opzioni.soloDelPr && (!prPuoProporre(t, opzioni.soloDelPr) || (evento.prAbilitati && !evento.prAbilitati.includes(opzioni.soloDelPr)))) return { ok: false, campo: 'tavolo', errore: 'Questo tavolo non è tra quelli affidati a te.' };
     if (t.stato !== 'libero') return { ok: false, campo: 'tavolo', errore: 'Qualcuno ha appena preso questo tavolo: scegline un altro.' };
     if (t.posti != null && i.persone > t.posti) return { ok: false, campo: 'persone', errore: `Questo tavolo è per ${t.posti} persone al massimo.` };
@@ -221,7 +223,9 @@ export async function tavoliDelPr(s: Sessione, eventoId: string) {
   await applicaScadenze();
   const d = await leggi();
   const affidati = d.tavoli.filter((t) => t.eventoId === eventoId && t.stato !== 'non_in_vendita' && prPuoProporre(t, pr.id));
+  const evento = d.eventi.find((e) => e.id === eventoId);
   return {
+    aperte: Boolean(evento && richiesteTavoliAperte(evento)),
     affidati: affidati.length,
     liberi: affidati.filter((t) => t.stato === 'libero').length,
     mie: d.prenotazioni

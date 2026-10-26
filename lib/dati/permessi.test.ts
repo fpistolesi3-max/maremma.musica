@@ -303,6 +303,25 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   // L'admin annulla anche una pagata: il tavolo si libera
   await tv.annullaPrenotazione(admin, p1.id);
   assert.equal((await tv.tavoliPubblici('halloween-party'))!.tavoli.find((t) => t.nome === 'A1')!.libero, true);
+
+  // Due richieste nello stesso momento per lo stesso tavolo: una sola lo prende
+  const insieme = await Promise.all([
+    tv.prenotaTavolo({ ...chi, email: 'uno@esempio.it', telefono: '320 1000001', tavoloId: await id('A1') }, null),
+    tv.prenotaTavolo({ ...chi, email: 'due@esempio.it', telefono: '320 1000002', tavoloId: await id('A1') }, null),
+  ]);
+  assert.deepEqual(insieme.map((r) => r.ok).sort(), [false, true]);
+  assert.ok(insieme.some((r) => !r.ok && r.campo === 'tavolo'));
+
+  // Serata iniziata: niente più richieste dal sito né dal PR, e la pagina lo dice
+  const apertura = ev.data;
+  await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === ev.id)!.data = new Date(Date.now() - 3_600_000).toISOString(); });
+  assert.equal((await tv.tavoliPubblici('halloween-party'))!.aperte, false);
+  const tardi = await tv.prenotaTavolo({ ...chi, email: 'tardi@esempio.it', telefono: '320 1000003', tavoloId: await id('A3') }, null);
+  assert.ok(!tardi.ok && tardi.campo === 'tavolo' && /già iniziata/.test(tardi.errore));
+  const tardiPr = await tv.prPrenotaTavolo(pr, { ...chi, email: 'tardi2@esempio.it', telefono: '320 1000004', tavoloId: await id('A3') });
+  assert.ok(!tardiPr.ok && /già iniziata/.test(tardiPr.errore));
+  assert.equal((await tv.tavoliDelPr(pr, ev.id)).aperte, false);
+  await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === ev.id)!.data = apertura; });
 });
 
 test('porta e tavoli: un QR per il gruppo, una persona a passaggio, non pagato non entra', async () => {

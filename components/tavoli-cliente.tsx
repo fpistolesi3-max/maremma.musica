@@ -14,10 +14,10 @@ const euro = (n: number) => `${n.toLocaleString('it-IT')} €`;
 
 /**
  * Scelta del tavolo (mappa se i tavoli sono stati posizionati, elenco sempre) e modulo di richiesta.
- * `perCliente`: la sta inserendo un PR a nome di un cliente.
+ * `perCliente`: la sta inserendo un PR a nome di un cliente. `chiuse`: la serata è iniziata, si guarda e basta.
  */
-export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perCliente = false }: {
-  tavoli: TavoloScelta[]; piantinaUrl: string | null; prHandle: string | null; scadenza: string; perCliente?: boolean;
+export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perCliente = false, chiuse = false }: {
+  tavoli: TavoloScelta[]; piantinaUrl: string | null; prHandle: string | null; scadenza: string; perCliente?: boolean; chiuse?: boolean;
 }) {
   const [stato, invia, inCorso] = useActionState(prenotaTavoloAzione, INIZIALE);
   const e = stato.errori;
@@ -75,9 +75,10 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
           </button>
         ))}
       </div>
-      {liberi.length === 0 && <p className="m-0 text-osso-2">Tutti i tavoli sono già presi. Se una prenotazione decade, il tavolo torna libero qui.</p>}
+      {chiuse && <p className="m-0 border border-linea px-4 py-3 text-osso-2">La serata è già iniziata: i tavoli non si chiedono più dal sito. Per un tavolo libero chiedi alla crew all&apos;ingresso.</p>}
+      {!chiuse && liberi.length === 0 && <p className="m-0 text-osso-2">Tutti i tavoli sono già presi. Se una prenotazione decade, il tavolo torna libero qui.</p>}
 
-      {liberi.length > 0 && (
+      {!chiuse && liberi.length > 0 && (
         <form action={invia} noValidate className="flex flex-col gap-[22px] border border-linea bg-notte-2 p-5">
           <input type="hidden" name="tavoloId" value={sel?.id ?? ''} />
           {prHandle && <input type="hidden" name="pr" value={prHandle} />}

@@ -184,9 +184,13 @@ async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string
                 <h2 className="m-0 font-display text-[36px] font-black uppercase leading-[.9]">Tavoli</h2>
                 <span className="font-mono text-[11px] text-osso-2">{tavoli.liberi} LIBERI SU {tavoli.affidati}</span>
               </div>
-              {tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--linea self-start">Prenota per un cliente</Link>}
-              <span className="text-[14px] leading-5 text-osso-2">Oppure manda questo link: chi prenota da qui finisce nei tuoi tavoli.</span>
-              <CampoLink link={`/tavoli/${serata.evento.slug}?pr=${pr.handle}`} />
+              {tavoli.aperte && tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--linea self-start">Prenota per un cliente</Link>}
+              {tavoli.aperte ? (
+                <>
+                  <span className="text-[14px] leading-5 text-osso-2">{tavoli.liberi > 0 ? 'Oppure manda questo link' : 'Manda questo link'}: chi prenota da qui finisce nei tuoi tavoli.</span>
+                  <CampoLink link={`/tavoli/${serata.evento.slug}?pr=${pr.handle}`} />
+                </>
+              ) : <span className="text-[14px] leading-5 text-osso-2">La serata è iniziata: i tavoli non si chiedono più dal sito.</span>}
               <div className="flex flex-col">
                 {tavoli.mie.map((v) => {
                   const p = v.prenotazione;
