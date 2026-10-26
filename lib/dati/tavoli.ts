@@ -281,6 +281,19 @@ export async function prenotazioniPerEmail(email: string): Promise<PrenotazioneV
     .filter((v): v is PrenotazioneVista => v !== null && !eventoPassato(v.evento));
 }
 
+/**
+ * Prenotazioni decadute da sole (termine passato) il cui cliente non sa ancora niente, per serate non passate:
+ * le segna come avvisate e le restituisce, così l'email parte una volta sola.
+ */
+export async function chiuseDaAvvisare(adesso = new Date()): Promise<PrenotazioneVista[]> {
+  return modifica((d) => {
+    faiDecadere(d, adesso);
+    const da = d.prenotazioni.filter((p) => p.stato === 'scaduta' && !p.avvisoChiusuraAt);
+    for (const p of da) p.avvisoChiusuraAt = adesso.toISOString();
+    return da.map((p) => vista(d, p)).filter((v): v is PrenotazioneVista => v !== null && !eventoPassato(v.evento, adesso));
+  });
+}
+
 /** Email degli admin: ricevono l'avviso quando arriva una richiesta. */
 export async function emailAdmin(): Promise<string[]> {
   return (await leggi()).utenti.filter((u) => u.ruolo === 'admin').map((u) => u.email);

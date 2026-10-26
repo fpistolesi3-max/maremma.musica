@@ -8,7 +8,7 @@ import { origineRichiesta, sessioneCorrente } from '@/lib/sessione';
 import {
   annullaPrenotazione, confermaPrenotazione, emailAdmin, prPrenotaTavolo, prenotaTavolo, prenotazionePubblica, type DatiPrenotazione,
 } from '@/lib/dati/tavoli';
-import { inviaAvvisoAdmin, inviaConfermaTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
+import { inviaAvvisoAdmin, inviaChiusuraTavolo, inviaConfermaTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
 import type { MetodoTavolo } from '@/lib/dati/tipi';
 
 export interface StatoTavoloModulo {
@@ -70,12 +70,13 @@ export async function confermaPrenotazioneAzione(id: string, metodo: MetodoTavol
   return { ok: 'Pagamento segnato: tavolo confermato.' };
 }
 
-/** `rimborso`: era pagata e i soldi sono stati restituiti (solo admin). */
+/** `rimborso`: era pagata e i soldi sono stati restituiti (solo admin). Al cliente arriva l'email. */
 export async function annullaPrenotazioneAzione(id: string, rimborso = false): Promise<{ ok?: string; errore?: string }> {
   const s = await sessioneCorrente();
   if (!s) return { errore: 'Sessione scaduta: rientra.' };
   try {
-    await annullaPrenotazione(s, id, rimborso);
+    const v = await annullaPrenotazione(s, id, rimborso);
+    if (v) { try { await inviaChiusuraTavolo(v, await origineRichiesta()); } catch (e) { console.error('[tavoli] invio email non riuscito', e); } }
   } catch (e) {
     return { errore: (e as Error).message === 'non_autorizzato' ? 'Non puoi annullare questa prenotazione.' : (e as Error).message };
   }

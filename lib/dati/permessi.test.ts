@@ -299,6 +299,9 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   await m.archivio.modifica((d) => { d.prenotazioni.find((p) => p.id === p2)!.scade = new Date(Date.now() - 1000).toISOString(); });
   assert.equal((await tv.tavoliPubblici('halloween-party'))!.tavoli.find((t) => t.nome === 'A2')!.libero, true);
   assert.equal((await tv.prenotazionePubblica(p2, 'ugo@esempio.it'))!.prenotazione.stato, 'scaduta');
+  // Il cliente viene avvisato una volta sola che il tavolo è tornato libero
+  assert.equal((await tv.chiuseDaAvvisare()).filter((v) => v.prenotazione.id === p2).length, 1);
+  assert.equal((await tv.chiuseDaAvvisare()).some((v) => v.prenotazione.id === p2), false, 'l’avviso parte una volta sola');
 
   // Pagamento arrivato in ritardo e tavolo ancora libero: l'admin la riattiva, segnando come e chi
   await assert.rejects(tv.confermaPrenotazione(admin, p2, 'assegno' as never), /Scegli come/);
@@ -311,6 +314,7 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   const rimborsata = (await tv.annullaPrenotazione(admin, p2, true))!.prenotazione;
   assert.deepEqual([rimborsata.stato, rimborsata.chiusaDa], ['rimborsata', 'admin@maremmamusica.test']);
   assert.equal((await m.porta.elencoPorta(staff, ev.id)).find((v) => v.id === p2)!.stato, 'rimborsato');
+  assert.equal((await tv.chiuseDaAvvisare()).some((v) => v.prenotazione.id === p2), false, 'annullata o rimborsata: l’email parte dall’azione, non dal cron');
   assert.equal(await tv.annullaPrenotazione(admin, p2), null, 'già chiusa: niente da fare');
 
   // Scaduta ma nel frattempo il tavolo è di un altro: non si riattiva. Una in attesa non si rimborsa.

@@ -68,6 +68,23 @@ ${bottoneEmail(linkTavolo(origine, p.id, p.email), 'Vedi la prenotazione →')}`
   await inviaEmail({ a: p.email, oggetto: `Il tuo tavolo sta per scadere · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Manca poco.', corpo) });
 }
 
+/** La prenotazione è chiusa: decaduta senza pagamento, annullata dalla crew o rimborsata. Così nessuno arriva convinto di avere il tavolo. */
+export async function inviaChiusuraTavolo(v: PrenotazioneVista, origine: string) {
+  const { prenotazione: p, evento: e, tavolo: t } = v;
+  const testi = {
+    scaduta: ['Tavolo tornato libero.', `il pagamento della spesa minima per il tavolo ${escapeHtml(t.nome)} non è arrivato entro il termine, quindi la prenotazione è decaduta e il tavolo è tornato libero. Se hai già pagato, rispondi a questa email: controlliamo noi.`, 'Prenotazione decaduta'],
+    annullata: ['Prenotazione annullata.', `la prenotazione del tavolo ${escapeHtml(t.nome)} è stata annullata e il QR non vale più. Per qualsiasi dubbio rispondi a questa email.`, 'Prenotazione annullata'],
+    rimborsata: ['Tavolo rimborsato.', `la prenotazione del tavolo ${escapeHtml(t.nome)} è stata annullata e ti abbiamo restituito ${euro(p.spesaMinima)}. Il QR non vale più.`, 'Tavolo rimborsato'],
+  } as const;
+  if (p.stato !== 'scaduta' && p.stato !== 'annullata' && p.stato !== 'rimborsata') return;
+  const [titolo, frase, oggetto] = testi[p.stato];
+  const corpo = `
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ciao ${escapeHtml(p.nome)}, ${frase}</p>
+${riquadro(v, '')}
+${bottoneEmail(`${origine}/tavoli/${e.slug}`, 'Vedi i tavoli liberi →')}`;
+  await inviaEmail({ a: p.email, oggetto: `${oggetto} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail(titolo, corpo) });
+}
+
 /** Pagamento ricevuto: arriva il QR del tavolo, uno per tutto il gruppo. */
 export async function inviaConfermaTavolo(v: PrenotazioneVista, origine: string) {
   const { prenotazione: p, evento: e, tavolo: t } = v;
