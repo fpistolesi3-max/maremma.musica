@@ -69,7 +69,7 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
                       Il tavolo {v.tavolo.nome} è tenuto per te fino {v.prenotazione.inseritaDa !== 'cliente' ? 'a ' : ''}<strong>{v.prenotazione.inseritaDa !== 'cliente' ? quandoScade(v.prenotazione.scade) : `alle ${ora(v.prenotazione.scade)}`}</strong>. Paga online la spesa minima di <strong>{euro(v.prenotazione.spesaMinima)}</strong> e ti arriva subito il QR del tavolo.
                     </p>
                     {errore && <p role="alert" className="m-0 border border-stop-testo px-4 py-3 text-[14px] leading-5 text-stop-testo">Non siamo riusciti ad aprire il pagamento. Riprova tra poco.</p>}
-                    <a href={linkPagamento('', v.prenotazione.id, v.prenotazione.email)} className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }}>
+                    <a href={linkPagamento('', v.prenotazione.id, v.prenotazione.email)} className="mm-btn mm-btn--clip mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }}>
                       Paga {euro(v.prenotazione.spesaMinima)} <span className="mm-btn__freccia" aria-hidden="true">→</span>
                     </a>
                     <span className="text-center font-mono text-[11px] leading-4 text-osso-2">CARTA · APPLE PAY · GOOGLE PAY · SE NON PAGHI IN TEMPO IL TAVOLO TORNA LIBERO</span>

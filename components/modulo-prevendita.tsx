@@ -110,7 +110,7 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
       </div>
 
       <div className="mm-prevendita__totale mt-1"><span>{totaleEtichetta}</span><strong>{totaleValore}</strong></div>
-      <button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }} disabled={inCorso}>
+      <button type="submit" className="mm-btn mm-btn--clip mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }} disabled={inCorso}>
         {inCorso ? 'Un attimo…' : <>{aPagamento ? `Paga ${totaleValore}` : 'Mettiti in lista'} <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
       </button>
       <span className="text-center font-mono text-[11px] leading-4 text-osso-2">

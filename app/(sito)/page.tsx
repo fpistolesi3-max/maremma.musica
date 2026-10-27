@@ -54,7 +54,7 @@ export default async function Home() {
               </div>
               <div className="mt-1 flex flex-col gap-[14px] md:mt-3 md:flex-row md:items-center md:gap-6">
                 {/* Porta alla pagina della serata: lì si sceglie tra lista e tavolo. */}
-                <Link href={`/e/${primo.evento.slug}`} className="mm-btn mm-btn--primario mm-btn--pieno md:w-auto" style={{ minHeight: 56, fontSize: 16, padding: '0 36px' }}>
+                <Link href={`/e/${primo.evento.slug}`} className="mm-btn mm-btn--clip mm-btn--primario mm-btn--pieno md:w-auto" style={{ minHeight: 56, fontSize: 16, padding: '0 36px' }}>
                   Partecipa <Freccia />
                 </Link>
                 <span className={`${chipLista(primo.stato).classe} self-start md:self-auto`}>{chipLista(primo.stato).testo}</span>

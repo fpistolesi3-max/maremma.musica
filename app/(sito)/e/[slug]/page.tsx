@@ -122,7 +122,7 @@ export default async function PaginaEvento({ params }: Props) {
                     : 'Tutti presi, per ora. Se una prenotazione decade il tavolo torna libero.'}
                 </span>
               </div>
-              <Link href={`/tavoli/${e.slug}`} className="mm-btn mm-btn--linea flex-none" style={{ minHeight: 52 }}>{tavoliLiberi.length > 0 ? 'Prenota un tavolo' : 'Vedi i tavoli'}</Link>
+              <Link href={`/tavoli/${e.slug}`} className="mm-btn mm-btn--clip mm-btn--linea flex-none" style={{ minHeight: 52 }}>{tavoliLiberi.length > 0 ? 'Prenota un tavolo' : 'Vedi i tavoli'}</Link>
             </div>
           )}
 
