@@ -26,7 +26,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     `DTSTART:${ics(e.data)}`, `DTEND:${ics(fine)}`,
     `SUMMARY:${esc(`${e.nome} · Maremma Musica`)}`,
     `LOCATION:${esc(luogoTesto(e))}`,
-    `DESCRIPTION:${esc(`Il tuo QR: ${linkBiglietto(await origineRichiesta(), b.iscrizione.id, b.iscrizione.email)}`)}`,
+    `DESCRIPTION:${esc(`${b.evento.senzaTelefono ? 'Il tuo biglietto (porta un documento)' : 'Il tuo QR'}: ${linkBiglietto(await origineRichiesta(), b.iscrizione.id, b.iscrizione.email)}`)}`,
     'END:VEVENT', 'END:VCALENDAR',
   ].join('\r\n');
   return new Response(testo, {

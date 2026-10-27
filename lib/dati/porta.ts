@@ -57,7 +57,7 @@ export async function eventiPorta(s: Sessione) {
     .map((e) => ({
       id: e.id, nome: e.nome, data: e.data, numero: e.numero, etaMinima: e.etaMinima,
       prezzoCassa: e.tipoIngresso === 'libero' ? 0 : e.prezzoCassa ?? e.prezzoLista,
-      cassa: e.cassaAttiva,
+      cassa: e.cassaAttiva, senzaTelefono: e.senzaTelefono,
     }));
 }
 
@@ -65,6 +65,19 @@ export async function elencoPorta(s: Sessione, eventoId: string): Promise<VocePo
   soloStaff(s);
   const d = await leggi();
   return vociEvento(d, eventoId);
+}
+
+/** Lista di riserva per le serate senza telefono, in ordine alfabetico: chi ha una prevendita valida, con nome e data di nascita da confrontare col documento. */
+export async function listaStampabile(s: Sessione, eventoId: string) {
+  soloStaff(s);
+  const d = await leggi();
+  const evento = d.eventi.find((e) => e.id === eventoId);
+  if (!evento) return null;
+  const righe = d.iscrizioni
+    .filter((i) => i.eventoId === eventoId && (i.stato === 'pagato' || i.stato === 'in_lista' || i.stato === 'entrato'))
+    .map((i) => ({ id: i.id, nome: i.nome, cognome: i.cognome, dataNascita: i.dataNascita, categoria: i.categoria, entrato: i.stato === 'entrato', oraCheckIn: i.oraCheckIn }))
+    .sort((a, b) => a.cognome.localeCompare(b.cognome, 'it') || a.nome.localeCompare(b.nome, 'it'));
+  return { evento, righe };
 }
 
 /** La serata ha la cassa alla porta? Arriva al telefono a ogni sincronizzazione: l'admin la può cambiare durante la serata. */
@@ -99,7 +112,9 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
       if (r.aggiornata) p.ingressi.push({ rif: rif ?? randomUUID(), ora, porta: o.porta });
       return r.esito;
     }
-    const { esito, aggiornata } = decidiIngresso(v, { ...o, ora });
+    // Serata senza telefono: lo decide il server, il telefono non può saltare il controllo del documento.
+    const documento = d.eventi.find((e) => e.id === eventoId)?.senzaTelefono === true;
+    const { esito, aggiornata } = decidiIngresso(v, { ...o, ora, documento });
     if (aggiornata) {
       const i = elenco.find((x) => x.id === v.id)!;
       i.stato = 'entrato'; i.oraCheckIn = ora; i.porta = o.porta;

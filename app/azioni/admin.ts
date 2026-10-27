@@ -6,12 +6,13 @@ import { redirect } from 'next/navigation';
 import { sessioneCorrente, type Sessione } from '@/lib/sessione';
 import type { NomeModello } from '@/lib/tipi-modelli';
 import {
-  applicaModelloTipi, cambiaStatoIscrizione, cambiaStatoPr, copiaTipi, copiaTavoli, creaPr, creaStaff, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
+  applicaModelloTipi, cambiaNominativo, cambiaStatoIscrizione, cambiaStatoPr, copiaTipi, copiaTavoli, creaPr, creaStaff, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
 } from '@/lib/dati/admin';
 import { salvaMedia } from '@/lib/dati/media';
 import { chiudiRimborsoIscrizione, pagamentoIscrizioneDi } from '@/lib/dati/prevendita';
 import { rimborsa } from '@/lib/pagamenti';
 import { slugDa } from '@/lib/formato';
+import { componiData } from '@/lib/regole';
 import type { StatoTavolo, TipoIngresso } from '@/lib/dati/tipi';
 
 async function admin(): Promise<Sessione> {
@@ -98,6 +99,7 @@ export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAz
     prezzoCassa: tipo === 'libero' ? null : prezzoCassa,
     // Ingresso in cassa alla porta per chi non ha la prevendita: si accende e spegne per serata.
     cassaAttiva: f.get('cassaAttiva') === 'on',
+    senzaTelefono: f.get('senzaTelefono') === 'on',
     pubblicato: t(f, 'azione') === 'pubblica' ? true : t(f, 'azione') === 'bozza' ? false : f.get('pubblicato') === '1',
     prAbilitati: tuttiPr ? null : prScelti,
   };
@@ -247,6 +249,17 @@ export async function azioneIscrizione(id: string, azione: 'annulla' | 'rimborsa
   } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/admin', 'layout');
   return { ok: azione === 'rimborsa' ? 'Rimborsato.' : 'Fatto.' };
+}
+
+/** Cambio di nominativo dalla scheda delle iscrizioni. `dataNascita`: GG.MM.AAAA. */
+export async function cambiaNominativoAzione(id: string, nome: string, cognome: string, dataNascita: string) {
+  const s = await admin();
+  const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(dataNascita.trim());
+  const iso = m ? componiData(m[1], m[2], m[3]) : null;
+  if (!iso) return { errore: 'La data di nascita va scritta come GG.MM.AAAA' };
+  try { await cambiaNominativo(s, id, { nome, cognome, dataNascita: iso }); } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/admin', 'layout');
+  return { ok: 'Nominativo cambiato.' };
 }
 
 export async function creaPrAzione(_p: EsitoAzione, f: FormData): Promise<EsitoAzione> {

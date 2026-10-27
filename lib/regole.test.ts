@@ -10,7 +10,7 @@ import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
 
 const evento = (p: Partial<Evento> = {}): Evento => ({
   id: 'e1', numero: 25, slug: 'halloween-party', nome: 'Halloween Party', data: '2026-10-31T22:00:00+01:00', dataFine: '2026-11-01T04:00:00+01:00',
-  location: null, comune: null, lat: null, lng: null, locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, cassaAttiva: true, prezzoCassa: null,
+  location: null, comune: null, lat: null, lng: null, locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, cassaAttiva: true, senzaTelefono: false, prezzoCassa: null,
   dressCode: null, lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 10, etaMinima: 18, pubblicato: true, prAbilitati: null,
   createdAt: '', updatedAt: '', ...p,
 });
@@ -115,6 +115,8 @@ test('porta: con categoria l’ingresso si registra solo dopo "Fai entrare"; sen
   assert.equal(decidiIngresso({ ...v, categoria: 'Standard' }, o).esito.esito, 'entrato', 'Standard: come oggi');
   assert.equal(decidiIngresso({ ...v, categoria: null }, o).esito.esito, 'entrato');
   assert.equal(decidiIngresso({ ...v, stato: 'in_attesa' }, o).esito.esito, 'non_pagato', 'non pagata: prima di tutto non entra');
+  assert.equal(decidiIngresso({ ...v, categoria: null }, { ...o, documento: true }).esito.esito, 'da_confermare', 'serata senza telefono: documento anche senza categoria');
+  assert.equal(decidiIngresso({ ...v, categoria: null }, { ...o, documento: true, confermato: true }).esito.esito, 'entrato');
   assert.equal(categoriaDaControllare({ categoria: ' standard ' }), false);
   assert.equal(categoriaDaControllare({ categoria: 'Donne' }), true);
 });

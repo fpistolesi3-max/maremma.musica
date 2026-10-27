@@ -36,6 +36,7 @@ export default async function SerataLive({ params }: Props) {
           <Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}/modifica`}>Modifica serata</Link>
           <Link className="mm-btn mm-btn--muto" href={`/admin/iscrizioni?evento=${e.id}`}>Tutte le vendite</Link>
           <a className="mm-btn mm-btn--linea" href={`/api/admin/csv/${e.id}`}>Esporta CSV</a>
+          {e.senzaTelefono && <Link className="mm-btn mm-btn--linea" href={`/admin/eventi/${e.id}/lista`}>Lista da stampare</Link>}
         </>}
       />
       <div className="grid grid-cols-2 border-b border-linea lg:grid-cols-5">

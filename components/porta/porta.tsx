@@ -12,7 +12,7 @@ import type { DatiCassa } from '@/lib/porta-logica';
 // Scanner della porta (mockup Porta 1–5). Tutto il controllo avviene sul telefono con l'elenco salvato:
 // funziona anche senza campo, e gli ingressi si sincronizzano appena torna la connessione.
 
-interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; prezzoCassa: number; cassa: boolean }
+interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; prezzoCassa: number; cassa: boolean; senzaTelefono: boolean }
 
 type Schermo =
   | { tipo: 'scanner' }
@@ -64,6 +64,8 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
   const evento = eventi.find((e) => e.id === st.eventoId) ?? null;
   // Cassa alla porta: vale l'ultima sincronizzazione (l'admin la può cambiare durante la serata), offline quella salvata.
   const cassaAttiva = Boolean(evento && (st.cassa ?? evento.cassa));
+  // Serata senza telefono: niente scanner, la porta parte dalla ricerca per cognome e controlla il documento.
+  const senzaTelefono = Boolean(evento?.senzaTelefono);
   // Si contano le persone: un tavolo vale per tutto il suo gruppo. I tavoli non ancora pagati non contano.
   const contate = st.elenco.filter((v) => (!v.tavolo || v.tavolo.pagato) && v.stato !== 'in_attesa');
   const totale = contate.reduce((n, v) => n + personeVoce(v), 0);
@@ -81,12 +83,12 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
   /** `confermato`: lo staff ha toccato "Fai entrare" dopo aver controllato la categoria. */
   const entra = useCallback((v: VocePorta, confermato = false) => {
     const s = usePorta.getState();
-    const { esito, aggiornata } = decidiIngresso(v, { metodo, porta: s.porta, ora: new Date().toISOString(), confermato });
+    const { esito, aggiornata } = decidiIngresso(v, { metodo, porta: s.porta, ora: new Date().toISOString(), confermato, documento: senzaTelefono });
     if (aggiornata) {
       s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, metodo, ora: aggiornata.oraCheckIn!, ...(confermato ? { conferma: true } : {}) });
     }
     mostra(esito);
-  }, [metodo, mostra]);
+  }, [metodo, mostra, senzaTelefono]);
 
   /** "Non rientra": nessun ingresso, il rifiuto va in coda come gli ingressi (anche offline) e l'iscrizione resta valida. */
   const rifiuta = useCallback((v: VocePorta) => {
@@ -161,7 +163,7 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
         <a href="/accedi?dopo=/door" className="mx-4 mt-3 block border border-attesa p-3 text-[14px] text-attesa no-underline">Accesso scaduto: gli ingressi restano salvati sul telefono. Tocca qui per rientrare.</a>
       )}
 
-      {schermo.tipo === 'scanner' && (
+      {schermo.tipo === 'scanner' && !senzaTelefono && (
         <>
           <div className="flex flex-grow flex-col items-center justify-center gap-[22px] px-4">
             <div className="relative h-[300px] w-[300px] max-w-full overflow-hidden">
@@ -197,16 +199,18 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
         </>
       )}
 
-      {schermo.tipo === 'cerca' && (
+      {(schermo.tipo === 'cerca' || (schermo.tipo === 'scanner' && senzaTelefono)) && (
         <div className="flex flex-grow flex-col gap-4 px-4 pt-5">
           <div className="flex items-center gap-2">
-            <button type="button" aria-label="Torna allo scanner" onClick={() => setSchermo({ tipo: 'scanner' })} className="grid h-11 w-11 flex-none place-items-center border-0 bg-transparent p-0 text-osso">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
-            </button>
-            <h1 className="m-0 font-display text-[36px] font-black uppercase leading-none">Cerca per nome</h1>
+            {!senzaTelefono && (
+              <button type="button" aria-label="Torna allo scanner" onClick={() => setSchermo({ tipo: 'scanner' })} className="grid h-11 w-11 flex-none place-items-center border-0 bg-transparent p-0 text-osso">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+              </button>
+            )}
+            <h1 className="m-0 font-display text-[36px] font-black uppercase leading-none">{senzaTelefono ? 'Cerca il cognome' : 'Cerca per nome'}</h1>
           </div>
           <div className="mm-campo">
-            <label className="mm-campo__etichetta" htmlFor="pc-cerca">Nome, cognome o data di nascita</label>
+            <label className="mm-campo__etichetta" htmlFor="pc-cerca">{senzaTelefono ? 'Cognome (o nome)' : 'Nome, cognome o data di nascita'}</label>
             <input className="mm-campo__input" id="pc-cerca" value={q} onChange={(e) => setQ(e.target.value)} autoFocus autoComplete="off" style={{ height: 60, fontSize: 22 }} />
           </div>
           {q && <span className="font-mono text-[11px] leading-[14px] text-osso-2">{risultati.length} RISULTATI · CONTROLLA LA DATA DI NASCITA SUL DOCUMENTO</span>}
@@ -233,6 +237,16 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
             })}
             {q && risultati.length === 0 && <p className="border-t border-linea py-4 text-osso-2">Nessuno con questo nome in elenco.</p>}
           </div>
+          {senzaTelefono && (
+            <div className="flex flex-col gap-3 pb-7">
+              {cassaAttiva && (
+                <button type="button" className="mm-btn mm-btn--primario" style={{ minHeight: 56 }} onClick={() => setSchermo({ tipo: 'cassa' })}>
+                  Ingresso in cassa{evento && evento.prezzoCassa > 0 ? ` · ${euro(evento.prezzoCassa)}` : ''}
+                </button>
+              )}
+              <StatoRete />
+            </div>
+          )}
         </div>
       )}
 
@@ -273,7 +287,7 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
       )}
 
       {schermo.tipo === 'esito' && (
-        <Esito esito={schermo.esito} cassa={cassaAttiva} online={st.online} salvatoAlle={st.salvatoAlle}
+        <Esito esito={schermo.esito} cassa={cassaAttiva} senzaTelefono={senzaTelefono} online={st.online} salvatoAlle={st.salvatoAlle}
           onRiprova={() => { if (schermo.esito.esito === 'non_pagato') void riprova(schermo.esito.voce); }}
           onCassa={() => setSchermo({ tipo: 'cassa' })}
           onFaiEntrare={() => { if (schermo.esito.esito === 'da_confermare') entra(schermo.esito.voce, true); }}
@@ -304,10 +318,11 @@ function StatoRete() {
   );
 }
 
-function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onFaiEntrare, onNonRientra, onChiudi }: {
-  esito: EsitoPorta; cassa: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCassa: () => void; onFaiEntrare: () => void; onNonRientra: () => void; onChiudi: () => void;
+function Esito({ esito, cassa, senzaTelefono, online, salvatoAlle, onRiprova, onCassa, onFaiEntrare, onNonRientra, onChiudi }: {
+  esito: EsitoPorta; cassa: boolean; senzaTelefono: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCassa: () => void; onFaiEntrare: () => void; onNonRientra: () => void; onChiudi: () => void;
 }) {
   const linea = 'my-[10px] h-px bg-current opacity-30';
+  const indietro = senzaTelefono ? 'Torna alla ricerca' : 'Torna allo scanner';
   const X = <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>;
 
   if (esito.esito === 'entrato') {
@@ -368,8 +383,8 @@ function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onFaiEnt
     return (
       <>
         <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-          <span className="font-mono text-[13px] font-medium leading-[18px]">PREVENDITA RISERVATA · CONTROLLA IL DOCUMENTO</span>
-          <span className="font-display text-[88px] font-black uppercase leading-[.85] [overflow-wrap:anywhere]">{v.categoria}</span>
+          <span className="font-mono text-[13px] font-medium leading-[18px]">{categoriaDaControllare(v) ? 'PREVENDITA RISERVATA · CONTROLLA IL DOCUMENTO' : 'SERATA SENZA TELEFONO · CONTROLLA IL DOCUMENTO'}</span>
+          <span className={`font-display ${categoriaDaControllare(v) ? 'text-[88px]' : 'text-[64px]'} font-black uppercase leading-[.85] [overflow-wrap:anywhere]`}>{categoriaDaControllare(v) ? v.categoria : 'Documento'}</span>
           <div className={linea} />
           <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
           <span className="font-mono text-[13px] font-medium leading-[18px]">NASCITA {nascita(v.dataNascita)} · {anni(v.dataNascita)} ANNI</span>
@@ -378,8 +393,8 @@ function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onFaiEnt
         </div>
         <div className="flex flex-none flex-col gap-3 px-4 pb-7">
           <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 76, fontSize: 22 }} onClick={onFaiEntrare}>Fai entrare</button>
-          <button type="button" className="mm-btn" style={{ border: '2px solid var(--vinile)', color: 'var(--vinile)', minHeight: 76, fontSize: 22 }} onClick={onNonRientra}>Non rientra</button>
-          <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 44 }} onClick={onChiudi}>Torna allo scanner</button>
+          <button type="button" className="mm-btn" style={{ border: '2px solid var(--vinile)', color: 'var(--vinile)', minHeight: 76, fontSize: 22 }} onClick={onNonRientra}>{categoriaDaControllare(v) ? 'Non rientra' : 'Non corrisponde'}</button>
+          <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 44 }} onClick={onChiudi}>{indietro}</button>
         </div>
       </>
     );
@@ -390,7 +405,7 @@ function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onFaiEnt
     return (
       <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
         {X}
-        <span className="font-mono text-[13px] font-medium leading-[18px]">{(v.categoria ?? '').toUpperCase()} · RIFIUTO SALVATO{!online ? ' · SI SINCRONIZZA AL RITORNO DELLA RETE' : ''}</span>
+        <span className="font-mono text-[13px] font-medium leading-[18px]">{categoriaDaControllare(v) ? `${v.categoria!.toUpperCase()} · ` : 'DOCUMENTO NON CORRISPONDE · '}RIFIUTO SALVATO{!online ? ' · SI SINCRONIZZA AL RITORNO DELLA RETE' : ''}</span>
         <span className="font-display text-[100px] font-black uppercase leading-[.8]">Non<br />entra</span>
         <div className={linea} />
         <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
@@ -423,7 +438,7 @@ function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onFaiEnt
         </span>
       </div>
       <div className="flex flex-none px-4 pb-7">
-        <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 64, fontSize: 17, borderColor: 'currentColor', color: 'inherit' }} onClick={onChiudi}>Torna allo scanner</button>
+        <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 64, fontSize: 17, borderColor: 'currentColor', color: 'inherit' }} onClick={onChiudi}>{indietro}</button>
       </div>
     </>
   );

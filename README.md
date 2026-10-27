@@ -53,6 +53,15 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
   iniziata, altrimenti è "da rimborsare" (email agli admin, filtro nelle Iscrizioni). Il rimborso lo fa solo l'admin
   ("Rimborsa" restituisce i soldi su Stripe); il cliente non annulla da solo. Lotti a 0 € e serate libere: QR subito.
 
+### Serate senza telefono (ingresso con documento)
+Per le serate dove il telefono non si porta: *Modifica serata → Ingresso senza telefono (con documento)* (campo `senzaTelefono` dell'evento). La prevendita si compra online come sempre (Stripe, nome, cognome e data di nascita obbligatori, un biglietto per persona).
+- **Cliente**: il modulo, la pagina della serata, il biglietto e l'email dicono "serata senza telefono, porta un documento"; l'email non ha né QR né codice.
+- **Porta**: la schermata iniziale è la ricerca per cognome (non c'è lo scanner), che usa l'elenco salvato sul telefono e quindi funziona anche offline. La scheda mostra nome, cognome, data di nascita ed età con **Fai entrare** / **Non corrisponde**; nulla si registra finché lo staff non tocca "Fai entrare". Il controllo vale anche sul server (`checkIn` legge `senzaTelefono` dall'evento): un telefono non può saltarlo. Un ingresso si registra una sola volta (il secondo passaggio dà "già entrato"); "Non corrisponde" salva il rifiuto come "Non rientra" e l'iscrizione resta valida. La cassa alla porta resta quella della serata.
+- **Lista di riserva**: *Serata → Lista da stampare* (`/admin/eventi/[id]/lista`, Ctrl+P): cognome, nome, data di nascita, entrato sì/no, in ordine alfabetico.
+- **Cambio nominativo**: solo l'admin, da *Iscrizioni → Cambia nome*, solo per chi non è ancora entrato; controlla età minima e doppioni, il biglietto resta lo stesso.
+- **Privacy**: nessuna foto né numero del documento. 30 giorni dopo la serata il cron giornaliero (`/api/cron/tavoli`, `cancellaDatiSenzaTelefono`) azzera nome, cognome, data di nascita ed email delle iscrizioni di quella serata; restano stato, importo e ingresso, quindi i conti tornano.
+- Supabase: `supabase/migrations/20261015000000_senza_telefono.sql` (colonna `eventi.senza_telefono`; RLS invariata). `porta_elenco` non cambia.
+
 ### Tipi di prevendita
 Ogni serata ha più tipi di prevendita (i "lotti": Early bird, Donne, Standard…), decisi dall'admin in *Modifica serata → Tipi di prevendita*:
 nome, prezzo, posti, **categoria**, uscita e chiusura. **Il cliente non sceglie**: il sito vende il primo tipo aperto e con posti, nell'ordine

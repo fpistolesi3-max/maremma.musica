@@ -33,14 +33,17 @@ export async function inviaBiglietto(b: Biglietto, origine: string) {
   const link = linkBiglietto(origine, i.id, i.email);
   const alPorta = i.importo > 0 ? `${euro(i.importo)} pagati online` : 'Ingresso libero';
   const cassa = testoCassa(e);
+  const senzaTel = e.senzaTelefono;
   const corpo = `
-<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ci vediamo sotto cassa, ${escapeHtml(i.nome)}. Alla porta mostra questo QR con un documento.</p>
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${senzaTel
+    ? `Ci vediamo sotto cassa, ${escapeHtml(i.nome)}. Questa è una serata senza telefono: alla porta porta un documento, lo staff controlla che nome, cognome e data di nascita corrispondano.`
+    : `Ci vediamo sotto cassa, ${escapeHtml(i.nome)}. Alla porta mostra questo QR con un documento.`}</p>
 <div style="background:#050505;border:1px solid #2a303b;border-radius:2px;padding:24px;margin:0 0 24px;">
   <p style="font:400 11px/14px 'Courier New',monospace;color:#a39e95;margin:0 0 8px;">${numeroEvento(e.numero)} · LISTA</p>
   <p style="font:900 32px/1 'Arial Narrow',Arial,sans-serif;text-transform:uppercase;margin:0 0 8px;color:#e1d7c9;">${escapeHtml(e.nome)}</p>
   <p style="font:400 13px/18px 'Courier New',monospace;color:#a39e95;margin:0 0 20px;">${giornoSett(e.data)} ${dataPunti(e.data)} · ${orari(e.data, e.dataFine)} · ${escapeHtml(luogoTesto(e))}</p>
-  <img src="cid:qr" width="280" height="280" alt="Il tuo QR" style="display:block;width:280px;height:280px;margin:0 auto 12px;border-radius:2px;">
-  <p style="font:500 22px/26px 'Courier New',monospace;letter-spacing:.1em;text-align:center;margin:0 0 20px;color:#e1d7c9;">${mostraCodice(i.codice)}</p>
+  ${senzaTel ? '' : `<img src="cid:qr" width="280" height="280" alt="Il tuo QR" style="display:block;width:280px;height:280px;margin:0 auto 12px;border-radius:2px;">
+  <p style="font:500 22px/26px 'Courier New',monospace;letter-spacing:.1em;text-align:center;margin:0 0 20px;color:#e1d7c9;">${mostraCodice(i.codice)}</p>`}
   <p style="font:400 14px/22px Arial,sans-serif;margin:0;color:#e1d7c9;">
     <span style="color:#a39e95;">Titolare</span> ${escapeHtml(`${i.nome} ${i.cognome}`)}<br>
     <span style="color:#a39e95;">Nato/a il</span> ${nascita(i.dataNascita)}<br>
@@ -49,13 +52,13 @@ export async function inviaBiglietto(b: Biglietto, origine: string) {
   </p>
 </div>
 ${bottoneEmail(link, 'Apri il biglietto →')}
-<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0 0 12px;">Se il QR non si legge, alla porta basta dettare il codice ${mostraCodice(i.codice)}.</p>
-${cassa ? `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0;">${escapeHtml(cassa)} Gli amici prendono il loro QR dallo stesso link.</p>` : ''}`;
+${senzaTel ? '' : `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0 0 12px;">Se il QR non si legge, alla porta basta dettare il codice ${mostraCodice(i.codice)}.</p>`}
+${cassa ? `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0;">${escapeHtml(cassa)}${senzaTel ? '' : ' Gli amici prendono il loro QR dallo stesso link.'}</p>` : ''}`;
   await inviaEmail({
     a: i.email,
     oggetto: `${i.importo > 0 ? 'Prevendita pagata' : 'Sei in lista'} · ${e.nome} ${dataPunti(e.data)}`,
     html: guscioEmail('Sei in lista.', corpo),
-    immagini: [{ cid: 'qr', dataUrl: await qrPng(i.tokenQr) }],
+    immagini: senzaTel ? [] : [{ cid: 'qr', dataUrl: await qrPng(i.tokenQr) }],
   });
 }
 
