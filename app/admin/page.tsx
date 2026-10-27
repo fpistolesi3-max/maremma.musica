@@ -4,6 +4,7 @@ import { elencoSerate } from '@/lib/dati/admin';
 import { dataPunti, giornoSett, numeroEvento, orari, parti } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
 import { TestataAdmin } from '@/components/admin/ui';
+import { ChipSerata } from '@/components/ui';
 
 export const metadata = { title: 'Serate' };
 
@@ -27,7 +28,7 @@ export default async function AdminSerate() {
                   </td>
                   <td data-et="Quando" className="whitespace-nowrap font-mono text-[12px]">{giornoSett(e.data)} {dataPunti(e.data)}.{String(parti(e.data).anno).slice(2)}<div className="text-osso-2">{orari(e.data, e.dataFine)}</div></td>
                   <td data-et="Stato">
-                    <span className={`mm-chip ${passata ? 'mm-chip--libero' : e.pubblicato ? 'mm-chip--entrato' : 'mm-chip--incassare'}`}>{passata ? 'Passata' : e.pubblicato ? 'Pubblicata' : 'Bozza'}</span>
+                    <ChipSerata pubblicata={e.pubblicato} passata={passata} />
                     {e.inCopertina && <span className="mm-chip mm-chip--libero ml-2">Copertina</span>}
                   </td>
                   <td data-et="In lista" className="mm-num">{inLista}</td>

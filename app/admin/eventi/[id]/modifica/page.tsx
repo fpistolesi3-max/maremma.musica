@@ -1,3 +1,4 @@
+import { ChipSerata } from '@/components/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
@@ -40,7 +41,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
   return (
     <>
       <TestataAdmin briciole={`SERATE / ${e.slug}`} titolo={e.nome}
-        chip={<span className={`mm-chip ${e.pubblicato ? 'mm-chip--entrato' : 'mm-chip--incassare'}`}>{e.pubblicato ? 'Pubblicata' : 'Bozza'}</span>}
+        chip={<ChipSerata pubblicata={e.pubblicato} />}
         sotto={salvato ? 'SALVATA ✓' : undefined}
         azioni={<><a className="mm-btn mm-btn--muto" href="#lotti">Prevendite</a><a className="mm-btn mm-btn--muto" href="#tavoli">Tavoli</a><Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}`}>Serata live</Link><Link className="mm-btn mm-btn--muto" href={`/e/${e.slug}`} target="_blank">Vedi pagina</Link></>} />
       <FormSerata key={e.updatedAt} pr={x.pr.map((p) => ({ id: p.id, nome: p.nomeDisplay, stato: p.stato }))} v={{
@@ -105,7 +106,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
                   const p = v.prenotazione;
                   return (
                     <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-linea py-3">
-                      <span className="mm-chip mm-chip--annullato">{p.pagamentoOnline && !p.pagatoAt && p.stato !== 'rimborsata' ? 'Pagamento non completato' : { scaduta: 'Scaduta', annullata: 'Annullata', rimborsata: 'Rimborsata', in_attesa: '', confermata: '' }[p.stato]}</span>
+                      <span className={`mm-chip ${p.stato === 'rimborsata' ? 'mm-chip--rimborsato' : 'mm-chip--annullato'}`}>{p.pagamentoOnline && !p.pagatoAt && p.stato !== 'rimborsata' ? 'Pagamento non completato' : { scaduta: 'Scaduta', annullata: 'Annullata', rimborsata: 'Rimborsata', in_attesa: '', confermata: '' }[p.stato]}</span>
                       <span className="font-display text-[20px] font-extrabold uppercase leading-none">{v.tavolo.nome} · {p.nome} {p.cognome}</span>
                       <span className="w-full font-mono text-[11px] leading-4 text-osso-2">
                         {p.persone} PERSONE · {euro(p.spesaMinima)} · {p.telefono} · LISTA: {v.lista.toUpperCase()} · RICHIESTA {quandoScade(p.createdAt).toUpperCase()}

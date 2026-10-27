@@ -169,6 +169,7 @@
 .mm-chip--esaurito { color: var(--notte); background: var(--osso); border-color: var(--osso); }
 .mm-chip--esaurito::before { background: var(--notte); }
 .mm-chip--libero { color: var(--osso-2); }
+.mm-chip--rimborsato { color: var(--osso-2); border-style: dashed; }
 
 /* ---------- EventCard (riga della lista date) ---------- */
 .mm-evento {

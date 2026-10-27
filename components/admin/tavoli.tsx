@@ -66,7 +66,7 @@ function Prenotazione({ p }: { p: PrenotazioneRiga }) {
   return (
     <div className={`flex flex-col gap-3 border-l-2 bg-notte px-4 py-3 ${attesa ? 'border-attesa' : 'border-ok'}`}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className={`mm-chip ${attesa ? 'mm-chip--incassare' : 'mm-chip--entrato'}`}>{attesa ? 'In attesa di pagamento' : 'Pagato'}</span>
+        <span className={`mm-chip ${attesa ? 'mm-chip--incassare' : 'mm-chip--pagato'}`}>{attesa ? 'In attesa di pagamento' : 'Pagato'}</span>
         <span className="font-display text-[22px] font-extrabold uppercase leading-none">{p.nome}</span>
         <span className="font-mono text-[12px] text-osso-2">{p.persone} PERSONE · {p.spesaMinima.toLocaleString('it-IT')} €</span>
       </div>

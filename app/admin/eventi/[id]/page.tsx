@@ -1,3 +1,4 @@
+import { ChipSerata } from '@/components/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
@@ -30,7 +31,7 @@ export default async function SerataLive({ params }: Props) {
       <TestataAdmin
         briciole={`SERATE / ${e.numero ? `MM/${String(e.numero).padStart(3, '0')}` : e.slug}`}
         titolo={e.nome}
-        chip={<span className={`mm-chip ${inCorso ? 'mm-chip--entrato' : e.pubblicato ? 'mm-chip--lista' : 'mm-chip--incassare'}`}>{inCorso ? 'Porta aperta · live' : e.pubblicato ? 'Lista aperta' : 'Bozza'}</span>}
+        chip={<ChipSerata pubblicata={e.pubblicato} inCorso={inCorso} testo={inCorso ? 'Porta aperta · live' : e.pubblicato ? 'Lista aperta' : undefined} />}
         sotto={`${giornoSett(e.data)} ${dataPunti(e.data)} · ${luogoTesto(e).toUpperCase()} · ${orari(e.data, e.dataFine)} · ${e.tipoIngresso === 'libero' ? 'INGRESSO LIBERO' : `PREVENDITA ${euro(e.prezzoLista)} ONLINE · ${e.cassaAttiva ? `CASSA ${euro(e.prezzoCassa ?? e.prezzoLista)}` : 'SOLO PREVENDITA'}`}`}
         azioni={<>
           <Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}/modifica`}>Modifica serata</Link>
