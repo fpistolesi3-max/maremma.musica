@@ -12,7 +12,7 @@ import type { DatiCassa } from '@/lib/porta-logica';
 // Scanner della porta (mockup Porta 1–5). Tutto il controllo avviene sul telefono con l'elenco salvato:
 // funziona anche senza campo, e gli ingressi si sincronizzano appena torna la connessione.
 
-interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; prezzoCassa: number }
+interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; prezzoCassa: number; cassa: boolean }
 
 type Schermo =
   | { tipo: 'scanner' }
@@ -38,7 +38,6 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
   const [metodo, setMetodo] = useState<MetodoPagamento>('porta_contanti');
   const [codice, setCodice] = useState('');
   const [q, setQ] = useState('');
-  const [conto, setConto] = useState(0);
   const ritorno = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Evento di default: quello salvato, altrimenti il più vicino.
@@ -63,8 +62,10 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
   }, [pronto, st.eventoId]);
 
   const evento = eventi.find((e) => e.id === st.eventoId) ?? null;
+  // Cassa alla porta: vale l'ultima sincronizzazione (l'admin la può cambiare durante la serata), offline quella salvata.
+  const cassaAttiva = Boolean(evento && (st.cassa ?? evento.cassa));
   // Si contano le persone: un tavolo vale per tutto il suo gruppo. I tavoli non ancora pagati non contano.
-  const contate = st.elenco.filter((v) => !v.tavolo || v.tavolo.pagato);
+  const contate = st.elenco.filter((v) => (!v.tavolo || v.tavolo.pagato) && v.stato !== 'in_attesa');
   const totale = contate.reduce((n, v) => n + personeVoce(v), 0);
   const entrati = contate.reduce((n, v) => n + entratiVoce(v), 0);
 
@@ -73,16 +74,15 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
     setSchermo({ tipo: 'esito', esito });
     // Dopo un ingresso riuscito torna da solo allo scanner (mockup: 2 secondi).
     if (esito.esito === 'entrato') {
-      setConto(0);
       ritorno.current = setTimeout(() => setSchermo({ tipo: 'scanner' }), 2000);
     }
   }, []);
 
-  const entra = useCallback((v: VocePorta, incassa: boolean) => {
+  const entra = useCallback((v: VocePorta) => {
     const s = usePorta.getState();
-    const { esito, aggiornata } = decidiIngresso(v, { incassa, metodo, porta: s.porta, ora: new Date().toISOString() });
+    const { esito, aggiornata } = decidiIngresso(v, { metodo, porta: s.porta, ora: new Date().toISOString() });
     if (aggiornata) {
-      s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, incassa, metodo, ora: aggiornata.oraCheckIn! });
+      s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, metodo, ora: aggiornata.oraCheckIn! });
     }
     mostra(esito);
   }, [metodo, mostra]);
@@ -96,14 +96,14 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
       id: `cassa-${id}`, token: '', codice: '', nome: dati.nome, cognome: dati.cognome, dataNascita: dati.dataNascita,
       stato: 'entrato', importo: dati.importo, oraCheckIn: ora, porta: s.porta, lista: 'Cassa', canale: 'cassa', origine: 'cassa',
     };
-    s.aggiungiCassa(voce, { idLocale: id, voceId: voce.id, chiave: '', incassa: true, metodo, ora, cassa: dati });
+    s.aggiungiCassa(voce, { idLocale: id, voceId: voce.id, chiave: '', metodo, ora, cassa: dati });
     mostra({ esito: 'entrato', voce, incassato: dati.importo, ora, primaPagato: false });
   }, [metodo, mostra]);
 
   const leggiChiave = useCallback(async (chiave: string) => {
     let v = trovaVoce(usePorta.getState().elenco, chiave);
-    if (!v && navigator.onLine) {
-      // Forse si è iscritto dopo l'ultimo salvataggio: riscarichiamo l'elenco e riproviamo.
+    if ((!v || v.stato === 'in_attesa') && navigator.onLine) {
+      // Forse ha pagato dopo l'ultimo salvataggio: riscarichiamo l'elenco e riproviamo.
       await usePorta.getState().sincronizza();
       v = trovaVoce(usePorta.getState().elenco, chiave);
     }
@@ -112,8 +112,14 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
       mostra({ esito: 'non_valido', motivo: chiave.startsWith('MM1.') ? `Non è in elenco${salvato ? ` (salvato alle ${oraDi(salvato)})` : ''}` : 'Codice non trovato' });
       return;
     }
-    entra(v, false);
+    entra(v);
   }, [entra, mostra]);
+
+  /** "Riprova" dopo un "Non pagato": magari ha appena pagato dal telefono. */
+  const riprova = useCallback(async (v: VocePorta) => {
+    await usePorta.getState().sincronizza();
+    entra(trovaVoce(usePorta.getState().elenco, v.id) ?? v);
+  }, [entra]);
 
   useEffect(() => () => clearTimeout(ritorno.current), []);
 
@@ -122,7 +128,7 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
   if (!pronto) return <div className="min-h-dvh bg-vinile" />;
 
   const colori = schermo.tipo === 'esito'
-    ? { entrato: 'bg-ok text-su-stato', da_incassare: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso' }[schermo.esito.esito]
+    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso' }[schermo.esito.esito]
     : schermo.tipo === 'cerca' || schermo.tipo === 'impostazioni' || schermo.tipo === 'cassa' ? 'bg-notte text-osso' : 'bg-vinile text-osso';
   const suPieno = schermo.tipo === 'esito';
 
@@ -163,9 +169,13 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
             <StatoRete />
           </div>
           <div className="flex flex-none px-4 pb-[10px]">
-            <button type="button" className="mm-btn mm-btn--primario flex-grow" style={{ minHeight: 56 }} disabled={!evento} onClick={() => setSchermo({ tipo: 'cassa' })}>
-              Ingresso in cassa{evento && evento.prezzoCassa > 0 ? ` · ${euro(evento.prezzoCassa)}` : ''}
-            </button>
+            {cassaAttiva ? (
+              <button type="button" className="mm-btn mm-btn--primario flex-grow" style={{ minHeight: 56 }} onClick={() => setSchermo({ tipo: 'cassa' })}>
+                Ingresso in cassa{evento && evento.prezzoCassa > 0 ? ` · ${euro(evento.prezzoCassa)}` : ''}
+              </button>
+            ) : evento && (
+              <span className="flex-grow border border-linea-forte px-4 py-3 text-center font-mono text-[12px] leading-4 text-osso-2">SOLO PREVENDITA · NIENTE CASSA STASERA</span>
+            )}
           </div>
           <div className="flex flex-none gap-[10px] px-4 pb-7">
             <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 60 }} onClick={() => { setQ(''); setSchermo({ tipo: 'cerca' }); }}>Cerca per nome</button>
@@ -197,7 +207,7 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
                 : dentro ? ['mm-chip mm-chip--entrato', `Entrato ${v.oraCheckIn ? oraDi(v.oraCheckIn) : ''}`]
                 : v.stato === 'annullato' || v.stato === 'rimborsato' ? ['mm-chip mm-chip--annullato', 'Annullato']
                   : v.stato === 'pagato' ? ['mm-chip mm-chip--pagato', 'Pagato']
-                    : v.importo > 0 ? ['mm-chip mm-chip--incassare', 'Da incassare'] : ['mm-chip mm-chip--lista', 'In lista'];
+                    : v.stato === 'in_attesa' ? ['mm-chip mm-chip--incassare', 'Non pagato'] : ['mm-chip mm-chip--lista', 'In lista'];
               return (
                 <div key={v.id} className="flex items-center gap-3 border-t border-linea py-4">
                   <div className="flex min-w-0 flex-grow flex-col gap-[6px]">
@@ -206,7 +216,7 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
                     <span className={`${chip[0]} self-start`}>{chip[1]}</span>
                   </div>
                   {!dentro && v.stato !== 'annullato' && v.stato !== 'rimborsato' && (!v.tavolo || v.tavolo.pagato) && (
-                    <button type="button" className="mm-btn mm-btn--primario" style={{ minHeight: 48, padding: '0 16px', fontSize: 13 }} onClick={() => entra(v, false)}>Apri</button>
+                    <button type="button" className="mm-btn mm-btn--primario" style={{ minHeight: 48, padding: '0 16px', fontSize: 13 }} onClick={() => entra(v)}>Apri</button>
                   )}
                 </div>
               );
@@ -216,9 +226,9 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
         </div>
       )}
 
-      {schermo.tipo === 'cassa' && evento && (
+      {schermo.tipo === 'cassa' && evento && cassaAttiva && (
         <SchermoCassa evento={evento} elenco={st.elenco} metodo={metodo} setMetodo={setMetodo}
-          onRegistra={registraCassa} onApri={(v) => entra(v, false)} onChiudi={() => setSchermo({ tipo: 'scanner' })} />
+          onRegistra={registraCassa} onApri={(v) => entra(v)} onChiudi={() => setSchermo({ tipo: 'scanner' })} />
       )}
 
       {schermo.tipo === 'impostazioni' && (
@@ -241,6 +251,7 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
           </div>
           <div className="flex flex-col gap-1 font-mono text-[12px] leading-5 text-osso-2">
             <span>ELENCO: {st.elenco.length} NOMI{st.salvatoAlle ? ` · SALVATO ${oraDi(st.salvatoAlle)}` : ''}</span>
+            <span>CASSA ALLA PORTA: {cassaAttiva ? 'SÌ' : 'NO, SOLO PREVENDITA'}</span>
             <span>IN CODA: {st.coda.length}{st.conflitti ? ` · GIÀ ENTRATI DA ALTRE PORTE: ${st.conflitti}` : ''}</span>
             <span>STAFF: {email}</span>
           </div>
@@ -252,9 +263,10 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
       )}
 
       {schermo.tipo === 'esito' && (
-        <Esito esito={schermo.esito} metodo={metodo} setMetodo={setMetodo}
-          onIncassa={() => { if (schermo.esito.esito === 'da_incassare') entra(schermo.esito.voce, true); }}
-          onChiudi={() => { clearTimeout(ritorno.current); setSchermo({ tipo: 'scanner' }); }} conto={conto} />
+        <Esito esito={schermo.esito} cassa={cassaAttiva} online={st.online} salvatoAlle={st.salvatoAlle}
+          onRiprova={() => { if (schermo.esito.esito === 'non_pagato') void riprova(schermo.esito.voce); }}
+          onCassa={() => setSchermo({ tipo: 'cassa' })}
+          onChiudi={() => { clearTimeout(ritorno.current); setSchermo({ tipo: 'scanner' }); }} />
       )}
     </div>
   );
@@ -280,8 +292,8 @@ function StatoRete() {
   );
 }
 
-function Esito({ esito, metodo, setMetodo, onIncassa, onChiudi }: {
-  esito: EsitoPorta; metodo: MetodoPagamento; setMetodo: (m: MetodoPagamento) => void; onIncassa: () => void; onChiudi: () => void; conto: number;
+function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onChiudi }: {
+  esito: EsitoPorta; cassa: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCassa: () => void; onChiudi: () => void;
 }) {
   const linea = 'my-[10px] h-px bg-current opacity-30';
   const X = <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>;
@@ -312,27 +324,26 @@ function Esito({ esito, metodo, setMetodo, onIncassa, onChiudi }: {
     );
   }
 
-  if (esito.esito === 'da_incassare') {
+  // Prevendita chiesta ma non pagata: alla porta non si incassa. Paga dal telefono (poi "Riprova") o passa dalla cassa.
+  if (esito.esito === 'non_pagato') {
     const v = esito.voce;
     return (
       <>
         <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-          <span className="font-mono text-[13px] font-medium leading-[18px]">IN LISTA · NON ANCORA PAGATO</span>
-          <span className="font-display text-[104px] font-black uppercase leading-[.8]">Incassa</span>
-          <span className="font-display text-[168px] font-black leading-[.78]">{euro(v.importo)}</span>
+          <span className="font-mono text-[13px] font-medium leading-[18px]">PREVENDITA NON PAGATA{!online && salvatoAlle ? ` · ELENCO DELLE ${oraDi(salvatoAlle)}` : ''}</span>
+          <span className="font-display text-[100px] font-black uppercase leading-[.8]">Non<br />pagato</span>
           <div className={linea} />
           <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
           <span className="font-mono text-[13px] font-medium leading-[18px]">NASCITA {nascita(v.dataNascita)} · {anni(v.dataNascita)} ANNI</span>
-          <span className="text-[17px] font-medium leading-6">{testoLista(v)}</span>
+          <span className="text-[17px] font-medium leading-6">
+            {online
+              ? `Può pagarla ora dal telefono: rifà la prevendita sul sito con gli stessi dati (ritrova il suo posto), poi tocca Riprova.${cassa ? ' Oppure passa dalla cassa.' : ' Stasera non c’è cassa: senza prevendita pagata non entra.'}`
+              : 'Senza rete: se ha pagato dopo l’ultimo aggiornamento non lo vediamo ancora. Aspetta che torni la rete e tocca Riprova.'}
+          </span>
         </div>
         <div className="flex flex-none flex-col gap-2 px-4 pb-7">
-          <div role="radiogroup" aria-label="Metodo di pagamento" className="grid grid-cols-2 border border-current">
-            {([['porta_contanti', 'Contanti'], ['porta_pos', 'POS']] as const).map(([m, t]) => (
-              <button key={m} type="button" role="radio" aria-checked={metodo === m} onClick={() => setMetodo(m)}
-                className={`h-11 border-0 text-[13px] font-semibold uppercase tracking-bottone ${metodo === m ? 'bg-vinile text-attesa' : 'bg-transparent text-current'}`}>{t}</button>
-            ))}
-          </div>
-          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onIncassa}>Incassato · fai entrare</button>
+          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onRiprova}>Riprova</button>
+          {cassa && <button type="button" className="mm-btn" style={{ border: '1px solid var(--vinile)', color: 'var(--vinile)', minHeight: 52 }} onClick={onCassa}>Ingresso in cassa</button>}
           <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 48 }} onClick={onChiudi}>Non entra</button>
         </div>
       </>
@@ -356,6 +367,7 @@ function Esito({ esito, metodo, setMetodo, onIncassa, onChiudi }: {
         <span className="text-[17px] font-medium leading-6">
           {pieno ? 'Il tavolo è al completo: con questo QR non entra più nessuno. Chi è in più passa dalla cassa.'
             : esito.esito === 'non_valido' && esito.motivo.startsWith('Tavolo') ? 'La prenotazione non è stata pagata: il QR non vale. Chiama la crew.'
+            : esito.esito === 'non_valido' && !online && esito.motivo.startsWith('Non è in elenco') ? 'Senza rete: chi ha pagato dopo l’ultimo aggiornamento non è ancora in elenco. Aspetta che torni la rete e riprova.'
             : esito.esito === 'gia_entrato' ? 'Controlla il documento. Se è un’altra persona, il QR è stato girato: non entra.'
             : esito.esito === 'annullato' ? 'Questa iscrizione è stata annullata: non entra con questo QR.'
               : 'Controlla il documento e prova con "Cerca per nome".'}

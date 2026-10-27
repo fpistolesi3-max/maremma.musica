@@ -22,9 +22,9 @@ export interface VocePorta {
   tavolo?: { nome: string; persone: number; entrati: number; pagato: boolean };
 }
 
-/** Persone che una voce porta dentro: una, oppure tutto il gruppo del tavolo. */
+/** Persone che una voce porta dentro: una, oppure tutto il gruppo del tavolo. La prevendita non pagata non conta. */
 export function personeVoce(v: VocePorta) {
-  if (v.stato === 'annullato' || v.stato === 'rimborsato') return 0;
+  if (v.stato === 'annullato' || v.stato === 'rimborsato' || v.stato === 'in_attesa' || v.stato === 'scaduta') return 0;
   return v.tavolo ? v.tavolo.persone : 1;
 }
 
@@ -37,20 +37,21 @@ export interface DatiCassa { nome: string; cognome: string; dataNascita: string;
 
 export type EsitoPorta =
   | { esito: 'entrato'; voce: VocePorta; incassato: number; ora: string; primaPagato: boolean }
-  | { esito: 'da_incassare'; voce: VocePorta }
+  | { esito: 'non_pagato'; voce: VocePorta }    // prevendita chiesta ma non (ancora) pagata online: non entra
   | { esito: 'gia_entrato'; voce: VocePorta }
   | { esito: 'annullato'; voce: VocePorta }
   | { esito: 'non_valido'; motivo: string };
 
+/** `metodo`: contanti o POS, solo per l'ingresso in cassa. Chi è in lista ha già pagato online: alla porta non si incassa. */
 export interface OpzioniIngresso {
-  incassa: boolean;
   metodo: MetodoPagamento;
   porta: string;
   ora: string;
 }
 
 /**
- * Decide l'esito e, se la persona entra, restituisce la voce aggiornata.
+ * Decide l'esito e, se la persona entra, restituisce la voce aggiornata. Entra chi ha la prevendita pagata (o gratis);
+ * chi l'ha chiesta senza pagare no: può pagarla dal telefono e riprovare, o passare dalla cassa se c'è.
  * Idempotente: il secondo passaggio dà sempre "già entrato" con l'orario del primo.
  * Fa eccezione il QR di un tavolo, che vale per più persone: ogni passaggio ne fa entrare una, fino al completo.
  */
@@ -65,13 +66,10 @@ export function decidiIngresso(voce: VocePorta, o: OpzioniIngresso): { esito: Es
     return { esito: { esito: 'entrato', voce: aggiornata, incassato: 0, ora: o.ora, primaPagato: true }, aggiornata };
   }
   if (voce.stato === 'entrato') return { esito: { esito: 'gia_entrato', voce }, aggiornata: null };
-  const daPagare = voce.stato === 'in_lista' && voce.importo > 0;
-  if (daPagare && !o.incassa) return { esito: { esito: 'da_incassare', voce }, aggiornata: null };
+  if (voce.stato === 'scaduta') return { esito: { esito: 'non_valido', motivo: 'Prevendita mai pagata' }, aggiornata: null };
+  if (voce.stato === 'in_attesa') return { esito: { esito: 'non_pagato', voce }, aggiornata: null };
   const aggiornata: VocePorta = { ...voce, stato: 'entrato', oraCheckIn: o.ora, porta: o.porta };
-  return {
-    esito: { esito: 'entrato', voce: aggiornata, incassato: daPagare ? voce.importo : 0, ora: o.ora, primaPagato: voce.stato === 'pagato' },
-    aggiornata,
-  };
+  return { esito: { esito: 'entrato', voce: aggiornata, incassato: 0, ora: o.ora, primaPagato: voce.stato === 'pagato' }, aggiornata };
 }
 
 export function normalizzaChiave(s: string) {

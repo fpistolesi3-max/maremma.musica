@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sessioneCorrente } from '@/lib/sessione';
-import { checkIn, elencoPorta, registraCassa, segnaPorta } from '@/lib/dati/porta';
+import { cassaAttivaPorta, checkIn, elencoPorta, registraCassa, segnaPorta } from '@/lib/dati/porta';
 import type { MetodoPagamento } from '@/lib/dati/tipi';
 import type { DatiCassa, EsitoPorta } from '@/lib/porta-logica';
 
@@ -17,10 +17,10 @@ export async function GET(req: Request) {
   if (!s) return NextResponse.json({ errore: 'accesso' }, { status: 401 });
   const eventoId = new URL(req.url).searchParams.get('evento');
   if (!eventoId) return NextResponse.json({ errore: 'evento' }, { status: 400 });
-  return NextResponse.json({ elenco: await elencoPorta(s, eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ elenco: await elencoPorta(s, eventoId), cassa: await cassaAttivaPorta(s, eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
-interface Movimento { idLocale: string; chiave: string; incassa: boolean; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa }
+interface Movimento { idLocale: string; chiave: string; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa }
 
 /**
  * POST /api/door → applica gli ingressi registrati sul telefono (anche offline, con l'orario vero)
@@ -37,9 +37,9 @@ export async function POST(req: Request) {
     const metodo: MetodoPagamento = m.metodo === 'porta_pos' ? 'porta_pos' : 'porta_contanti';
     const esito = m.cassa
       ? await registraCassa(s, corpo.eventoId, String(m.idLocale), m.cassa, { metodo, porta, ora: m.ora })
-      : await checkIn(s, corpo.eventoId, String(m.chiave), { incassa: Boolean(m.incassa), metodo, porta, ora: m.ora }, String(m.idLocale));
+      : await checkIn(s, corpo.eventoId, String(m.chiave), { metodo, porta, ora: m.ora }, String(m.idLocale));
     esiti.push({ idLocale: m.idLocale, esito });
   }
   await segnaPorta(porta, corpo.eventoId);
-  return NextResponse.json({ esiti, elenco: await elencoPorta(s, corpo.eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ esiti, elenco: await elencoPorta(s, corpo.eventoId), cassa: await cassaAttivaPorta(s, corpo.eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
 }

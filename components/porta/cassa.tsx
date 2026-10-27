@@ -5,7 +5,7 @@ import type { MetodoPagamento } from '@/lib/dati/tipi';
 import type { DatiCassa, VocePorta } from '@/lib/porta-logica';
 import { chiaveCognome, componiData, etaSufficiente } from '@/lib/regole';
 
-// Ingresso in cassa: chi arriva senza lista paga e viene registrato dallo staff.
+// Ingresso in cassa (solo nelle serate che ce l'hanno): chi arriva senza prevendita paga e viene registrato dallo staff.
 // Solo nome, cognome e data di nascita (età minima e doppioni): niente email, niente QR, niente attese.
 
 export interface EventoCassa { data: string; etaMinima: number; prezzoCassa: number }
@@ -36,7 +36,8 @@ export function SchermoCassa({ evento, elenco, metodo, setMetodo, onRegistra, on
     if (!dataNascita) return setErrore('Controlla la data di nascita (giorno, mese, anno).');
     if (!etaSufficiente(dataNascita, evento)) return setErrore(`Serata ${evento.etaMinima}+: con questa data non può entrare.`);
     const k = chiaveCognome(cognome);
-    const trovato = elenco.find((v) => v.dataNascita === dataNascita && chiaveCognome(v.cognome) === k && v.stato !== 'annullato' && v.stato !== 'rimborsato');
+    // Chi ha solo chiesto la prevendita senza pagarla può entrare in cassa.
+    const trovato = elenco.find((v) => v.dataNascita === dataNascita && chiaveCognome(v.cognome) === k && v.stato !== 'annullato' && v.stato !== 'rimborsato' && v.stato !== 'in_attesa');
     if (trovato) { setDoppio(trovato); return; }
     const euro = Number(importo.replace(',', '.'));
     if (!Number.isFinite(euro) || euro < 0) return setErrore('Importo non valido.');

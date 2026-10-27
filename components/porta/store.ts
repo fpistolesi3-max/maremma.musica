@@ -8,13 +8,14 @@ import type { DatiCassa, EsitoPorta, VocePorta } from '@/lib/porta-logica';
 // Stato del telefono della porta, salvato in localStorage: l'elenco resta anche senza campo
 // e gli ingressi fatti offline aspettano in coda finché torna la connessione.
 
-export interface Movimento { idLocale: string; voceId: string; chiave: string; incassa: boolean; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa }
+export interface Movimento { idLocale: string; voceId: string; chiave: string; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa }
 
 interface StatoPorta {
   eventoId: string | null;
   porta: string;
   elenco: VocePorta[];
   salvatoAlle: string | null;     // ultimo elenco scaricato
+  cassa: boolean | null;          // la serata ha la cassa alla porta (dall'ultima sincronizzazione); null = non ancora saputo
   coda: Movimento[];
   conflitti: number;              // ingressi offline che un'altra porta aveva già fatto
   online: boolean;
@@ -48,11 +49,12 @@ export const usePorta = create<StatoPorta>()(
       porta: 'P1',
       elenco: [],
       salvatoAlle: null,
+      cassa: null,
       coda: [],
       conflitti: 0,
       online: true,
       serveAccesso: false,
-      scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, coda: [], conflitti: 0 }); },
+      scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, cassa: null, coda: [], conflitti: 0 }); },
       scegliPorta: (p) => set({ porta: p }),
       aggiungiCassa: (voce, m) => {
         set((s) => ({ elenco: [...s.elenco, voce], coda: [...s.coda, m] }));
@@ -83,11 +85,11 @@ export const usePorta = create<StatoPorta>()(
           });
           if (r.status === 401) { set({ serveAccesso: true }); return null; }
           if (!r.ok) throw new Error(String(r.status));
-          const dati = (await r.json()) as { esiti: { idLocale: string; esito: EsitoPorta }[]; elenco: VocePorta[]; ora: string };
+          const dati = (await r.json()) as { esiti: { idLocale: string; esito: EsitoPorta }[]; elenco: VocePorta[]; cassa: boolean; ora: string };
           const conflitti = dati.esiti.filter((e) => e.esito.esito !== 'entrato').length;
           set((s) => {
             const rimasti = s.coda.filter((m) => !inviati.some((x) => x.idLocale === m.idLocale));
-            return { coda: rimasti, elenco: unisci(dati.elenco, rimasti, s.elenco), salvatoAlle: dati.ora, conflitti: s.conflitti + conflitti, online: true, serveAccesso: false };
+            return { coda: rimasti, elenco: unisci(dati.elenco, rimasti, s.elenco), salvatoAlle: dati.ora, cassa: dati.cassa, conflitti: s.conflitti + conflitti, online: true, serveAccesso: false };
           });
           return dati;
         } catch {
@@ -101,7 +103,7 @@ export const usePorta = create<StatoPorta>()(
     {
       name: 'mm-porta',
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ eventoId: s.eventoId, porta: s.porta, elenco: s.elenco, salvatoAlle: s.salvatoAlle, coda: s.coda, conflitti: s.conflitti }),
+      partialize: (s) => ({ eventoId: s.eventoId, porta: s.porta, elenco: s.elenco, salvatoAlle: s.salvatoAlle, cassa: s.cassa, coda: s.coda, conflitti: s.conflitti }),
     },
   ),
 );
