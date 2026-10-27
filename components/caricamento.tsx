@@ -1,26 +1,27 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Disco } from './ui';
 import { TitoloDecodifica } from './titolo-decodifica';
 
 const CHIAVE = 'mm-caricamento';
-// Salta se già visto in questa sessione o se l'ingresso non è la home (es. link a una serata).
-const SALTA = `try{if(sessionStorage.getItem('${CHIAVE}')||(performance.getEntriesByType('navigation')[0]||{name:location.href}).name.replace(/^https?:\/\/[^/]+/,'').split(/[?#]/)[0]!=='/')document.documentElement.setAttribute('data-caricamento','no')}catch(e){}`;
 
 /**
- * Caricamento iniziale della home: overlay di al massimo 1,2 s, una volta per sessione.
+ * Caricamento iniziale della home, solo con il sito aperto come app installata (standalone): overlay di al massimo 1,2 s, una volta per sessione.
  * Non blocca il rendering (il contenuto è sotto); senza JS si chiude da solo con CSS;
  * un tocco, clic o tasto lo chiude subito; con prefers-reduced-motion non compare.
  */
 export function Caricamento() {
   const ref = useRef<HTMLDivElement>(null);
+  const [attivo, setAttivo] = useState(false);
   const isoLayout = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
   isoLayout(() => {
     const el = ref.current;
     if (!el) return;
     const saltare = () => {
+      // solo con il sito aperto come app installata: in browser non compare
+      if (!(window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone)) return true;
       try {
         if (sessionStorage.getItem(CHIAVE)) return true;
         const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
@@ -30,6 +31,7 @@ export function Caricamento() {
       return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     };
     if (saltare()) { el.remove(); return; }
+    setAttivo(true);
     const chiudi = () => el.classList.add('mm-caricamento--esce');
     // pagina pronta = idratata; minimo ~0,6 s per non fare un lampo
     const t = setTimeout(chiudi, Math.max(0, 600 - performance.now()));
@@ -41,9 +43,11 @@ export function Caricamento() {
 
   return (
     <div ref={ref} className="mm-caricamento" aria-hidden="true">
-      <script dangerouslySetInnerHTML={{ __html: SALTA }} />
       <Disco className="mm-caricamento__disco h-[132px] w-[132px]" etichetta={['✦', '✦']} />
-      <TitoloDecodifica testo="MAREMMA MUSICA" className="font-display text-[32px] font-black uppercase leading-none tracking-[.04em] text-osso" />
+      {/* il testo che si decodifica parte solo se il caricamento è davvero attivo */}
+      {attivo
+        ? <TitoloDecodifica testo="MAREMMA MUSICA" className="font-display text-[32px] font-black uppercase leading-none tracking-[.04em] text-osso" />
+        : <span className="font-display text-[32px] font-black uppercase leading-none tracking-[.04em] text-osso">MAREMMA MUSICA</span>}
       <span className="mm-caricamento__barra" />
     </div>
   );
