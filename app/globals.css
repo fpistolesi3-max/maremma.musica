@@ -101,7 +101,7 @@
   transition: clip-path var(--t) var(--molla), background-color 300ms ease-out;
 }
 .mm-morph[data-fase="carico"], .mm-morph[data-fase="ok"] { cursor: progress; }
-.mm-morph[data-fase="carico"]::before { background: var(--notte-3); }
+.mm-morph[data-fase="carico"]::before { background: color-mix(in oklab, var(--arancio) 16%, var(--notte)); }
 .mm-morph[data-fase="carico"]::before, .mm-morph[data-fase="ok"]::before { clip-path: inset(1px calc(50% - var(--mm-d) / 2) round calc(var(--mm-d) / 2)); }
 .mm-morph:disabled[data-fase="riposo"]::before { background: var(--notte-3); }
 .mm-morph:disabled[data-fase="carico"] { color: var(--su-arancio); }

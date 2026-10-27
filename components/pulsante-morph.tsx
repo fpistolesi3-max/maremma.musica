@@ -29,10 +29,12 @@ const riduci = () => typeof window !== 'undefined' && window.matchMedia('(prefer
  */
 export function PulsanteMorph({ href, esterno, type = 'button', caricamento, esito, disabled, className = '', style, children }: Props) {
   const [premuto, setPremuto] = useState(false);
-  const [esitoFase, setEsitoFase] = useState<Fase>(esito && !riduci() ? 'carico' : 'riposo');
+  const [esitoFase, setEsitoFase] = useState<Fase>(esito ? 'carico' : 'riposo');
 
   useEffect(() => {
-    if (!esito || riduci()) return;
+    if (!esito) return;
+    // Stato iniziale uguale su server e client; la scelta sul movimento si fa solo dopo il montaggio.
+    if (riduci()) { setEsitoFase('riposo'); return; }
     const a = setTimeout(() => setEsitoFase('ok'), 650);
     const b = setTimeout(() => setEsitoFase('riposo'), 1500);
     return () => { clearTimeout(a); clearTimeout(b); };
@@ -59,18 +61,23 @@ export function PulsanteMorph({ href, esterno, type = 'button', caricamento, esi
       <span className="mm-morph__testo">{children}</span>
       <span className="mm-morph__anello" aria-hidden="true" />
       <svg className="mm-morph__spunta" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 12.5l4.2 4.2L18.5 7.8" /></svg>
-      <span className="sr-only" role="status">{fase === 'carico' ? 'Un attimo, sto caricando' : fase === 'ok' ? 'Fatto' : ''}</span>
     </>
   );
 
+  // Fuori dal pulsante, così non entra nel suo nome accessibile.
+  const annuncio = <span className="sr-only" role="status" aria-live="polite">{fase === 'carico' ? 'Un attimo, sto caricando' : fase === 'ok' ? 'Fatto' : ''}</span>;
+
   if (href) {
     const inClick = (e: MouseEvent) => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (e.defaultPrevented || href.startsWith('#') || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       setPremuto(true);
     };
-    return esterno
-      ? <a href={href} onClick={inClick} {...props}>{dentro}</a>
-      : <Link href={href} onClick={inClick} {...props}>{dentro}</Link>;
+    return (
+      <>
+        {esterno ? <a href={href} onClick={inClick} {...props}>{dentro}</a> : <Link href={href} onClick={inClick} {...props}>{dentro}</Link>}
+        {annuncio}
+      </>
+    );
   }
-  return <button type={type} disabled={disabled} {...props}>{dentro}</button>;
+  return <><button type={type} disabled={disabled} {...props}>{dentro}</button>{annuncio}</>;
 }
