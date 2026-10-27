@@ -37,7 +37,8 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
           <div className="mm-campo">
             <label className="mm-campo__etichetta" htmlFor="fi-stato">Stato</label>
             <select id="fi-stato" name="stato" defaultValue={f.stato ?? ''} className="mm-campo__input" style={{ height: 44 }}>
-              <option value="">Tutti</option><option value="cassa">Ingresso in cassa</option><option value="in_lista">In lista</option><option value="pagato">Pagato</option>
+              <option value="">Tutti</option><option value="cassa">Ingresso in cassa</option><option value="da_rimborsare">Da rimborsare</option><option value="pagato">Pagato online</option><option value="in_lista">In lista (gratis)</option>
+              <option value="in_attesa">Non pagato (in attesa)</option><option value="scaduta">Scaduta senza pagare</option>
               <option value="entrato">Entrato</option><option value="annullato">Annullato</option><option value="rimborsato">Rimborsato</option>
             </select>
           </div>
@@ -55,10 +56,15 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
                   </td>
                   <td className="whitespace-nowrap font-mono text-[12px]">{dataPunti(evento.data)} {evento.nome}</td>
                   <td className="whitespace-nowrap text-[14px]">{lista}</td>
-                  <td className="mm-num">{euro(i.importo)}{i.metodoPagamento && <div className="text-[10px] text-osso-3">{{ porta_contanti: 'CONTANTI', porta_pos: 'POS', pr: 'AL PR' }[i.metodoPagamento]}</div>}</td>
-                  <td><ChipIscrizione stato={i.stato} testo={i.stato === 'entrato' && i.oraCheckIn ? `Entrato ${ora(i.oraCheckIn)}` : undefined} /></td>
+                  <td className="mm-num">{euro(i.importo)}{i.metodoPagamento && <div className="text-[10px] text-osso-3">{{ online: 'ONLINE', porta_contanti: 'CONTANTI', porta_pos: 'POS' }[i.metodoPagamento]}</div>}</td>
+                  <td>
+                    {i.pagamentoOnline?.daRimborsare
+                      ? <span className="mm-chip mm-chip--incassare">Da rimborsare</span>
+                      : <ChipIscrizione stato={i.stato} testo={i.stato === 'entrato' && i.oraCheckIn ? `Entrato ${ora(i.oraCheckIn)}` : undefined} />}
+                  </td>
                   <td className="whitespace-nowrap font-mono text-[11px] text-osso-2">{quandoRelativo(i.createdAt)}</td>
-                  <td><AzioniIscrizione id={i.id} stato={i.stato} pagato={Boolean(i.metodoPagamento)} /></td>
+                  <td><AzioniIscrizione id={i.id} stato={i.stato} pagato={Boolean(i.metodoPagamento)} online={i.metodoPagamento === 'online'}
+                    daRimborsare={Boolean(i.pagamentoOnline?.daRimborsare)} maiPagata={Boolean(i.pagamentoOnline && !i.metodoPagamento)} /></td>
                 </tr>
               ))}
               {righe.length === 0 && <tr><td colSpan={7} className="text-osso-2">Nessuna iscrizione con questi filtri.</td></tr>}

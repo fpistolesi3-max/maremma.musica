@@ -8,6 +8,8 @@ import {
   cambiaStatoIscrizione, cambiaStatoPr, copiaTavoli, creaPr, creaStaff, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
 } from '@/lib/dati/admin';
 import { salvaMedia } from '@/lib/dati/media';
+import { chiudiRimborsoIscrizione, pagamentoIscrizioneDi } from '@/lib/dati/prevendita';
+import { rimborsa } from '@/lib/pagamenti';
 import { slugDa } from '@/lib/formato';
 import type { StatoTavolo, TipoIngresso } from '@/lib/dati/tipi';
 
@@ -59,7 +61,6 @@ export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAz
   const slug = slugDa(t(f, 'slug') || nome);
   if (!slug) campi.slug = 'Indirizzo non valido';
   const tipo = t(f, 'tipoIngresso') as TipoIngresso;
-  if (tipo === 'prevendita_online') campi.tipoIngresso = 'La prevendita online arriverà con l’opzione C';
   const prezzo = num(t(f, 'prezzoLista')) ?? 0;
   const eta = num(t(f, 'etaMinima')) ?? 18;
   const prezzoCassa = num(t(f, 'prezzoCassa'));
@@ -94,6 +95,8 @@ export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAz
     infoArrivo: t(f, 'infoArrivo') || null, locandinaUrl,
     prezzoLista: tipo === 'libero' ? 0 : prezzo, etaMinima: eta,
     prezzoCassa: tipo === 'libero' ? null : prezzoCassa,
+    // Ingresso in cassa alla porta per chi non ha la prevendita: si accende e spegne per serata.
+    cassaAttiva: f.get('cassaAttiva') === 'on',
     pubblicato: t(f, 'azione') === 'pubblica' ? true : t(f, 'azione') === 'bozza' ? false : f.get('pubblicato') === '1',
     prAbilitati: tuttiPr ? null : prScelti,
   };
@@ -206,9 +209,19 @@ export async function eliminaTavoloAzione(id: string) {
 
 export async function azioneIscrizione(id: string, azione: 'annulla' | 'rimborsa' | 'ripristina') {
   const s = await admin();
-  try { await cambiaStatoIscrizione(s, id, azione); } catch (e) { return { errore: (e as Error).message }; }
+  try {
+    if (azione === 'rimborsa') {
+      // Prevendita pagata online: prima si restituiscono i soldi su Stripe, poi si chiude. Se il rimborso non va
+      // a buon fine l'iscrizione resta com'è. L'ingresso in cassa (contanti o POS) si restituisce a mano.
+      const pagamento = await pagamentoIscrizioneDi(s, id);
+      if (pagamento) await rimborsa(pagamento);
+      if (!(await chiudiRimborsoIscrizione(s, id))) await cambiaStatoIscrizione(s, id, azione);
+    } else {
+      await cambiaStatoIscrizione(s, id, azione);
+    }
+  } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/admin', 'layout');
-  return { ok: 'Fatto.' };
+  return { ok: azione === 'rimborsa' ? 'Rimborsato.' : 'Fatto.' };
 }
 
 export async function creaPrAzione(_p: EsitoAzione, f: FormData): Promise<EsitoAzione> {

@@ -31,7 +31,7 @@ export default async function SerataLive({ params }: Props) {
         briciole={`SERATE / ${e.numero ? `MM/${String(e.numero).padStart(3, '0')}` : e.slug}`}
         titolo={e.nome}
         chip={<span className={`mm-chip ${inCorso ? 'mm-chip--entrato' : e.pubblicato ? 'mm-chip--lista' : 'mm-chip--incassare'}`}>{inCorso ? 'Porta aperta · live' : e.pubblicato ? 'Lista aperta' : 'Bozza'}</span>}
-        sotto={`${giornoSett(e.data)} ${dataPunti(e.data)} · ${luogoTesto(e).toUpperCase()} · ${orari(e.data, e.dataFine)} · ${e.tipoIngresso === 'libero' ? 'INGRESSO LIBERO' : `LISTA ${euro(e.prezzoLista)} ALLA PORTA`}`}
+        sotto={`${giornoSett(e.data)} ${dataPunti(e.data)} · ${luogoTesto(e).toUpperCase()} · ${orari(e.data, e.dataFine)} · ${e.tipoIngresso === 'libero' ? 'INGRESSO LIBERO' : `PREVENDITA ${euro(e.prezzoLista)} ONLINE · ${e.cassaAttiva ? `CASSA ${euro(e.prezzoCassa ?? e.prezzoLista)}` : 'SOLO PREVENDITA'}`}`}
         azioni={<>
           <Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}/modifica`}>Modifica serata</Link>
           <Link className="mm-btn mm-btn--muto" href={`/admin/iscrizioni?evento=${e.id}`}>Tutte le vendite</Link>
@@ -42,10 +42,16 @@ export default async function SerataLive({ params }: Props) {
         <Numero etichetta="In lista" valore={String(l.inLista)} />
         <Numero etichetta="Entrati" valore={String(l.entrati)} colore="text-ok"
           nota={`${l.entratiDaLista} DALLA LISTA${l.inLista ? ` (${Math.round((l.entratiDaLista / l.inLista) * 100)}%)` : ''} · ${l.cassa.ingressi} IN CASSA`} bordo />
-        <Numero etichetta="In cassa" valore={String(l.cassa.ingressi)} nota={`${euro(l.cassa.incassato)} · SENZA LISTA`} bordo />
-        <Numero etichetta="Incassato" valore={euro(l.incassato)} nota={`${euro(l.incassatoPorta)} ALLA PORTA · ${euro(l.incassato - l.incassatoPorta)} AI PR`} bordo />
-        <Numero etichetta="Ancora fuori" valore={String(l.fuori)} nota="DELLA LISTA" bordo />
+        <Numero etichetta="In cassa" valore={String(l.cassa.ingressi)}
+          nota={l.cassa.attiva || l.cassa.ingressi ? `${euro(l.cassa.incassato)} · CONTANTI ${euro(l.cassa.contanti)} · POS ${euro(l.cassa.pos)}` : 'CASSA SPENTA · SOLO PREVENDITA'} bordo />
+        <Numero etichetta="Incassato" valore={euro(l.incassato)} nota={`${euro(l.prevendita.incassato)} PREVENDITA ONLINE · ${euro(l.cassa.incassato)} CASSA ALLA PORTA`} bordo />
+        <Numero etichetta="Ancora fuori" valore={String(l.fuori)} nota={l.prevendita.inAttesa ? `DELLA LISTA · ${l.prevendita.inAttesa} STANNO PAGANDO` : 'DELLA LISTA'} bordo />
       </div>
+      {l.prevendita.daRimborsare.n > 0 && (
+        <Link href={`/admin/iscrizioni?evento=${e.id}&stato=da_rimborsare`} className="mx-4 mt-4 block border border-attesa px-4 py-3 text-[14px] text-attesa no-underline md:mx-12">
+          {l.prevendita.daRimborsare.n === 1 ? '1 prevendita pagata' : `${l.prevendita.daRimborsare.n} prevendite pagate`} quando non valeva più: {euro(l.prevendita.daRimborsare.importo)} da restituire. Apri →
+        </Link>
+      )}
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex min-w-0 flex-col gap-9 px-4 py-7 md:px-12">
@@ -101,7 +107,7 @@ export default async function SerataLive({ params }: Props) {
                   </table>
                 </div>
               )}
-              <span className="text-[13px] text-osso-3">L&apos;incasso dei tavoli è a parte: non entra in &quot;Incassato&quot; qui sopra, che conta lista e cassa.</span>
+              <span className="text-[13px] text-osso-3">L&apos;incasso dei tavoli è a parte: non entra in &quot;Incassato&quot; qui sopra, che conta prevendita online e cassa alla porta.</span>
             </section>
           )}
 
@@ -109,7 +115,7 @@ export default async function SerataLive({ params }: Props) {
             <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">PR della serata</h2>
             <div className="mm-scroll">
               <table className="mm-classifica">
-                <thead><tr><th>#</th><th>PR</th><th className="mm-num">In lista</th><th className="mm-num">Entrati</th><th style={{ width: '30%' }}>Resa</th><th className="mm-num">Incassato</th></tr></thead>
+                <thead><tr><th>#</th><th>PR</th><th className="mm-num">In lista</th><th className="mm-num">Entrati</th><th style={{ width: '30%' }}>Resa</th><th className="mm-num">Online</th></tr></thead>
                 <tbody>
                   {l.classifica.map((r, i) => {
                     const resa = r.inLista ? Math.round((r.entrati / r.inLista) * 100) : 0;
