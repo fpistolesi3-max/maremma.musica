@@ -218,6 +218,7 @@ test('copertina: la scelta dell’admin vale se pubblicata e non passata, altrim
   assert.equal(sceltaCopertina([ev('p', '2026-10-10T22:00:00+02:00', { inCopertina: true }), a, b], adesso)?.id, 'a', 'scelta passata: si torna alla prossima');
   assert.equal(sceltaCopertina([{ ...b, inCopertina: true, pubblicato: false }, a], adesso)?.id, 'a', 'scelta in bozza: si torna alla prossima');
   assert.equal(sceltaCopertina([{ ...c, inCopertina: true }, { ...b, inCopertina: true }, a], adesso)?.id, 'b', 'due scelte per errore: vince la più vicina');
+});
 
 test('accesso: "dopo" accetta solo percorsi interni (niente reindirizzamenti verso altri siti)', () => {
   for (const ok of ['/', '/admin', '/door', '/gestione/pr?serata=1', '/e/halloween-party/prevendita']) assert.equal(percorsoInterno(ok), true, ok);
