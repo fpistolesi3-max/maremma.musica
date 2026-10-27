@@ -28,7 +28,7 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
       <details className="border border-linea p-4">
         <summary className="cursor-pointer font-mono text-[12px] tracking-[.04em]">MODELLI RAPIDI E COPIA DA UN’ALTRA SERATA</summary>
         <div className="flex flex-col gap-4 pt-4">
-          <div className="grid gap-2 md:grid-cols-3">
+          <div className="grid gap-2">
             {MODELLI.map((m) => (
               <button key={m.id} type="button" className="mm-btn mm-btn--linea flex-col items-start text-left" style={{ minHeight: 72, height: 'auto', padding: 12 }} disabled={inCorso}
                 onClick={() => avvia(async () => setMsg(await modelloTipiAzione(eventoId, m.id)))}>

@@ -25,6 +25,7 @@ export function BigliettoQr({ b }: { b: Biglietto }) {
         <div className="mm-biglietto__largo"><dt>Titolare</dt><dd>{i.nome} {i.cognome}</dd></div>
         <div><dt>Nascita</dt><dd>{nascita(i.dataNascita)}</dd></div>
         <div><dt>Lista</dt><dd>{b.lista}</dd></div>
+        {i.categoria && <div className="mm-biglietto__largo"><dt>Prevendita riservata</dt><dd>{i.categoria} · documento alla porta</dd></div>}
       </dl>
       <div className="mm-biglietto__porta">
         <ChipIscrizione stato={i.stato} testo={i.stato === 'entrato' && i.oraCheckIn ? `Entrato ${ora(i.oraCheckIn)}` : undefined} />
