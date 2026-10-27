@@ -2,7 +2,7 @@ import { richiedi } from '@/lib/sessione';
 import { tuttiIPr } from '@/lib/dati/admin';
 import { Suspense } from 'react';
 import { NavGestione } from '@/components/gestione-nav';
-import { TestataAdmin } from '@/components/admin/ui';
+import { Apribile, TestataAdmin } from '@/components/admin/ui';
 import { NuovoPr, StatoPr } from '@/components/admin/azioni-client';
 
 export const metadata = { title: 'Account PR' };
@@ -15,7 +15,7 @@ export default async function AdminPr() {
       <Suspense><NavGestione admin /></Suspense>
       <TestataAdmin briciole="PR / ACCOUNT" titolo="Account PR" sotto={`${pr.filter((p) => p.pr.stato === 'attivo').length} ATTIVI · CLASSIFICA COMPLESSIVA`} />
       <div className="flex flex-col gap-8 px-4 py-6 md:px-12">
-        <NuovoPr />
+        <Apribile titolo="Aggiungi un PR"><NuovoPr /></Apribile>
         <div className="mm-scroll">
           <table className="mm-classifica mm-schede">
             <thead><tr><th>#</th><th>PR</th><th>Link</th><th>Email</th><th className="mm-num">Iscritti</th><th className="mm-num">Entrati</th><th /></tr></thead>

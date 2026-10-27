@@ -74,7 +74,7 @@ function CambiaNome({ id, nominativo, chiudi }: { id: string; nominativo: { nome
 export function NuovoPr() {
   const [s, invia, inCorso] = useActionState(creaPrAzione, {} as EsitoAzione);
   return (
-    <form action={invia} className="grid gap-3 border border-linea bg-notte-2 p-4 md:grid-cols-[1fr_1fr_1.2fr_auto] md:items-end">
+    <form action={invia} className="grid gap-3 md:grid-cols-[1fr_1fr_1.2fr_auto] md:items-end">
       <Mini id="npr-nome" nome="nome" etichetta="Nome della lista" aiuto="Come lo sceglie il PR" />
       <Mini id="npr-handle" nome="handle" etichetta="Handle" aiuto="Nel link: vuoto = dal nome" />
       <Mini id="npr-email" nome="email" etichetta="Email" tipo="email" aiuto="Per entrare senza password" />
@@ -97,7 +97,7 @@ export function StatoPr({ id, attivo }: { id: string; attivo: boolean }) {
 export function NuovoStaff() {
   const [s, invia, inCorso] = useActionState(creaStaffAzione, {} as EsitoAzione);
   return (
-    <form action={invia} className="grid gap-3 border border-linea bg-notte-2 p-4 md:grid-cols-[1.4fr_1fr_auto] md:items-end">
+    <form action={invia} className="grid gap-3 md:grid-cols-[1.4fr_1fr_auto] md:items-end">
       <Mini id="ns-email" nome="email" etichetta="Email" tipo="email" />
       <div className="mm-campo">
         <label className="mm-campo__etichetta" htmlFor="ns-ruolo">Ruolo</label>

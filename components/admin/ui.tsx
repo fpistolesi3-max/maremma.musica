@@ -26,3 +26,34 @@ export function Numero({ etichetta, valore, nota, colore, bordo }: { etichetta: 
     </div>
   );
 }
+
+const SUMMARY = 'flex cursor-pointer list-none items-center gap-3 py-3 [&::-webkit-details-marker]:hidden';
+const FRECCIA = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true" className="flex-none text-osso-2 group-open:rotate-180"><path d="M5 9l7 7 7-7" /></svg>;
+
+/** Filtri richiudibili: chiusi mostrano solo il riepilogo di quelli attivi e "Azzera". */
+export function Filtri({ attivi, azzera, children }: { attivi: string[]; azzera: string; children: ReactNode }) {
+  return (
+    <details className="group border border-linea bg-notte-2 px-4" open={false}>
+      <summary className={SUMMARY}>
+        <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">FILTRI</span>
+        <span className="min-w-0 flex-grow truncate font-mono text-[12px] text-osso">{attivi.length ? attivi.join(' · ') : 'Nessun filtro'}</span>
+        {attivi.length > 0 && <a href={azzera} className="link-sottolineato flex-none py-2 text-[12px]">Azzera</a>}
+        {FRECCIA}
+      </summary>
+      <div className="pb-4">{children}</div>
+    </details>
+  );
+}
+
+/** Modulo che si apre solo quando serve (es. "Aggiungi PR"): la pagina parte dall'elenco. */
+export function Apribile({ titolo, children }: { titolo: string; children: ReactNode }) {
+  return (
+    <details className="group border border-linea bg-notte-2 px-4">
+      <summary className={SUMMARY}>
+        <span className="flex-grow text-[13px] font-semibold uppercase tracking-etichetta text-osso">{titolo}</span>
+        {FRECCIA}
+      </summary>
+      <div className="pb-4">{children}</div>
+    </details>
+  );
+}

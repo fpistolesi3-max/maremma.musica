@@ -1,6 +1,6 @@
 import { richiedi } from '@/lib/sessione';
 import { utentiStaff } from '@/lib/dati/admin';
-import { TestataAdmin } from '@/components/admin/ui';
+import { Apribile, TestataAdmin } from '@/components/admin/ui';
 import { NuovoStaff, RimuoviStaff } from '@/components/admin/azioni-client';
 
 export const metadata = { title: 'Staff' };
@@ -13,7 +13,7 @@ export default async function AdminStaff() {
     <>
       <TestataAdmin briciole="STAFF" titolo="Staff" sotto="LO STAFF APRE /DOOR DAL TELEFONO E ENTRA CON LA SUA EMAIL" />
       <div className="flex flex-col gap-8 px-4 py-6 md:px-12">
-        <NuovoStaff />
+        <Apribile titolo="Dai accesso a una persona"><NuovoStaff /></Apribile>
         <div className="mm-scroll">
           <table className="mm-classifica mm-schede">
             <thead><tr><th>Email</th><th>Ruolo</th><th /></tr></thead>
