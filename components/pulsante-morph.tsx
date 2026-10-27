@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 
-type Fase = 'riposo' | 'carico' | 'ok';
+type Fase = 'riposo' | 'tocco' | 'carico' | 'ok';
+
+/** Sotto questa soglia l'utente vede solo la risposta al tocco; il cerchio compare se l'attesa dura di più. */
+const SOGLIA_MS = 280;
 
 type Props = {
   /** Con href è un collegamento (Link, o <a> se `esterno`); senza è un <button>. */
@@ -29,14 +32,15 @@ const riduci = () => typeof window !== 'undefined' && window.matchMedia('(prefer
  */
 export function PulsanteMorph({ href, esterno, type = 'button', caricamento, esito, disabled, className = '', style, children }: Props) {
   const [premuto, setPremuto] = useState(false);
+  const [lungo, setLungo] = useState(false);
   const [esitoFase, setEsitoFase] = useState<Fase>(esito ? 'carico' : 'riposo');
 
   useEffect(() => {
     if (!esito) return;
     // Stato iniziale uguale su server e client; la scelta sul movimento si fa solo dopo il montaggio.
     if (riduci()) { setEsitoFase('riposo'); return; }
-    const a = setTimeout(() => setEsitoFase('ok'), 650);
-    const b = setTimeout(() => setEsitoFase('riposo'), 1500);
+    const a = setTimeout(() => setEsitoFase('ok'), 350);
+    const b = setTimeout(() => setEsitoFase('riposo'), 900);
     return () => { clearTimeout(a); clearTimeout(b); };
   }, [esito]);
 
@@ -49,12 +53,19 @@ export function PulsanteMorph({ href, esterno, type = 'button', caricamento, esi
     return () => { clearTimeout(t); window.removeEventListener('pageshow', p); };
   }, [premuto]);
 
-  const fase: Fase = esito && esitoFase !== 'riposo' ? esitoFase : caricamento || premuto ? 'carico' : 'riposo';
+  const attesa = Boolean(caricamento || premuto);
+  useEffect(() => {
+    if (!attesa) { setLungo(false); return; }
+    const t = setTimeout(() => setLungo(true), SOGLIA_MS);
+    return () => clearTimeout(t);
+  }, [attesa]);
+
+  const fase: Fase = esito && esitoFase !== 'riposo' ? esitoFase : attesa ? (lungo ? 'carico' : 'tocco') : 'riposo';
   const props = {
     className: `mm-btn mm-btn--primario mm-morph ${className}`.trim(),
     style,
     'data-fase': fase,
-    'aria-busy': fase === 'carico' || undefined,
+    'aria-busy': attesa || undefined,
   };
   const dentro = (
     <>
@@ -65,7 +76,7 @@ export function PulsanteMorph({ href, esterno, type = 'button', caricamento, esi
   );
 
   // Fuori dal pulsante, così non entra nel suo nome accessibile.
-  const annuncio = <span className="sr-only" role="status" aria-live="polite">{fase === 'carico' ? 'Un attimo, sto caricando' : fase === 'ok' ? 'Fatto' : ''}</span>;
+  const annuncio = <span className="sr-only" role="status" aria-live="polite">{attesa ? 'Un attimo, sto caricando' : fase === 'ok' ? 'Fatto' : ''}</span>;
 
   if (href) {
     const inClick = (e: MouseEvent) => {
