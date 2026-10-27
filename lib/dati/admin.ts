@@ -124,6 +124,11 @@ export async function serataLive(s: Sessione, eventoId: string) {
       inAttesa: attese.length, atteso: sommaTavoli(attese),
       perLista: listeTavoli,
     },
+    // Per tipo di prevendita: venduti (QR validi), posti, entrati e incasso.
+    perTipo: d.lotti.filter((l) => l.eventoId === eventoId).sort((a, b) => a.ordine - b.ordine).map((l) => {
+      const sue = attive.filter((i) => i.lottoId === l.id);
+      return { id: l.id, nome: l.nome, categoria: l.categoria, posti: l.quantita, venduti: sue.length, entrati: sue.filter((i) => i.stato === 'entrato').length, incassato: somma(sue.filter((i) => i.metodoPagamento === 'online')) };
+    }),
     incassato: incassatoOnline + incassatoCassa,
     fuori: attive.filter((i) => i.stato !== 'entrato').length,
     perMezzora,
@@ -410,7 +415,7 @@ export async function csvEvento(s: Sessione, eventoId: string) {
   const d = await leggi();
   const evento = d.eventi.find((e) => e.id === eventoId);
   if (!evento) return null;
-  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Lotto', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Newsletter'];
+  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Tipo di prevendita', 'Categoria', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Newsletter'];
   const PAGAMENTO = { online: 'online', porta_contanti: 'porta contanti', porta_pos: 'porta POS' } as const;
   const righe = d.iscrizioni
     .filter((i) => i.eventoId === eventoId)
@@ -418,7 +423,7 @@ export async function csvEvento(s: Sessione, eventoId: string) {
     .map((i) => [
       i.codice, i.origine === 'cassa' ? 'cassa' : 'lista', i.nome, i.cognome, nascita(i.dataNascita), i.email,
       i.origine === 'cassa' ? 'Cassa' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica',
-      i.lottoId ? d.lotti.find((l) => l.id === i.lottoId)?.nome : '',
+      i.lottoId ? d.lotti.find((l) => l.id === i.lottoId)?.nome : '', i.categoria ?? '',
       i.importo.toFixed(2).replace('.', ','), i.stato, i.metodoPagamento ? PAGAMENTO[i.metodoPagamento] : '',
       i.pagatoAt ? `${dataCompleta(i.pagatoAt)} ${oraDi(i.pagatoAt)}` : '', i.pagamentoOnline?.daRimborsare ? 'sì' : '',
       `${dataCompleta(i.createdAt)} ${oraDi(i.createdAt)}`, i.oraCheckIn ? oraDi(i.oraCheckIn) : '', i.porta ?? '',

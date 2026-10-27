@@ -165,6 +165,29 @@ export default async function SerataLive({ params }: Props) {
               </table>
             </div>
           </section>
+
+          {l.perTipo.length > 0 && (
+            <section className="flex flex-col gap-[10px]">
+              <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Per tipo di prevendita</h2>
+              <div className="mm-scroll">
+                <table className="mm-classifica">
+                  <thead><tr><th>Tipo</th><th>Categoria</th><th className="mm-num">Venduti</th><th className="mm-num">Posti</th><th className="mm-num">Entrati</th><th className="mm-num">Incassato</th></tr></thead>
+                  <tbody>
+                    {l.perTipo.map((t) => (
+                      <tr key={t.id}>
+                        <td className="mm-classifica__nome">{t.nome}</td>
+                        <td>{t.categoria ?? '—'}</td>
+                        <td className="mm-num">{t.venduti}</td>
+                        <td className="mm-num">{t.posti ?? '∞'}</td>
+                        <td className="mm-num">{t.entrati}</td>
+                        <td className="mm-num">{euro(t.incassato)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </div>
 
         <aside className="flex flex-col gap-[14px] border-t border-linea bg-[#0a0d11] p-4 md:p-7 lg:border-l lg:border-t-0">

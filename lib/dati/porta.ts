@@ -20,7 +20,7 @@ function voce(d: Readonly<Archivio>, i: Iscrizione): VocePorta {
   const pr = i.prId ? d.pr.find((p) => p.id === i.prId) : null;
   return {
     id: i.id, token: i.tokenQr, codice: i.codice, nome: i.nome, cognome: i.cognome, dataNascita: i.dataNascita,
-    stato: i.stato, importo: i.importo, oraCheckIn: i.oraCheckIn, porta: i.porta, lista: i.origine === 'cassa' ? 'Cassa' : pr?.nomeDisplay ?? 'Maremma Musica', canale: i.canale ?? 'diretto', origine: i.origine ?? 'lista',
+    stato: i.stato, importo: i.importo, oraCheckIn: i.oraCheckIn, porta: i.porta, lista: i.origine === 'cassa' ? 'Cassa' : pr?.nomeDisplay ?? 'Maremma Musica', categoria: i.categoria ?? null, canale: i.canale ?? 'diretto', origine: i.origine ?? 'lista',
   };
 }
 

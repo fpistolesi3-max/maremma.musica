@@ -13,6 +13,7 @@ export interface VocePorta {
   oraCheckIn: string | null;
   porta: string | null;
   lista: string;
+  categoria?: string | null;  // categoria della prevendita (es. Donne): lo staff la controlla a vista
   canale: string;             // da dove si è iscritto (instagram, diretto…): utile quando non c'è un PR
   origine: 'lista' | 'cassa' | 'tavolo'; // cassa = registrato alla porta, senza QR
   /**

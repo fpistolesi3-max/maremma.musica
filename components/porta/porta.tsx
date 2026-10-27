@@ -72,8 +72,8 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
   const mostra = useCallback((esito: EsitoPorta) => {
     clearTimeout(ritorno.current);
     setSchermo({ tipo: 'esito', esito });
-    // Dopo un ingresso riuscito torna da solo allo scanner (mockup: 2 secondi).
-    if (esito.esito === 'entrato') {
+    // Dopo un ingresso riuscito torna da solo allo scanner (mockup: 2 secondi). Con una categoria da controllare resta a schermo.
+    if (esito.esito === 'entrato' && !esito.voce.categoria) {
       ritorno.current = setTimeout(() => setSchermo({ tipo: 'scanner' }), 2000);
     }
   }, []);
@@ -212,7 +212,7 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
                 <div key={v.id} className="flex items-center gap-3 border-t border-linea py-4">
                   <div className="flex min-w-0 flex-grow flex-col gap-[6px]">
                     <span className="font-display text-[24px] font-extrabold uppercase leading-none">{v.nome} {v.cognome}</span>
-                    <span className="font-mono text-[11px] leading-[14px] text-osso-2">{v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()}` : nascita(v.dataNascita)} · {testoLista(v).replace('Lista: ', '').toUpperCase()}</span>
+                    <span className="font-mono text-[11px] leading-[14px] text-osso-2">{v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()}` : nascita(v.dataNascita)}{v.categoria ? ` · ${v.categoria.toUpperCase()}` : ''} · {testoLista(v).replace('Lista: ', '').toUpperCase()}</span>
                     <span className={`${chip[0]} self-start`}>{chip[1]}</span>
                   </div>
                   {!dentro && v.stato !== 'annullato' && v.stato !== 'rimborsato' && (!v.tavolo || v.tavolo.pagato) && (
@@ -309,6 +309,12 @@ function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onChiudi
             {v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()} · PAGATO` : incasso ? `${euro(esito.incassato)} INCASSATI` : esito.primaPagato ? 'PAGATO' : v.importo > 0 ? 'PAGATO' : 'INGRESSO LIBERO'} · {oraDi(esito.ora)}
           </span>
           <span className="font-display text-[104px] font-black uppercase leading-[.8]">{incasso ? 'Entrato' : 'Valido'}</span>
+          {v.categoria && (
+            <div className="border-[3px] border-current px-3 py-2" role="alert">
+              <span className="block font-mono text-[11px] font-medium leading-4">CONTROLLA IL DOCUMENTO · PREVENDITA RISERVATA</span>
+              <span className="block font-display text-[56px] font-black uppercase leading-[.9]">{v.categoria}</span>
+            </div>
+          )}
           {/* Un QR per tutto il tavolo: ogni passaggio è una persona. */}
           {v.tavolo && <span className="font-display text-[56px] font-black uppercase leading-[.85]">{v.tavolo.entrati} di {v.tavolo.persone}</span>}
           <div className={linea} />
@@ -316,9 +322,9 @@ function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onChiudi
           <span className="text-[17px] font-medium leading-6">{testoLista(v)}</span>
         </div>
         <div className="flex flex-none flex-col gap-3 px-4 pb-7">
-          <div className="h-[3px] bg-[rgba(5,5,5,.18)]"><div className="h-full bg-vinile" style={{ animation: 'mm-barra 2s linear forwards' }} /></div>
+          <div className="h-[3px] bg-[rgba(5,5,5,.18)]"><div className="h-full bg-vinile" style={v.categoria ? { width: 0 } : { animation: 'mm-barra 2s linear forwards' }} /></div>
           <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onChiudi}>Prossimo</button>
-          <span className="text-center font-mono text-[11px] font-medium leading-[14px]">TORNO ALLO SCANNER TRA 2 S</span>
+          <span className="text-center font-mono text-[11px] font-medium leading-[14px]">{v.categoria ? 'TOCCA PROSSIMO QUANDO HAI CONTROLLATO' : 'TORNO ALLO SCANNER TRA 2 S'}</span>
         </div>
       </>
     );
