@@ -1,6 +1,6 @@
 import 'server-only';
 import { confermaPagamentoOnline, emailAdmin, pagamentiDaVerificare, salvaSessionePagamento, type PrenotazioneVista } from './dati/tavoli';
-import { creaCheckout, statoCheckout } from './pagamenti';
+import { chiudiCheckout, creaCheckout, statoCheckout } from './pagamenti';
 import { inviaAvvisoAdmin, inviaConfermaTavolo, linkTavolo } from './tavolo-email';
 import { dataPunti } from './formato';
 
@@ -11,6 +11,7 @@ import { dataPunti } from './formato';
 export async function apriPagamento(v: PrenotazioneVista, origine: string): Promise<string> {
   const { prenotazione: p, evento: e, tavolo: t } = v;
   const ritorno = linkTavolo(origine, p.id, p.email);
+  await chiudiCheckout(p.pagamentoOnline?.sessione);
   const c = await creaCheckout({
     rif: { tipo: 'prenotazione', id: p.id }, email: p.email, importo: p.spesaMinima, scade: new Date(p.scade),
     descrizione: `Tavolo ${t.nome} · ${e.nome} ${dataPunti(e.data)} · spesa minima`,

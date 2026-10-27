@@ -355,6 +355,12 @@ export async function confermaPagamentoOnline(prenotazioneId: string, pagamento:
     if (!p) return { esito: 'sconosciuta' };
     p.pagamentoOnline ??= { sessione: null, pagamento: null, daRimborsare: false };
     if (p.pagamentoOnline.pagamento === pagamento) return { esito: 'gia' };
+    // Già pagata con un altro pagamento (due pagine di pagamento aperte, pagate entrambe): la prenotazione resta valida
+    // com'è e il pagamento in più non sovrascrive quello vero; va restituito a mano da Stripe.
+    if (p.stato === 'confermata' && p.pagamentoOnline.pagamento) {
+      console.error('[tavoli] secondo pagamento per una prenotazione già pagata: da rimborsare su Stripe', p.id, pagamento);
+      return { esito: 'gia' };
+    }
     const t = d.tavoli.find((x) => x.id === p.tavoloId);
     const altri = d.prenotazioni.some((x) => x.tavoloId === p.tavoloId && x.id !== p.id && prenotazioneAttiva(x));
     // In attesa (anche col termine appena passato) tiene ancora il tavolo; scaduta lo riprende solo se è rimasto libero.

@@ -2,7 +2,7 @@ import 'server-only';
 import type { Biglietto } from './dati/pubblico';
 import { confermaPagamentoIscrizione, iscrizioniDaVerificare, salvaSessioneIscrizione } from './dati/prevendita';
 import { emailAdmin } from './dati/tavoli';
-import { creaCheckout, statoCheckout } from './pagamenti';
+import { chiudiCheckout, creaCheckout, statoCheckout } from './pagamenti';
 import { inviaBiglietto, inviaRimborsoDovuto, linkBiglietto } from './biglietto-email';
 import { dataPunti } from './formato';
 
@@ -13,6 +13,7 @@ import { dataPunti } from './formato';
 export async function apriPagamentoIscrizione(b: Biglietto, origine: string): Promise<string> {
   const { iscrizione: i, evento: e } = b;
   const ritorno = linkBiglietto(origine, i.id, i.email);
+  await chiudiCheckout(i.pagamentoOnline?.sessione);
   const c = await creaCheckout({
     rif: { tipo: 'iscrizione', id: i.id }, email: i.email, importo: i.importo, scade: new Date(i.scade ?? Date.now()),
     descrizione: `Prevendita · ${e.nome} ${dataPunti(e.data)} · ${i.nome} ${i.cognome}`,

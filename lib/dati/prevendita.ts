@@ -55,6 +55,12 @@ export async function confermaPagamentoIscrizione(id: string, pagamento: string,
     if (!evento) return { esito: 'sconosciuta' };
     i.pagamentoOnline ??= { sessione: null, pagamento: null, daRimborsare: false };
     if (i.pagamentoOnline.pagamento === pagamento) return { esito: 'gia' };
+    // Già pagata con un altro pagamento (due pagine di pagamento aperte, pagate entrambe): il QR resta valido e il
+    // pagamento in più non sovrascrive quello vero; va restituito a mano da Stripe.
+    if ((i.stato === 'pagato' || i.stato === 'entrato') && i.pagamentoOnline.pagamento) {
+      console.error('[prevendita] secondo pagamento per una prevendita già pagata: da rimborsare su Stripe', i.id, pagamento);
+      return { esito: 'gia' };
+    }
     const lotto = i.lottoId ? d.lotti.find((l) => l.id === i.lottoId) ?? null : null;
     const altri = d.iscrizioni.filter((x) => x.id !== i.id && x.lottoId != null && x.lottoId === i.lottoId && tienePosto(x, adesso)).length;
     const doppione = Boolean(giaIscritto(d.iscrizioni.filter((x) => x.id !== i.id), i.eventoId, i.cognome, i.dataNascita));
