@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "maremmamusica", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000 }
+    { "name": "maremmamusica", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000 },
+    { "name": "maremmamusica-tipi", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "-p", "3100"], "port": 3100 }
   ]
 }

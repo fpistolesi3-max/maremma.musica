@@ -1,7 +1,8 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { leggi, modifica } from './archivio';
-import type { Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } from './tipi';
+import type { Archivio, Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } from './tipi';
+import { tipiDelModello, type NomeModello } from '../tipi-modelli';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
 import { eventoPassato, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, EMAIL_RE, HANDLE_RE } from '../regole';
@@ -196,7 +197,7 @@ export async function salvaEvento(s: Sessione, id: string | null, dati: DatiEven
     d.eventi.push(e);
     // Ogni serata a lista nasce con un lotto base: si modifica poi dalla pagina della serata.
     if (e.tipoIngresso !== 'libero') {
-      d.lotti.push({ id: randomUUID(), eventoId: e.id, nome: 'Lista', prezzo: e.prezzoLista, quantita: null, dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0 });
+      d.lotti.push({ id: randomUUID(), eventoId: e.id, nome: 'Lista', prezzo: e.prezzoLista, quantita: null, dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0, categoria: null, confermaCategoria: false, uscitaGiorniPrima: null, fineOrePrima: null, dopoPrecedente: false, prAbilitati: null });
     }
     return e;
   });
@@ -425,4 +426,48 @@ export async function csvEvento(s: Sessione, eventoId: string) {
     ].map(cella).join(';'));
   // BOM + punto e virgola: si apre bene nell'Excel italiano.
   return { nome: `${evento.slug}-iscrizioni.csv`, testo: '﻿' + [intestazione.join(';'), ...righe].join('\r\n') };
+}
+
+/** Serate (diverse da questa) che hanno tipi di prevendita da copiare. */
+export async function serateConTipi(s: Sessione, escludiId: string) {
+  soloAdmin(s);
+  const d = await leggi();
+  return d.eventi
+    .filter((e) => e.id !== escludiId && d.lotti.some((l) => l.eventoId === e.id))
+    .sort((a, b) => b.data.localeCompare(a.data))
+    .map((e) => ({ id: e.id, etichetta: `${e.nome} · ${e.data.slice(0, 10)}`, quanti: d.lotti.filter((l) => l.eventoId === e.id).length }));
+}
+
+/** I tipi esistenti si possono sostituire solo se nessuno ci si è ancora iscritto. */
+function sostituibili(d: Archivio, eventoId: string) {
+  const ids = new Set(d.lotti.filter((l) => l.eventoId === eventoId).map((l) => l.id));
+  if (d.iscrizioni.some((i) => i.lottoId && ids.has(i.lottoId))) {
+    throw new Error('Ci sono già iscritti su questa serata: modifica i tipi uno per uno, senza sostituirli tutti');
+  }
+  d.lotti = d.lotti.filter((l) => l.eventoId !== eventoId);
+}
+
+/** Sostituisce i tipi della serata con un modello rapido. */
+export async function applicaModelloTipi(s: Sessione, eventoId: string, modello: NomeModello) {
+  soloAdmin(s);
+  await modifica((d) => {
+    const e = d.eventi.find((x) => x.id === eventoId);
+    if (!e) throw new Error('Serata non trovata');
+    sostituibili(d, eventoId);
+    tipiDelModello(modello, e.prezzoLista).forEach((t, ordine) => d.lotti.push({ ...t, id: randomUUID(), eventoId, ordine }));
+  });
+}
+
+/** Copia i tipi da un'altra serata. Le uscite relative seguono la nuova data; quelle con data fissa vanno controllate. */
+export async function copiaTipi(s: Sessione, daEventoId: string, aEventoId: string): Promise<{ copiati: number; dateFisse: number }> {
+  soloAdmin(s);
+  if (daEventoId === aEventoId) throw new Error('Scegli un’altra serata');
+  return modifica((d) => {
+    if (!d.eventi.some((e) => e.id === aEventoId) || !d.eventi.some((e) => e.id === daEventoId)) throw new Error('Serata non trovata');
+    const da = d.lotti.filter((l) => l.eventoId === daEventoId).sort((a, b) => a.ordine - b.ordine);
+    if (da.length === 0) throw new Error('Quella serata non ha tipi di prevendita');
+    sostituibili(d, aEventoId);
+    da.forEach((l, ordine) => d.lotti.push({ ...l, id: randomUUID(), eventoId: aEventoId, ordine, prAbilitati: null }));
+    return { copiati: da.length, dateFisse: da.filter((l) => (l.dataInizio && l.uscitaGiorniPrima == null) || (l.dataFine && l.fineOrePrima == null)).length };
+  });
 }
