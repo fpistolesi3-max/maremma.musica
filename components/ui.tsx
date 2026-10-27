@@ -59,12 +59,21 @@ const CHIP_ISCRIZIONE: Record<StatoIscrizione, { classe: string; testo: string }
   pagato: { classe: 'mm-chip mm-chip--pagato', testo: 'Pagato' },
   entrato: { classe: 'mm-chip mm-chip--entrato', testo: 'Entrato' },
   annullato: { classe: 'mm-chip mm-chip--annullato', testo: 'Annullato' },
-  rimborsato: { classe: 'mm-chip mm-chip--annullato', testo: 'Rimborsato' },
+  rimborsato: { classe: 'mm-chip mm-chip--rimborsato', testo: 'Rimborsato' },
 };
 
 export function ChipIscrizione({ stato, testo }: { stato: StatoIscrizione; testo?: string }) {
   const c = CHIP_ISCRIZIONE[stato];
   return <span className={c.classe}>{testo ?? c.testo}</span>;
+}
+
+/**
+ * Stato di una serata, uguale in tutta l'area admin: bozza (ambra), pubblicata (arancio),
+ * porta aperta (verde), passata (grigio).
+ */
+export function ChipSerata({ pubblicata, passata = false, inCorso = false, testo }: { pubblicata: boolean; passata?: boolean; inCorso?: boolean; testo?: string }) {
+  const [classe, t] = passata ? ['mm-chip--libero', 'Passata'] : inCorso ? ['mm-chip--entrato', 'Porta aperta'] : pubblicata ? ['mm-chip--lista', 'Pubblicata'] : ['mm-chip--incassare', 'Bozza'];
+  return <span className={`mm-chip ${classe}`}>{testo ?? t}</span>;
 }
 
 export function Chip({ classe, children }: { classe: string; children: ReactNode }) {

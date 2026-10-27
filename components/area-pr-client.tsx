@@ -11,7 +11,7 @@ const CHIP: Record<StatoIscrizione, [string, string]> = {
   pagato: ['mm-chip mm-chip--pagato', 'Pagato'],
   entrato: ['mm-chip mm-chip--entrato', 'Entrato'],
   annullato: ['mm-chip mm-chip--annullato', 'Annullato'],
-  rimborsato: ['mm-chip mm-chip--annullato', 'Rimborsato'],
+  rimborsato: ['mm-chip mm-chip--rimborsato', 'Rimborsato'],
 };
 
 export interface RigaListaPr { id: string; nome: string; quando: string; stato: StatoIscrizione }

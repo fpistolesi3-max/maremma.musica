@@ -1,3 +1,4 @@
+import { ChipSerata } from '@/components/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
@@ -40,7 +41,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
   return (
     <>
       <TestataAdmin briciole={`SERATE / ${e.slug}`} titolo={e.nome}
-        chip={<span className={`mm-chip ${e.pubblicato ? 'mm-chip--entrato' : 'mm-chip--incassare'}`}>{e.pubblicato ? 'Pubblicata' : 'Bozza'}</span>}
+        chip={<ChipSerata pubblicata={e.pubblicato} />}
         sotto={salvato ? 'SALVATA ✓' : undefined}
         azioni={<><a className="mm-btn mm-btn--muto" href="#lotti">Prevendite</a><a className="mm-btn mm-btn--muto" href="#tavoli">Tavoli</a><Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}`}>Serata live</Link><Link className="mm-btn mm-btn--muto" href={`/e/${e.slug}`} target="_blank">Vedi pagina</Link></>} />
       <FormSerata key={e.updatedAt} pr={x.pr.map((p) => ({ id: p.id, nome: p.nomeDisplay, stato: p.stato }))} v={{
@@ -52,7 +53,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         tipoIngresso: e.tipoIngresso === 'libero' ? 'libero' : 'lista', prezzoLista: String(e.prezzoLista), cassaAttiva: e.cassaAttiva, senzaTelefono: e.senzaTelefono, inCopertina: e.inCopertina === true, prezzoCassa: e.prezzoCassa == null ? '' : String(e.prezzoCassa), etaMinima: String(e.etaMinima),
         locandinaUrl: e.locandinaUrl ?? '', pubblicato: e.pubblicato, prAbilitati: e.prAbilitati,
       }}>
-        <Sezione id="lotti" n="05" titolo="Tipi di prevendita" nota={`${x.lotti.length} ${x.lotti.length === 1 ? 'TIPO' : 'TIPI'}`}>
+        <Sezione id="lotti" n="06" titolo="Tipi di prevendita" nota={`${x.lotti.length} ${x.lotti.length === 1 ? 'TIPO' : 'TIPI'}`}>
           <span className="text-[14px] text-osso-2">Il cliente non sceglie: il sito vende il primo tipo aperto, con posti liberi, nell&apos;ordine qui sotto. Una categoria (es. Donne) si controlla alla porta: lo staff la vede sulla scheda. Il prezzo si paga online, al momento dell&apos;iscrizione.</span>
           <Lotti eventoId={e.id} lotti={x.lotti.map((l) => ({
             id: l.id, nome: l.nome, prezzo: l.prezzo, quantita: l.quantita, usati: x.usati[l.id] ?? 0,
@@ -61,7 +62,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
             dopoPrecedente: l.dopoPrecedente, prAbilitati: l.prAbilitati,
           }))} pr={x.pr.filter((p) => p.stato === 'attivo').map((p) => ({ id: p.id, nome: p.nomeDisplay }))} altreSerate={await serateConTipi(s, id)} />
         </Sezione>
-        <Sezione id="tavoli" n="06" titolo="Tavoli" forza={Boolean(richiesta)} nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
+        <Sezione id="tavoli" n="07" titolo="Tavoli" forza={Boolean(richiesta)} nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
           <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} PRENOTATI{inAttesa > 0 && <span className="text-attesa"> · {inAttesa} IN ATTESA DI PAGAMENTO</span>}</>
         )}>
           <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata online con Stripe: tutti i pagamenti passano dal sito. Il cliente paga sul sito, o dal link che riceve se la richiesta la inserisce il PR o la crew, e la prenotazione si conferma da sola. Se non paga in tempo il tavolo torna libero. Per un tavolo venduto a voce usa &quot;Prenota per un cliente&quot;: al cliente arriva il link per pagare.</span>
@@ -105,7 +106,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
                   const p = v.prenotazione;
                   return (
                     <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-linea py-3">
-                      <span className="mm-chip mm-chip--annullato">{p.pagamentoOnline && !p.pagatoAt && p.stato !== 'rimborsata' ? 'Pagamento non completato' : { scaduta: 'Scaduta', annullata: 'Annullata', rimborsata: 'Rimborsata', in_attesa: '', confermata: '' }[p.stato]}</span>
+                      <span className={`mm-chip ${p.stato === 'rimborsata' ? 'mm-chip--rimborsato' : 'mm-chip--annullato'}`}>{p.pagamentoOnline && !p.pagatoAt && p.stato !== 'rimborsata' ? 'Pagamento non completato' : { scaduta: 'Scaduta', annullata: 'Annullata', rimborsata: 'Rimborsata', in_attesa: '', confermata: '' }[p.stato]}</span>
                       <span className="font-display text-[20px] font-extrabold uppercase leading-none">{v.tavolo.nome} · {p.nome} {p.cognome}</span>
                       <span className="w-full font-mono text-[11px] leading-4 text-osso-2">
                         {p.persone} PERSONE · {euro(p.spesaMinima)} · {p.telefono} · LISTA: {v.lista.toUpperCase()} · RICHIESTA {quandoScade(p.createdAt).toUpperCase()}

@@ -169,6 +169,7 @@
 .mm-chip--esaurito { color: var(--notte); background: var(--osso); border-color: var(--osso); }
 .mm-chip--esaurito::before { background: var(--notte); }
 .mm-chip--libero { color: var(--osso-2); }
+.mm-chip--rimborsato { color: var(--osso-2); border-style: dashed; }
 
 /* ---------- EventCard (riga della lista date) ---------- */
 .mm-evento {
@@ -367,3 +368,15 @@
 .testo-legale ul { padding-left: 20px; list-style: square; }
 
 @tailwind utilities;
+
+/* Tabelle admin: da telefono ogni riga diventa una scheda (l'etichetta della colonna viene da data-et). */
+@media (max-width: 767px) {
+  .mm-schede thead { display: none; }
+  .mm-schede, .mm-schede tbody { display: block; }
+  .mm-schede tr { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--linea); }
+  .mm-schede td { display: block; min-width: 0; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .mm-schede td[data-et]::before { content: attr(data-et); display: block; font: 400 10px/14px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--osso-2); }
+  .mm-schede td.mm-pieno { grid-column: 1 / -1; }
+  .mm-schede .mm-num { text-align: left; }
+  .mm-schede .mm-classifica__nome { white-space: normal; }
+}

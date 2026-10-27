@@ -1,3 +1,4 @@
+import { ChipSerata } from '@/components/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
@@ -6,7 +7,7 @@ import { canaliSerata } from '@/lib/dati/gestione-pr';
 import { dataPunti, euro, giornoSett, ora, orari } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
 import { eventoPassato } from '@/lib/regole';
-import { Numero, TestataAdmin } from '@/components/admin/ui';
+import { MenuAltro, Numero, TestataAdmin } from '@/components/admin/ui';
 import { AggiornamentoLive } from '@/components/admin/live';
 
 export const metadata = { title: 'Serata live' };
@@ -30,13 +31,15 @@ export default async function SerataLive({ params }: Props) {
       <TestataAdmin
         briciole={`SERATE / ${e.numero ? `MM/${String(e.numero).padStart(3, '0')}` : e.slug}`}
         titolo={e.nome}
-        chip={<span className={`mm-chip ${inCorso ? 'mm-chip--entrato' : e.pubblicato ? 'mm-chip--lista' : 'mm-chip--incassare'}`}>{inCorso ? 'Porta aperta · live' : e.pubblicato ? 'Lista aperta' : 'Bozza'}</span>}
+        chip={<ChipSerata pubblicata={e.pubblicato} inCorso={inCorso} testo={inCorso ? 'Porta aperta · live' : e.pubblicato ? 'Lista aperta' : undefined} />}
         sotto={`${giornoSett(e.data)} ${dataPunti(e.data)} · ${luogoTesto(e).toUpperCase()} · ${orari(e.data, e.dataFine)} · ${e.tipoIngresso === 'libero' ? 'INGRESSO LIBERO' : `PREVENDITA ${euro(e.prezzoLista)} ONLINE · ${e.cassaAttiva ? `CASSA ${euro(e.prezzoCassa ?? e.prezzoLista)}` : 'SOLO PREVENDITA'}`}`}
         azioni={<>
-          <Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}/modifica`}>Modifica serata</Link>
-          <Link className="mm-btn mm-btn--muto" href={`/admin/iscrizioni?evento=${e.id}`}>Tutte le vendite</Link>
-          <a className="mm-btn mm-btn--linea" href={`/api/admin/csv/${e.id}`}>Esporta CSV</a>
-          {e.senzaTelefono && <Link className="mm-btn mm-btn--linea" href={`/admin/eventi/${e.id}/lista`}>Lista da stampare</Link>}
+          <Link className="mm-btn mm-btn--primario" href={`/admin/eventi/${e.id}/modifica`}>Modifica serata</Link>
+          <MenuAltro>
+            <Link href={`/admin/iscrizioni?evento=${e.id}`}>Tutte le vendite</Link>
+            <a href={`/api/admin/csv/${e.id}`}>Esporta CSV</a>
+            {e.senzaTelefono && <Link href={`/admin/eventi/${e.id}/lista`}>Lista da stampare</Link>}
+          </MenuAltro>
         </>}
       />
       <div className="grid grid-cols-2 border-b border-linea lg:grid-cols-5">
