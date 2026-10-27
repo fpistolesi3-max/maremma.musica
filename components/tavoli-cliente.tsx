@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { prenotaTavoloAzione, type StatoTavoloModulo } from '@/app/azioni/tavoli';
+import { PulsanteMorph } from '@/components/pulsante-morph';
 
 export interface TavoloScelta {
   id: string; nome: string; zona: string | null; posti: number | null; spesaMinima: number;
@@ -113,9 +114,9 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
           </label>
           {e.privacy && <span className="-mt-2 text-[14px] leading-5 text-stop-testo">{e.privacy}</span>}
 
-          <button type="submit" className="mm-btn mm-btn--clip mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }} disabled={inCorso || !sel}>
-            {inCorso ? 'Un attimo…' : <>{perCliente ? 'Manda il link per pagare' : 'Continua al pagamento'} <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
-          </button>
+          <PulsanteMorph type="submit" className="mm-btn--pieno" caricamento={inCorso} disabled={inCorso || !sel}>
+            {perCliente ? 'Manda il link per pagare' : 'Continua al pagamento'} <span className="mm-btn__freccia" aria-hidden="true">→</span>
+          </PulsanteMorph>
           <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
             {perCliente ? `AL CLIENTE ARRIVA IL LINK PER PAGARE · IL TAVOLO RESTA FERMO FINO A ${scadenza.toUpperCase()}`
               : `SI PAGA ONLINE ORA · CARTA, APPLE PAY, GOOGLE PAY · IL TAVOLO RESTA FERMO ${scadenza.toUpperCase()}`}

@@ -84,6 +84,43 @@
 .mm-btn--clip:focus-visible:not(:disabled)::before { clip-path: inset(0 round 0); }
 .mm-btn--clip:disabled::before, .mm-btn--clip[aria-disabled="true"]::before { display: none; }
 @media (prefers-reduced-motion: reduce) { .mm-btn--clip, .mm-btn--clip::before { transition: none; } }
+/* ---------- Pulsante che cambia forma (PulsanteMorph) ----------
+   La forma è ::before, ritagliata con clip-path: riposo = rettangolo, carico = cerchio, ok = cerchio con spunta.
+   Il pulsante tiene sempre le sue misure; molla chiusa (smorzamento 0.8), ~550 ms. */
+.mm-morph {
+  --mm-d: 56px; --t: 550ms; --molla: cubic-bezier(.34, 1.2, .64, 1);
+  position: relative; isolation: isolate; min-height: var(--mm-d); background: none;
+  transition: color 200ms ease-out, transform var(--durata-secca);
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  .mm-morph { --molla: linear(0, 0.025, 0.0879, 0.1737, 0.2712, 0.372, 0.4704, 0.5624, 0.6459, 0.7195, 0.783, 0.8366, 0.8808, 0.9166, 0.945, 0.967, 0.9835, 0.9956, 1.0041, 1.0097, 1.013, 1.0147, 1.0152, 1.0148, 1.0138, 1.0125, 1.011, 1.0095, 1.008, 1.0066, 1); }
+}
+.mm-morph::before {
+  content: ""; position: absolute; inset: -1px; z-index: -1; pointer-events: none; background: var(--arancio);
+  clip-path: inset(1px 0 round var(--radius-sm));
+  transition: clip-path var(--t) var(--molla), background-color 300ms ease-out;
+}
+.mm-morph[data-fase="carico"], .mm-morph[data-fase="ok"] { cursor: progress; }
+.mm-morph[data-fase="carico"]::before { background: var(--notte-3); }
+.mm-morph[data-fase="carico"]::before, .mm-morph[data-fase="ok"]::before { clip-path: inset(1px calc(50% - var(--mm-d) / 2) round calc(var(--mm-d) / 2)); }
+.mm-morph:disabled[data-fase="riposo"]::before { background: var(--notte-3); }
+.mm-morph:disabled[data-fase="carico"] { color: var(--su-arancio); }
+.mm-morph:hover, .mm-morph:disabled { filter: none; background: none; }
+.mm-morph__testo { display: inline-flex; align-items: center; gap: var(--space-2); transition: opacity 200ms ease-out 260ms, filter 200ms ease-out 260ms, transform 240ms ease-out 260ms; }
+.mm-morph[data-fase]:not([data-fase="riposo"]) .mm-morph__testo { opacity: 0; filter: blur(4px); transform: translateY(-6px); transition-delay: 0ms; transition-duration: 140ms; }
+.mm-morph__anello, .mm-morph__spunta { position: absolute; left: 50%; top: 50%; opacity: 0; pointer-events: none; transition: opacity 140ms ease-out; }
+.mm-morph__anello { width: 24px; height: 24px; margin: -12px 0 0 -12px; border: 2px solid var(--linea-forte); border-top-color: var(--arancio); border-radius: 50%; }
+.mm-morph__spunta { width: 28px; height: 28px; margin: -14px 0 0 -14px; fill: none; stroke: var(--su-arancio); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 22; stroke-dashoffset: 22; }
+.mm-morph[data-fase="carico"] .mm-morph__anello { opacity: 1; transition-delay: 220ms; animation: mm-gira .8s linear infinite; }
+.mm-morph[data-fase="ok"] .mm-morph__spunta { opacity: 1; stroke-dashoffset: 0; transition: opacity 100ms ease-out, stroke-dashoffset 320ms ease-out 80ms; }
+.mm-morph[data-fase="ok"]::before { background: var(--arancio); }
+@keyframes mm-gira { to { transform: rotate(360deg); } }
+@media (hover: hover) { .mm-morph[data-fase="riposo"]:not(:disabled):hover::before { filter: brightness(1.1); } }
+.mm-morph:active:not(:disabled) { transform: translateY(1px); }
+@media (prefers-reduced-motion: reduce) {
+  .mm-morph, .mm-morph::before, .mm-morph__testo, .mm-morph__anello, .mm-morph__spunta { transition: none !important; }
+  .mm-morph__anello { animation: none !important; }
+}
 .mm-btn__freccia { font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; }
 
 /* ---------- TextField ---------- */

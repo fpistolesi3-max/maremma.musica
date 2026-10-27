@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useRef } from 'react';
 import { iscriviti, type StatoModulo } from '@/app/azioni/prevendita';
+import { PulsanteMorph } from '@/components/pulsante-morph';
 
 interface Props {
   slug: string;
@@ -110,9 +111,9 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
       </div>
 
       <div className="mm-prevendita__totale mt-1"><span>{totaleEtichetta}</span><strong>{totaleValore}</strong></div>
-      <button type="submit" className="mm-btn mm-btn--clip mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }} disabled={inCorso}>
-        {inCorso ? 'Un attimo…' : <>{aPagamento ? `Paga ${totaleValore}` : 'Mettiti in lista'} <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
-      </button>
+      <PulsanteMorph type="submit" className="mm-btn--pieno" caricamento={inCorso} disabled={inCorso}>
+        {aPagamento ? `Paga ${totaleValore}` : 'Mettiti in lista'} <span className="mm-btn__freccia" aria-hidden="true">→</span>
+      </PulsanteMorph>
       <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
         {senzaTelefono ? (aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · ALLA PORTA SERVE IL DOCUMENTO' : 'ALLA PORTA SERVE IL DOCUMENTO')
           : aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · IL QR ARRIVA DOPO IL PAGAMENTO' : 'IL QR ARRIVA SUBITO'}

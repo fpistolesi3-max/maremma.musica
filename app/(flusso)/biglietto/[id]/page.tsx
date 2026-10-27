@@ -12,6 +12,7 @@ import { BigliettoQr } from '@/components/biglietto';
 import { CampoLink, RicordaBiglietto } from '@/components/client';
 import { ModuloRecupero } from '@/components/modulo-recupero';
 import { Monogramma } from '@/components/ui';
+import { PulsanteMorph } from '@/components/pulsante-morph';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Il tuo QR', robots: { index: false, follow: false } };
@@ -66,6 +67,7 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
                   <p className="m-0 text-[18px] leading-[27px]">
                     Ci vediamo sotto cassa, {b.iscrizione.nome}.{b.evento.dressCode ? ` Dress code: ${b.evento.dressCode.toLowerCase()}.` : ''} {b.evento.senzaTelefono ? 'Serata senza telefono: alla porta porta un documento.' : 'Alla porta mostra questo QR con un documento.'}
                   </p>
+                  {pagato && b.iscrizione.importo > 0 && <PulsanteMorph href="#qr" esterno esito className="mm-btn--pieno">Biglietto pronto <span className="mm-btn__freccia" aria-hidden="true">↓</span></PulsanteMorph>}
                 </>
               ) : (
                 <>
@@ -81,7 +83,7 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
           </div>
 
           <div className="flex flex-col">
-            <section className="flex justify-center px-4 md:px-0"><BigliettoQr b={b} appenaPagato={appenaPagato} /></section>
+            <section id="qr" className="flex justify-center px-4 md:px-0"><BigliettoQr b={b} appenaPagato={appenaPagato} /></section>
             <section className="flex flex-col gap-3 px-4 pt-7 md:hidden">
               <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} />
             </section>
@@ -132,9 +134,9 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
                 {i.nome}, il tuo posto per {b.evento.nome} è tenuto fino alle <strong>{ora(i.scade ?? new Date().toISOString())}</strong>. Paga online <strong>{euro(i.importo)}</strong> e ti arriva subito il QR.
               </p>
               {errore && <p role="alert" className="m-0 border border-stop-testo px-4 py-3 text-[14px] leading-5 text-stop-testo">Non siamo riusciti ad aprire il pagamento. Riprova tra poco.</p>}
-              <a href={linkPagaBiglietto('', i.id, i.email)} className="mm-btn mm-btn--clip mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }}>
+              <PulsanteMorph href={linkPagaBiglietto('', i.id, i.email)} esterno className="mm-btn--pieno">
                 Paga {euro(i.importo)} <span className="mm-btn__freccia" aria-hidden="true">→</span>
-              </a>
+              </PulsanteMorph>
               <span className="text-center font-mono text-[11px] leading-4 text-osso-2">CARTA · APPLE PAY · GOOGLE PAY · SE NON PAGHI IN TEMPO IL POSTO TORNA LIBERO</span>
               <form action={lasciaPostoAzione} className="self-center">
                 <input type="hidden" name="id" value={i.id} />
