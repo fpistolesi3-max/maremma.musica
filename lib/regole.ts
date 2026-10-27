@@ -199,5 +199,11 @@ export function prenotazioneScaduta(p: Pick<PrenotazioneTavolo, 'stato' | 'scade
   return p.stato === 'in_attesa' && new Date(p.scade).getTime() <= adesso.getTime();
 }
 
+/**
+ * Percorso interno del sito (per `?dopo=`): inizia con "/" ma non con "//" né "/\" (il browser legge "\" come "/"),
+ * senza spazi né caratteri di controllo (tab e a capo vengono ignorati dal browser e "/<tab>/evil.com" diventerebbe "//evil.com").
+ */
+export const percorsoInterno = (p: string | null | undefined): p is string => typeof p === 'string' && /^\/(?![/\\])[^\s\x00-\x1f\\]*$/.test(p);
+
 export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 export const HANDLE_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;

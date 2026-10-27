@@ -29,7 +29,7 @@ non è configurato, le email si leggono su **`/dev/posta`** (anche i QR delle is
 
 In sviluppo `/accedi` mostra anche gli **account di prova**: un tocco e poi "Entra subito".
 Per cambiare account usa "Esci" (area PR in alto, admin in alto, scanner nelle impostazioni della porta).
-Da telefono: menu ☰ → "Area PR e staff".
+Da telefono: menu ☰ → "Accedi" (nel sito non c'è un link separato alla porta: lo staff entra da qui o dall'icona sul telefono).
 
 | Email | Ruolo | Dove va |
 | --- | --- | --- |
@@ -39,6 +39,16 @@ Da telefono: menu ☰ → "Area PR e staff".
 | `zarro@maremmamusica.test` | PR "Zarro Pollicino" | `/pr/zarro-pollicino` |
 
 Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_MITTENTE` in `.env.local`.
+
+## Area riservata (navigazione)
+
+Admin e staff hanno lo stesso guscio (`components/area/guscio.tsx`): barra laterale su desktop, barra in basso su telefono,
+sempre con **Porta** per prima (accesso allo scanner a un tocco). Voci: admin = Porta · Serate · PR · Iscrizioni · Staff;
+staff = Porta · PR. "PR" ha tre schede: Attività, Canali · senza PR e (solo admin) Account PR. Dopo il login ogni ruolo
+arriva alla sua pagina (admin `/admin`, staff `/door`, PR la sua area); chi apre un'area che non è sua torna alla propria,
+senza passare dal login. Il sito pubblico ha una sola voce, "Accedi". Nelle impostazioni della porta: "PR", "Admin" (solo admin)
+e, se la porta non è installata, il promemoria "Aggiungi a Home" (manifest `/porta.webmanifest`, parte da `/door`).
+Le voci sono solo navigazione: i permessi restano in `richiedi` e `lib/dati/*`.
 
 ## Pagine
 
@@ -116,7 +126,7 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
 - Gestione attività PR: `/gestione/pr` — solo admin e staff porta (i PR non entrano). Per ogni PR: in lista,
   nuovi nelle 24 ore, entrati, resa, prevendita pagata online, annullati, ultima attività (contano solo le prevendite pagate);
   scheda del singolo PR con iscritti al giorno, serate, lista e cronologia. Lo staff la apre dalle impostazioni
-  dello scanner, l'admin dal menu "Attività PR". Lo staff non vede le email dei PR e non modifica nulla.
+  dello scanner (voce "PR"), l'admin dalla barra (voce "PR"). Lo staff non vede le email dei PR e non modifica nulla.
 - I PR non incassano: niente "Ha pagato" e niente consegne di soldi. Il PR vede nella sua area solo i clienti che hanno
   pagato (o sono entrati); la classifica conta solo le prevendite pagate. Serata live dell'admin: prevendita incassata
   online, cassa alla porta (contanti e POS) e tavoli a parte, più le prevendite da rimborsare.

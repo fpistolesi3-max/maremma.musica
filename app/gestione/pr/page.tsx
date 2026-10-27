@@ -5,7 +5,7 @@ import { dataPunti, euro, giornoSett, quandoRelativo } from '@/lib/formato';
 import { Resa, Riquadro, SceltaSerata } from '@/components/gestione';
 import { AggiornamentoLive } from '@/components/admin/live';
 
-export const metadata = { title: 'Attività PR' };
+export const metadata = { title: 'PR' };
 
 type Props = { searchParams: Promise<{ serata?: string }> };
 

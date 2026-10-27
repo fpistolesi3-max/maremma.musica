@@ -6,6 +6,7 @@ import { leggi, modifica, segreto } from './dati/archivio';
 import type { Pr, Ruolo, Utente } from './dati/tipi';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
 import { modalitaProva } from './prova';
+import { percorsoInterno } from './regole';
 
 // Accesso senza password per PR, staff porta e admin: link magico o codice a 6 cifre via email.
 // La sessione è un cookie firmato HMAC (httpOnly). Nessuna password viene mai salvata.
@@ -42,10 +43,12 @@ export async function sessioneCorrente(): Promise<Sessione | null> {
   return { utente, pr };
 }
 
-/** Per le pagine protette: senza sessione del ruolo giusto rimanda all'accesso. */
+/** Per le pagine protette: senza sessione rimanda all'accesso, col ruolo sbagliato alla propria area. */
 export async function richiedi(ruoli: Ruolo[], dopo: string): Promise<Sessione> {
   const s = await sessioneCorrente();
-  if (!s || !ruoli.includes(s.utente.ruolo)) redirect(`/accedi?dopo=${encodeURIComponent(dopo)}`);
+  if (!s) redirect(`/accedi?dopo=${encodeURIComponent(dopo)}`);
+  // Dentro ma nell'area sbagliata (es. staff su /admin): torna alla propria, niente login.
+  if (!ruoli.includes(s.utente.ruolo)) redirect(destinazionePer(s.utente, s.pr));
   return s;
 }
 
@@ -74,7 +77,7 @@ export function puoAprire(ruolo: Ruolo, percorso: string) {
 }
 
 export function destinazionePer(utente: Utente, pr: Pr | null, dopo?: string | null) {
-  if (dopo && dopo.startsWith('/') && !dopo.startsWith('//') && dopo !== '/pr' && puoAprire(utente.ruolo, dopo)) return dopo;
+  if (percorsoInterno(dopo) && dopo !== '/pr' && puoAprire(utente.ruolo, dopo)) return dopo;
   if (utente.ruolo === 'admin') return '/admin';
   if (utente.ruolo === 'staff') return '/door';
   return pr ? `/pr/${pr.handle}` : '/';
