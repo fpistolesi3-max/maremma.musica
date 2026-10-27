@@ -14,6 +14,8 @@ const CHIAVE = 'mm-caricamento';
 export function Caricamento() {
   const ref = useRef<HTMLDivElement>(null);
   const [attivo, setAttivo] = useState(false);
+  // chiuso: l'overlay esce dall'albero di React (mai rimosso a mano dal DOM, altrimenti React non lo trova più alla navigazione)
+  const [chiuso, setChiuso] = useState(false);
   const isoLayout = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
   isoLayout(() => {
@@ -28,16 +30,18 @@ export function Caricamento() {
       } catch { /* senza storage si mostra e basta */ }
       return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     };
-    if (saltare()) { el.remove(); return; }
+    if (saltare()) { setChiuso(true); return; }
     setAttivo(true);
     const chiudi = () => el.classList.add('mm-caricamento--esce');
     // pagina pronta = idratata; minimo ~0,6 s per non fare un lampo
     const t = setTimeout(chiudi, Math.max(0, 600 - performance.now()));
     const eventi = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
     eventi.forEach((e) => window.addEventListener(e, chiudi, { once: true, passive: true }));
-    const via = setTimeout(() => el.remove(), 2000);
+    const via = setTimeout(() => setChiuso(true), 2000);
     return () => { clearTimeout(t); clearTimeout(via); eventi.forEach((e) => window.removeEventListener(e, chiudi)); };
   }, []);
+
+  if (chiuso) return null;
 
   return (
     <div ref={ref} className="mm-caricamento" aria-hidden="true">

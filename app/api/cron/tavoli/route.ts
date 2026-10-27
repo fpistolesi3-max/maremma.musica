@@ -4,7 +4,7 @@ import { inviaChiusuraTavolo, inviaPromemoriaRichiestaPr, inviaScadutaAlPr } fro
 import { verificaSospesi } from '@/lib/pagamento-tavolo';
 import { modalitaProva } from '@/lib/prova';
 import { verificaSospesiIscrizioni } from '@/lib/pagamento-prevendita';
-import { applicaScadenzeIscrizioni, cancellaDatiSenzaTelefono } from '@/lib/dati/prevendita';
+import { applicaScadenzeIscrizioni, anonimizzaIscrizioniVecchie } from '@/lib/dati/prevendita';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +26,9 @@ export async function GET(req: Request) {
   const prevendite = await verificaSospesiIscrizioni(origine);
   await applicaScadenze();
   await applicaScadenzeIscrizioni();
-  const cancellati = await cancellaDatiSenzaTelefono();
+  // Un errore qui non deve fermare i promemoria e gli avvisi dei tavoli.
+  let anonimizzate = 0;
+  try { anonimizzate = await anonimizzaIscrizioniVecchie(); } catch (e) { console.error('[privacy] anonimizzazione non riuscita', e); }
   let inviati = 0;
   // Richieste inserite dal PR (o dalla crew) non ancora pagate: promemoria al cliente e avviso al PR.
   for (const { vista, emailPr } of await promemoriaRichiestePr()) {
@@ -42,5 +44,5 @@ export async function GET(req: Request) {
       if (emailPr) await inviaScadutaAlPr(v, emailPr, origine);
     } catch (e) { console.error('[tavoli] avviso di chiusura non inviato', e); }
   }
-  return NextResponse.json({ ok: true, pagamenti, prevendite, promemoria: inviati, decadute: avvisati, datiCancellati: cancellati }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ ok: true, pagamenti, prevendite, promemoria: inviati, decadute: avvisati, anonimizzate }, { headers: { 'Cache-Control': 'no-store' } });
 }

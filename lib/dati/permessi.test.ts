@@ -695,14 +695,55 @@ test('serata senza telefono: il documento si conferma sempre, il telefono non sa
   assert.equal(cambiata.cognome, 'Bianchi');
   assert.equal(cambiata.tokenQr, verdi.tokenQr, 'è lo stesso biglietto');
 
-  // Dati cancellati 30 giorni dopo la serata, non prima; i conti restano.
+  // Cambio dell'email del biglietto: facoltativa, controllata, non cambia il resto.
+  await assert.rejects(m.admin.cambiaNominativo(admin, verdi.id, { ...nuovo, email: 'non-una-email' }), /email/);
+  await m.admin.cambiaNominativo(admin, verdi.id, { ...nuovo, email: ' Nuova@Esempio.it ' });
+  assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === verdi.id)!.email, 'nuova@esempio.it');
+  await m.admin.cambiaNominativo(admin, verdi.id, { ...nuovo, email: '' });
+  assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === verdi.id)!.email, 'nuova@esempio.it', 'vuota: resta com’era');
+});
+
+test('anonimizzazione: dopo 30 giorni spariscono i dati personali, restano età e conti, righe anonime senza conflitti', async () => {
+  const d0 = await m.archivio.leggi();
+  const ev = d0.eventi.find((e) => e.slug === 'senza-telefono')!;
+  const normale = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const crea = async (cognome: string, dataNascita: string, marketing: boolean) => {
+    const r = await m.pubblico.creaIscrizione({ slug: 'senza-telefono', handlePr: null, nome: 'Luca', cognome, dataNascita, email: `${cognome.toLowerCase()}@esempio.it`, marketing });
+    assert.ok(r.ok);
+    if (r.ok) await m.prevendita.confermaPagamentoIscrizione(r.iscrizione.id, `prova_${cognome}`);
+    return (await m.archivio.leggi()).iscrizioni.find((x) => x.cognome === cognome && x.eventoId === ev.id)!;
+  };
+  // Stessa età, stessa serata: due righe anonime non devono scontrarsi (indice unico solo sulle righe con i dati).
+  const a = await crea('Neri', '2000-10-31', true);   // 26 anni il giorno della serata
+  const b = await crea('Gialli', '2000-11-01', false); // 25 anni: compie gli anni il giorno dopo
   const fine = new Date(ev.dataFine ?? ev.data).getTime();
-  assert.equal(await m.prevendita.cancellaDatiSenzaTelefono(new Date(fine + 20 * 86_400_000)), 0, 'dopo 20 giorni no');
-  assert.equal(await m.prevendita.cancellaDatiSenzaTelefono(new Date(fine + 31 * 86_400_000)), 2);
-  const dopo = (await m.archivio.leggi()).iscrizioni.filter((x) => x.eventoId === ev.id);
-  assert.ok(dopo.every((x) => x.cognome === '' && x.email === '' && x.dataNascita === '0000-00-00'));
-  assert.equal(dopo.filter((x) => x.stato === 'entrato').length, 1, 'lo stato resta');
-  assert.equal(await m.prevendita.cancellaDatiSenzaTelefono(new Date(fine + 40 * 86_400_000)), 0, 'ripetibile');
-  // Una serata normale non viene toccata.
-  assert.ok((await m.archivio.leggi()).iscrizioni.some((x) => x.eventoId === ev0.id && x.cognome !== ''));
+  assert.equal(await m.prevendita.anonimizzaIscrizioniVecchie(new Date(fine + 20 * 86_400_000)), 0, 'dopo 20 giorni no');
+  assert.ok((await m.archivio.leggi()).iscrizioni.find((x) => x.id === a.id)!.cognome === 'Neri');
+
+  const n = await m.prevendita.anonimizzaIscrizioniVecchie(new Date(fine + 31 * 86_400_000));
+  assert.ok(n >= 2);
+  const dopo = (await m.archivio.leggi()).iscrizioni;
+  for (const id of [a.id, b.id]) {
+    const x = dopo.find((r) => r.id === id)!;
+    assert.equal(x.anonimizzata, true);
+    assert.deepEqual([x.nome, x.cognome, x.email, x.dataNascita], ['', '', '', ''], 'dati personali spariti');
+    assert.ok(x.anonimizzataAt);
+    assert.equal(x.stato, 'pagato', 'lo stato resta');
+    assert.equal(x.importo, a.importo);
+    assert.equal(x.lottoId, a.lottoId, 'il tipo di prevendita resta');
+    assert.equal(x.createdAt, id === a.id ? a.createdAt : b.createdAt, 'data d’acquisto resta');
+  }
+  assert.equal(dopo.find((r) => r.id === a.id)!.etaAllaSerata, 26);
+  assert.equal(dopo.find((r) => r.id === b.id)!.etaAllaSerata, 25, 'età alla serata, non oggi');
+  assert.equal(dopo.find((r) => r.id === a.id)!.consensoMarketing, true, 'il consenso marketing non si tocca');
+  // Vale per tutte le serate passate da 30 giorni, anche normali; nessuna riga viva viene toccata.
+  assert.ok(dopo.filter((r) => r.eventoId === normale.id).every((r) => r.anonimizzata));
+  assert.equal(dopo.filter((r) => !r.anonimizzata && r.nome === '').length, 0);
+  // Idempotente, e chi si iscrive di nuovo con gli stessi dati non è bloccato da una riga anonima.
+  assert.equal(await m.prevendita.anonimizzaIscrizioniVecchie(new Date(fine + 40 * 86_400_000)), 0);
+  const csv = await m.admin.csvEvento(await sessione('admin@maremmamusica.test'), ev.id);
+  assert.ok(csv && !csv.testo.includes('neri@esempio.it') && csv.testo.includes('Età alla serata'));
+  assert.equal(dopo.filter((r) => r.eventoId === ev.id && r.anonimizzata).length >= 2, true);
+  const { giaIscritto } = await import('../regole');
+  assert.equal(giaIscritto(dopo, ev.id, '', ''), undefined, 'una riga anonima non conta come doppione');
 });

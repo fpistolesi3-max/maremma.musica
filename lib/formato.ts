@@ -45,6 +45,7 @@ export const numeroEvento = (n: number | null) => (n == null ? 'MM/—' : `MM/${
 
 /** "14.05.2001" da "2001-05-14" */
 export function nascita(ymd: string) {
+  if (!ymd) return '';   // iscrizione anonimizzata
   const [a, m, g] = ymd.split('-');
   return `${g}.${m}.${a}`;
 }

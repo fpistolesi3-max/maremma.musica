@@ -65,7 +65,7 @@ function normalizza(d: Archivio): Archivio {
     l.categoria ??= null; l.confermaCategoria ??= false; l.uscitaGiorniPrima ??= null; l.fineOrePrima ??= null;
     l.dopoPrecedente ??= false; l.prAbilitati ??= null;
   }
-  for (const i of d.iscrizioni) { i.categoria ??= null; i.rifiutoIngresso ??= null; }
+  for (const i of d.iscrizioni) { i.categoria ??= null; i.rifiutoIngresso ??= null; i.anonimizzata ??= false; i.etaAllaSerata ??= null; i.anonimizzataAt ??= null; }
   for (const e of d.eventi) { e.prezzoCassa ??= null; e.cassaAttiva ??= true; e.senzaTelefono ??= false; e.piantinaUrl ??= null; }
   for (const t of d.tavoli) { t.x ??= null; t.y ??= null; t.prAbilitati ??= null; }
   return d;

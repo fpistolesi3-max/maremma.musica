@@ -51,8 +51,8 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
               {righe.slice(0, 500).map(({ iscrizione: i, evento, lista }) => (
                 <tr key={i.id}>
                   <td>
-                    <div className="text-[15px] font-medium">{i.nome} {i.cognome}</div>
-                    <div className="font-mono text-[11px] text-osso-2">{nascita(i.dataNascita)} · {i.origine === 'cassa' ? `INGRESSO IN CASSA${i.porta ? ` · ${i.porta}` : ''}` : `${i.email} · ${mostraCodice(i.codice)}`}</div>
+                    <div className="text-[15px] font-medium">{i.anonimizzata ? 'Dati cancellati' : `${i.nome} ${i.cognome}`}</div>
+                    <div className="font-mono text-[11px] text-osso-2">{i.anonimizzata ? `${i.etaAllaSerata != null ? `${i.etaAllaSerata} ANNI · ` : ''}${i.origine === 'cassa' ? 'INGRESSO IN CASSA' : 'ANONIMIZZATA'}` : `${nascita(i.dataNascita)} · ${i.origine === 'cassa' ? `INGRESSO IN CASSA${i.porta ? ` · ${i.porta}` : ''}` : `${i.email} · ${mostraCodice(i.codice)}`}`}</div>
                   </td>
                   <td className="whitespace-nowrap font-mono text-[12px]">{dataPunti(evento.data)} {evento.nome}</td>
                   <td className="whitespace-nowrap text-[14px]">{lista}</td>
@@ -65,7 +65,7 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
                   </td>
                   <td className="whitespace-nowrap font-mono text-[11px] text-osso-2">{quandoRelativo(i.createdAt)}</td>
                   <td><AzioniIscrizione id={i.id} stato={i.stato} pagato={Boolean(i.metodoPagamento)} online={i.metodoPagamento === 'online'}
-                    nominativo={evento.senzaTelefono ? { nome: i.nome, cognome: i.cognome, nascita: nascita(i.dataNascita) } : null}
+                    nominativo={evento.senzaTelefono && !i.anonimizzata ? { nome: i.nome, cognome: i.cognome, nascita: i.dataNascita, email: i.origine === 'cassa' ? null : i.email } : null}
                     daRimborsare={Boolean(i.pagamentoOnline?.daRimborsare)} maiPagata={Boolean(i.pagamentoOnline && !i.metodoPagamento)} /></td>
                 </tr>
               ))}

@@ -251,13 +251,14 @@ export async function azioneIscrizione(id: string, azione: 'annulla' | 'rimborsa
   return { ok: azione === 'rimborsa' ? 'Rimborsato.' : 'Fatto.' };
 }
 
-/** Cambio di nominativo dalla scheda delle iscrizioni. `dataNascita`: GG.MM.AAAA. */
-export async function cambiaNominativoAzione(id: string, nome: string, cognome: string, dataNascita: string) {
+/** Cambio di nominativo dalla scheda delle iscrizioni. `dataNascita`: AAAA-MM-GG (campo data) oppure GG.MM.AAAA. */
+export async function cambiaNominativoAzione(id: string, nome: string, cognome: string, dataNascita: string, email = '') {
   const s = await admin();
-  const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(dataNascita.trim());
-  const iso = m ? componiData(m[1], m[2], m[3]) : null;
-  if (!iso) return { errore: 'La data di nascita va scritta come GG.MM.AAAA' };
-  try { await cambiaNominativo(s, id, { nome, cognome, dataNascita: iso }); } catch (e) { return { errore: (e as Error).message }; }
+  const g = dataNascita.trim();
+  const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(g) ?? /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(g);
+  const iso = !m ? null : g.includes('-') && m[1].length === 4 ? componiData(m[3], m[2], m[1]) : componiData(m[1], m[2], m[3]);
+  if (!iso) return { errore: 'Scegli la data di nascita' };
+  try { await cambiaNominativo(s, id, { nome, cognome, dataNascita: iso, email }); } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/admin', 'layout');
   return { ok: 'Nominativo cambiato.' };
 }

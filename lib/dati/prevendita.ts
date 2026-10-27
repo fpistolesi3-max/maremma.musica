@@ -3,6 +3,7 @@ import { leggi, modifica } from './archivio';
 import type { Archivio, Iscrizione } from './tipi';
 import type { Sessione } from '../sessione';
 import { bigliettoDi, type Biglietto } from './pubblico';
+import { anniCompiuti, dataIso } from '../formato';
 import { eventoPassato, giaIscritto, iscrizioneScaduta, pagamentoIscrizioneValido, tienePosto } from '../regole';
 
 // Pagamento online della prevendita in lista: stesso giro dei tavoli (lib/dati/tavoli.ts).
@@ -18,26 +19,29 @@ export async function applicaScadenzeIscrizioni() {
   if (d.iscrizioni.some((i) => iscrizioneScaduta(i))) await modifica((a) => { faiScadere(a); });
 }
 
-/** Giorni dopo la serata senza telefono oltre i quali nome, cognome, data di nascita ed email dei clienti si cancellano. */
-export const GIORNI_DATI_SENZA_TELEFONO = 30;
-export const DATI_CANCELLATI = '(dati cancellati)';
+/** Giorni dopo la serata oltre i quali i dati personali di ogni iscrizione si cancellano. */
+export const GIORNI_ANONIMIZZAZIONE = 30;
 
 /**
- * Serate senza telefono: i dati usati per il controllo del documento non servono più dopo la serata. Passati
- * `GIORNI_DATI_SENZA_TELEFONO` giorni restano solo stato, importo e ingresso (i conti tornano), il resto si azzera.
- * Idempotente: ritorna quante iscrizioni ha ripulito. Lo chiama il cron giornaliero.
+ * Dopo `GIORNI_ANONIMIZZAZIONE` giorni dalla serata, per tutte le iscrizioni (anche gratis, annullate, in cassa) si cancellano
+ * nome, cognome, email e data di nascita. La riga resta anonima e utile per le analisi: età alla serata (calcolata prima di
+ * cancellare), tipo di prevendita, importo, PR o sito, data e ora d'acquisto, ingresso sì/no con l'ora. Il consenso marketing
+ * non si tocca. Idempotente: ritorna quante iscrizioni ha anonimizzato. Lo chiama il cron giornaliero.
  */
-export async function cancellaDatiSenzaTelefono(adesso = new Date()): Promise<number> {
-  const limite = new Date(adesso.getTime() - GIORNI_DATI_SENZA_TELEFONO * 86_400_000);
+export async function anonimizzaIscrizioniVecchie(adesso = new Date()): Promise<number> {
+  const limite = new Date(adesso.getTime() - GIORNI_ANONIMIZZAZIONE * 86_400_000);
   const da = (d: Readonly<Archivio>) => {
-    const scadute = new Set(d.eventi.filter((e) => e.senzaTelefono && eventoPassato(e, limite)).map((e) => e.id));
-    return d.iscrizioni.filter((i) => scadute.has(i.eventoId) && i.nome !== DATI_CANCELLATI);
+    const scadute = new Map(d.eventi.filter((e) => eventoPassato(e, limite)).map((e) => [e.id, e]));
+    return d.iscrizioni.filter((i) => !i.anonimizzata && scadute.has(i.eventoId));
   };
   if (!da(await leggi()).length) return 0;
   return modifica((d) => {
     const lista = da(d);
     for (const i of lista) {
-      i.nome = DATI_CANCELLATI; i.cognome = ''; i.dataNascita = '0000-00-00'; i.email = ''; i.consensoMarketing = false;
+      const e = d.eventi.find((x) => x.id === i.eventoId)!;
+      i.etaAllaSerata = i.dataNascita ? anniCompiuti(i.dataNascita, dataIso(e.data)) : null;
+      i.nome = ''; i.cognome = ''; i.dataNascita = ''; i.email = '';
+      i.anonimizzata = true; i.anonimizzataAt = adesso.toISOString();
     }
     return lista.length;
   });
