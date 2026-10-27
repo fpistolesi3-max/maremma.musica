@@ -38,13 +38,20 @@ function carica(): Promise<Archivio> {
 /** Aggiorna un archivio salvato con una versione precedente (campi aggiunti dopo). */
 function normalizza(d: Archivio): Archivio {
   d.consegne ??= [];
+  d.tavoli ??= [];
+  d.prenotazioni ??= [];
   for (const i of d.iscrizioni) {
     i.canale ??= 'diretto';
     i.consegnaId ??= null;
     i.origine ??= 'lista';
     i.rifCassa ??= null;
   }
-  for (const e of d.eventi) e.prezzoCassa ??= null;
+  for (const p of d.prenotazioni) {
+    p.ingressi ??= []; p.promemoriaAt ??= null;
+    p.metodoPagamento ??= null; p.pagatoDa ??= null; p.chiusaDa ??= null; p.avvisoChiusuraAt ??= null;
+  }
+  for (const e of d.eventi) { e.prezzoCassa ??= null; e.piantinaUrl ??= null; }
+  for (const t of d.tavoli) { t.x ??= null; t.y ??= null; t.prAbilitati ??= null; }
   return d;
 }
 

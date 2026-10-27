@@ -10,7 +10,7 @@ export function ModuloRecupero({ email = '' }: { email?: string }) {
       <div role="status" className="flex flex-col gap-3 border border-linea bg-notte-2 p-6">
         <span className="font-display text-[28px] font-extrabold uppercase leading-none">Controlla la posta</span>
         <p className="m-0 text-[16px] leading-6 text-osso-2">
-          Se <span className="text-osso">{stato.email}</span> è in lista per una delle prossime serate, ti abbiamo appena mandato i link ai QR.
+          Se <span className="text-osso">{stato.email}</span> è in lista o ha un tavolo per una delle prossime serate, ti abbiamo appena mandato i link.
           Non trovi l&apos;email? Guarda nello spam.
         </p>
       </div>

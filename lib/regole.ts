@@ -1,4 +1,4 @@
-import type { Evento, Iscrizione, Lotto } from './dati/tipi';
+import type { Evento, Iscrizione, Lotto, PrenotazioneTavolo } from './dati/tipi';
 import { anniCompiuti, dataIso, dataPunti, euro } from './formato';
 
 // Regole di business pure (senza archivio): testate in lib/regole.test.ts.
@@ -90,6 +90,26 @@ export function componiData(giorno: string, mese: string, anno: string): string 
   if (d.getUTCFullYear() !== a || d.getUTCMonth() !== m - 1 || d.getUTCDate() !== g) return null;
   if (a < 1900 || d.getTime() > Date.now()) return null;
   return `${a}-${String(m).padStart(2, '0')}-${String(g).padStart(2, '0')}`;
+}
+
+/** Giorni per pagare in anticipo un tavolo richiesto, prima che la prenotazione decada. */
+export const GIORNI_PAGAMENTO_TAVOLO = 3;
+
+/** Termine per pagare: qualche giorno dalla richiesta, ma mai oltre l'apertura della serata. */
+export function scadenzaPagamento(richiesta: Date, evento: Pick<Evento, 'data'>) {
+  return new Date(Math.min(richiesta.getTime() + GIORNI_PAGAMENTO_TAVOLO * 86_400_000, new Date(evento.data).getTime())).toISOString();
+}
+
+/** Le richieste dei tavoli si chiudono all'apertura: dopo, il termine per pagare sarebbe già passato. */
+export function richiesteTavoliAperte(evento: Pick<Evento, 'data'>, adesso = new Date()) {
+  return new Date(evento.data).getTime() > adesso.getTime();
+}
+
+/** Tiene occupato il tavolo: in attesa di pagamento o già pagata. */
+export const prenotazioneAttiva = (p: Pick<PrenotazioneTavolo, 'stato'>) => p.stato === 'in_attesa' || p.stato === 'confermata';
+
+export function prenotazioneScaduta(p: Pick<PrenotazioneTavolo, 'stato' | 'scade'>, adesso = new Date()) {
+  return p.stato === 'in_attesa' && new Date(p.scade).getTime() <= adesso.getTime();
 }
 
 export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;

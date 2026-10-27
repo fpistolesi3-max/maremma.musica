@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome } from './regole';
+import { componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamento, GIORNI_PAGAMENTO_TAVOLO } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
 import { cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro } from './formato';
@@ -11,7 +11,7 @@ import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
 const evento = (p: Partial<Evento> = {}): Evento => ({
   id: 'e1', numero: 25, slug: 'halloween-party', nome: 'Halloween Party', data: '2026-10-31T22:00:00+01:00', dataFine: '2026-11-01T04:00:00+01:00',
   location: null, comune: null, lat: null, lng: null, locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, prezzoCassa: null,
-  dressCode: null, lineup: [], infoArrivo: null, locandinaUrl: null, prezzoLista: 10, etaMinima: 18, pubblicato: true, prAbilitati: null,
+  dressCode: null, lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 10, etaMinima: 18, pubblicato: true, prAbilitati: null,
   createdAt: '', updatedAt: '', ...p,
 });
 const lotto = (p: Partial<Lotto> = {}): Lotto => ({ id: 'l1', eventoId: 'e1', nome: 'Lista', prezzo: 10, quantita: null, dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0, ...p });
@@ -101,4 +101,19 @@ test('canale di arrivo: link etichettato, pagina di provenienza, browser dei soc
   assert.equal(canaleDaUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Instagram 339.0.0.13.107'), 'instagram');
   assert.equal(canaleDaUserAgent('Mozilla/5.0 (iPhone) [FBAN/FBIOS;FBAV/470.0]'), 'facebook');
   assert.equal(canaleDaUserAgent('Mozilla/5.0 (iPhone) Safari/604.1'), null);
+});
+
+test('tavoli: termine per pagare entro l’apertura, richieste chiuse a serata iniziata', () => {
+  const e = evento();                                   // apre il 31.10 alle 22:00 (Roma)
+  const apertura = new Date(e.data).getTime();
+  // Lontano dalla serata: il termine è a qualche giorno dalla richiesta
+  const presto = new Date('2026-10-20T12:00:00+02:00');
+  assert.equal(new Date(scadenzaPagamento(presto, e)).getTime(), presto.getTime() + GIORNI_PAGAMENTO_TAVOLO * 86_400_000);
+  // Il giorno prima: il termine si ferma all'apertura
+  const vicino = new Date('2026-10-30T18:00:00+01:00');
+  assert.equal(new Date(scadenzaPagamento(vicino, e)).getTime(), apertura);
+  assert.equal(richiesteTavoliAperte(e, vicino), true);
+  // Dall'apertura in poi non si chiede più: il termine sarebbe già passato
+  assert.equal(richiesteTavoliAperte(e, new Date(apertura)), false);
+  assert.equal(richiesteTavoliAperte(e, new Date(apertura + 3_600_000)), false);
 });

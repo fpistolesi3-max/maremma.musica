@@ -71,6 +71,40 @@ export default async function SerataLive({ params }: Props) {
             </div>
           </section>
 
+          {l.tavoli.totale > 0 && (
+            <section className="flex flex-col gap-[10px]">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Tavoli</h2>
+                <span className="flex gap-x-5"><a href={`/api/admin/csv-tavoli/${e.id}`} className="link-sottolineato whitespace-nowrap py-2">CSV</a><a href={`/admin/eventi/${e.id}/modifica#tavoli`} className="link-sottolineato whitespace-nowrap py-2">Gestisci i tavoli →</a></span>
+              </div>
+              <div className="grid grid-cols-2 border border-linea md:grid-cols-4">
+                <Numero etichetta="Pagati" valore={`${l.tavoli.pagati}/${l.tavoli.totale}`} colore="text-ok" nota={`${l.tavoli.entrati}/${l.tavoli.persone} PERSONE ENTRATE`} />
+                <Numero etichetta="Incassato tavoli" valore={euro(l.tavoli.incassato)} nota="PAGATO IN ANTICIPO" bordo />
+                <Numero etichetta="In attesa" valore={String(l.tavoli.inAttesa)} colore={l.tavoli.inAttesa ? 'text-attesa' : undefined} nota={`${euro(l.tavoli.atteso)} DA INCASSARE`} bordo />
+                <Numero etichetta="Liberi" valore={String(l.tavoli.liberi)} nota="ANCORA DA VENDERE" bordo />
+              </div>
+              {l.tavoli.perLista.length > 0 && (
+                <div className="mm-scroll">
+                  <table className="mm-classifica">
+                    <thead><tr><th>Lista</th><th className="mm-num">Pagati</th><th className="mm-num">Incassato</th><th className="mm-num">In attesa</th><th className="mm-num">Da incassare</th></tr></thead>
+                    <tbody>
+                      {l.tavoli.perLista.map((r) => (
+                        <tr key={r.prId ?? 'mm'}>
+                          <td className="mm-classifica__nome">{r.nome}</td>
+                          <td className="mm-num">{r.pagati}</td>
+                          <td className="mm-num">{euro(r.incassato)}</td>
+                          <td className="mm-num">{r.inAttesa}</td>
+                          <td className="mm-num">{euro(r.atteso)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <span className="text-[13px] text-osso-3">L&apos;incasso dei tavoli è a parte: non entra in &quot;Incassato&quot; qui sopra, che conta lista e cassa.</span>
+            </section>
+          )}
+
           <section className="flex flex-col gap-[10px]">
             <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">PR della serata</h2>
             <div className="mm-scroll">

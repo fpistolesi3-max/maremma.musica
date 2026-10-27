@@ -4,6 +4,9 @@ import { notFound } from 'next/navigation';
 import { sessioneCorrente } from '@/lib/sessione';
 import { eventiPubblici, prValido } from '@/lib/dati/pubblico';
 import { serateDelPr, totaliPr } from '@/lib/dati/area-pr';
+import { tavoliDelPr } from '@/lib/dati/tavoli';
+import { quandoScade } from '@/lib/tavolo-email';
+import { AzioniPrenotazione } from '@/components/tavoli-azioni';
 import { chipLista, isAttiva } from '@/lib/regole';
 import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, orari, quandoRelativo } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
@@ -15,7 +18,7 @@ import { esci } from '@/app/azioni/accesso';
 
 export const dynamic = 'force-dynamic';
 
-type Props = { params: Promise<{ handle: string }>; searchParams: Promise<{ serata?: string }> };
+type Props = { params: Promise<{ handle: string }>; searchParams: Promise<{ serata?: string; tavolo?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const pr = await prValido((await params).handle);
@@ -32,7 +35,8 @@ export default async function PaginaPr({ params, searchParams }: Props) {
   const pr = await prValido(handle);
   if (!pr) notFound();
   const s = await sessioneCorrente();
-  if (s?.utente.ruolo === 'pr' && s.pr?.id === pr.id) return <AreaPr sessioneHandle={pr.handle} serataScelta={(await searchParams).serata} />;
+  const { serata, tavolo } = await searchParams;
+  if (s?.utente.ruolo === 'pr' && s.pr?.id === pr.id) return <AreaPr sessioneHandle={pr.handle} serataScelta={serata} nuovoTavolo={tavolo} />;
   return <LinkGenerico handle={pr.handle} nome={pr.nomeDisplay} />;
 }
 
@@ -72,7 +76,8 @@ async function LinkGenerico({ handle, nome }: { handle: string; nome: string }) 
   );
 }
 
-async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string; serataScelta?: string }) {
+/** `nuovoTavolo`: id della richiesta appena inserita dal PR per un cliente, da confermare a schermo. */
+async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneHandle: string; serataScelta?: string; nuovoTavolo?: string }) {
   const s = (await sessioneCorrente())!;
   const pr = s.pr!;
   const serate = await serateDelPr(s);
@@ -84,6 +89,8 @@ async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string
   const primo = serata?.classifica[0];
   const mio = serata?.classifica.find((r) => r.sonoIo);
   const GIORNI = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
+  const tavoli = serata ? await tavoliDelPr(s, serata.evento.id) : null;
+  const appena = nuovoTavolo ? tavoli?.mie.find((v) => v.prenotazione.id === nuovoTavolo && v.prenotazione.stato === 'in_attesa') : undefined;
 
   return (
     <div className="mm-grana flex min-h-dvh flex-col">
@@ -94,7 +101,7 @@ async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string
         <span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-full border border-linea-forte bg-notte-3 font-display text-[16px] font-black">{iniziali}</span>
       </header>
 
-      <main className="mx-auto grid w-full max-w-[1280px] gap-x-12 px-4 pb-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:px-10">
+      <main className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-x-12 px-4 pb-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:px-10">
         <div className="flex flex-col">
           <section className="flex flex-col gap-[10px] pb-6 pt-7">
             <h1 className="m-0 font-display text-[64px] font-black uppercase leading-[.84] md:text-[88px]">Ciao,<br />{pr.nomeDisplay.split(' ')[0]}.</h1>
@@ -171,6 +178,47 @@ async function AreaPr({ sessioneHandle, serataScelta }: { sessioneHandle: string
                   <span className="text-right font-mono text-[11px] leading-4 text-ok">GIÀ CONSEGNATI<br />{euro(serata.soldi.consegnato)}</span>
                 </div>
               )}
+            </section>
+          )}
+
+          {serata && tavoli && (tavoli.affidati > 0 || tavoli.mie.length > 0) && (
+            <section id="tavoli" className="flex scroll-mt-4 flex-col gap-[14px] pt-8">
+              <div className="flex items-end justify-between">
+                <h2 className="m-0 font-display text-[36px] font-black uppercase leading-[.9]">Tavoli</h2>
+                <span className="font-mono text-[11px] text-osso-2">{tavoli.liberi} LIBERI SU {tavoli.affidati}</span>
+              </div>
+              {appena && (
+                <p role="status" className="m-0 border border-ok px-4 py-3 text-[14px] leading-5 text-ok">
+                  ✓ Richiesta inserita: tavolo {appena.tavolo.nome} per {appena.prenotazione.nome} {appena.prenotazione.cognome}, fermo fino a {quandoScade(appena.prenotazione.scade)}. Al cliente arriva l&apos;email con il link.
+                </p>
+              )}
+              {tavoli.aperte && tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--linea self-start">Prenota per un cliente</Link>}
+              {tavoli.aperte ? (
+                <>
+                  <span className="text-[14px] leading-5 text-osso-2">{tavoli.liberi > 0 ? 'Oppure manda questo link' : 'Manda questo link'}: chi prenota da qui finisce nei tuoi tavoli.</span>
+                  <CampoLink link={`/tavoli/${serata.evento.slug}?pr=${pr.handle}`} />
+                </>
+              ) : <span className="text-[14px] leading-5 text-osso-2">La serata è iniziata: i tavoli non si chiedono più dal sito.</span>}
+              <div className="flex flex-col">
+                {tavoli.mie.map((v) => {
+                  const p = v.prenotazione;
+                  const chip = { in_attesa: ['mm-chip--incassare', 'In attesa di pagamento'], confermata: ['mm-chip--entrato', 'Pagato'], annullata: ['mm-chip--annullato', 'Annullata'], rimborsata: ['mm-chip--annullato', 'Rimborsata'], scaduta: ['mm-chip--annullato', 'Scaduta'] }[p.stato];
+                  return (
+                    <div key={p.id} className="flex flex-col gap-2 border-t border-linea py-4 last:border-b">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="font-display text-[24px] font-extrabold uppercase leading-none">{v.tavolo.nome}</span>
+                        <span className={`mm-chip ${chip[0]}`}>{chip[1]}</span>
+                        <span className="flex-grow text-right font-display text-[22px] font-extrabold leading-none">{euro(p.spesaMinima)}</span>
+                      </div>
+                      <span className="font-mono text-[11px] leading-4 text-osso-2">
+                        {`${p.nome} ${p.cognome}`.toUpperCase()} · {p.persone} PERSONE · {p.telefono}{p.stato === 'in_attesa' ? ` · DECADE ${quandoScade(p.scade).toUpperCase()}` : ''}
+                      </span>
+                      {p.stato === 'in_attesa' && <AzioniPrenotazione id={p.id} nome={`${p.nome} ${p.cognome}`} conferma={false} />}
+                    </div>
+                  );
+                })}
+              </div>
+              <span className="text-[13px] leading-5 text-osso-3">Il tavolo va pagato in anticipo: lo conferma la crew quando riceve i soldi. Dopo il termine torna libero.</span>
             </section>
           )}
 

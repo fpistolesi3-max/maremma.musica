@@ -7,6 +7,7 @@ import { bigliettoPubblico, bigliettiPerEmail, creaIscrizione } from '@/lib/dati
 import { inviaBiglietto, inviaRecupero, linkBiglietto } from '@/lib/biglietto-email';
 import { componiData, EMAIL_RE } from '@/lib/regole';
 import { origineRichiesta } from '@/lib/sessione';
+import { prenotazioniPerEmail } from '@/lib/dati/tavoli';
 
 export interface StatoModulo {
   errori: Partial<Record<'nome' | 'cognome' | 'nascita' | 'email' | 'privacy' | 'generale', string>>;
@@ -64,6 +65,7 @@ export async function recuperaQr(_prima: StatoRecupero, f: FormData): Promise<St
   const email = testo(f, 'email').toLowerCase();
   if (!EMAIL_RE.test(email)) return { inviata: false, errore: 'Scrivi l’email che hai usato per iscriverti.', email };
   const biglietti = await bigliettiPerEmail(email);
-  if (biglietti.length) await inviaRecupero(email, biglietti, await origineRichiesta());
+  const tavoli = await prenotazioniPerEmail(email);
+  if (biglietti.length || tavoli.length) await inviaRecupero(email, biglietti, await origineRichiesta(), tavoli);
   return { inviata: true, email };
 }

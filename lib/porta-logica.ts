@@ -14,7 +14,22 @@ export interface VocePorta {
   porta: string | null;
   lista: string;
   canale: string;             // da dove si è iscritto (instagram, diretto…): utile quando non c'è un PR
-  origine: 'lista' | 'cassa'; // cassa = registrato alla porta, senza QR
+  origine: 'lista' | 'cassa' | 'tavolo'; // cassa = registrato alla porta, senza QR
+  /**
+   * Solo per i tavoli: un QR per tutto il gruppo. Ogni passaggio fa entrare una persona finché ci sono posti;
+   * `pagato` falso = prenotazione ancora in attesa del pagamento anticipato (non si entra).
+   */
+  tavolo?: { nome: string; persone: number; entrati: number; pagato: boolean };
+}
+
+/** Persone che una voce porta dentro: una, oppure tutto il gruppo del tavolo. */
+export function personeVoce(v: VocePorta) {
+  if (v.stato === 'annullato' || v.stato === 'rimborsato') return 0;
+  return v.tavolo ? v.tavolo.persone : 1;
+}
+
+export function entratiVoce(v: VocePorta) {
+  return v.tavolo ? v.tavolo.entrati : v.stato === 'entrato' ? 1 : 0;
 }
 
 /** Dati di chi entra pagando in cassa, senza lista e senza QR. */
@@ -37,9 +52,18 @@ export interface OpzioniIngresso {
 /**
  * Decide l'esito e, se la persona entra, restituisce la voce aggiornata.
  * Idempotente: il secondo passaggio dà sempre "già entrato" con l'orario del primo.
+ * Fa eccezione il QR di un tavolo, che vale per più persone: ogni passaggio ne fa entrare una, fino al completo.
  */
 export function decidiIngresso(voce: VocePorta, o: OpzioniIngresso): { esito: EsitoPorta; aggiornata: VocePorta | null } {
   if (voce.stato === 'annullato' || voce.stato === 'rimborsato') return { esito: { esito: 'annullato', voce }, aggiornata: null };
+  if (voce.tavolo) {
+    const t = voce.tavolo;
+    if (!t.pagato) return { esito: { esito: 'non_valido', motivo: 'Tavolo non ancora pagato' }, aggiornata: null };
+    if (t.entrati >= t.persone) return { esito: { esito: 'gia_entrato', voce }, aggiornata: null };
+    const entrati = t.entrati + 1;
+    const aggiornata: VocePorta = { ...voce, tavolo: { ...t, entrati }, stato: entrati >= t.persone ? 'entrato' : 'pagato', oraCheckIn: o.ora, porta: o.porta };
+    return { esito: { esito: 'entrato', voce: aggiornata, incassato: 0, ora: o.ora, primaPagato: true }, aggiornata };
+  }
   if (voce.stato === 'entrato') return { esito: { esito: 'gia_entrato', voce }, aggiornata: null };
   const daPagare = voce.stato === 'in_lista' && voce.importo > 0;
   if (daPagare && !o.incassa) return { esito: { esito: 'da_incassare', voce }, aggiornata: null };

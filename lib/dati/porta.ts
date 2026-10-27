@@ -1,13 +1,13 @@
 import 'server-only';
 import { leggi, modifica, segreto } from './archivio';
-import type { Archivio, Iscrizione } from './tipi';
+import type { Archivio, Iscrizione, PrenotazioneTavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { leggiTokenQr, verificaTokenQr } from '../qr-token';
 import { decidiIngresso, trovaVoce, type DatiCassa, type EsitoPorta, type OpzioniIngresso, type VocePorta } from '../porta-logica';
 import { randomUUID } from 'node:crypto';
 import { creaCodice, creaTokenQr } from '../qr-token';
 import { etaSufficiente, giaIscritto } from '../regole';
-import { eventoPassato } from '../regole';
+import { eventoPassato, prenotazioneAttiva, prenotazioneScaduta } from '../regole';
 
 // Porta: staff e admin. Lo staff vede le iscrizioni ma dei PR solo il nome della lista
 // (equivalente di porta_elenco() nello schema Supabase).
@@ -22,6 +22,28 @@ function voce(d: Readonly<Archivio>, i: Iscrizione): VocePorta {
     id: i.id, token: i.tokenQr, codice: i.codice, nome: i.nome, cognome: i.cognome, dataNascita: i.dataNascita,
     stato: i.stato, importo: i.importo, oraCheckIn: i.oraCheckIn, porta: i.porta, lista: i.origine === 'cassa' ? 'Cassa' : pr?.nomeDisplay ?? 'Maremma Musica', canale: i.canale ?? 'diretto', origine: i.origine ?? 'lista',
   };
+}
+
+/** Il tavolo alla porta: una voce sola per tutto il gruppo, con quanti sono già entrati. */
+function voceTavolo(d: Readonly<Archivio>, p: PrenotazioneTavolo): VocePorta {
+  const pr = p.prId ? d.pr.find((x) => x.id === p.prId) : null;
+  const t = d.tavoli.find((x) => x.id === p.tavoloId);
+  const chiusa = !prenotazioneAttiva(p) || prenotazioneScaduta(p);
+  const ultimo = p.ingressi[p.ingressi.length - 1];
+  return {
+    id: p.id, token: p.tokenQr, codice: p.codice, nome: p.nome, cognome: p.cognome, dataNascita: '',
+    stato: p.stato === 'rimborsata' ? 'rimborsato' : chiusa ? 'annullato' : p.ingressi.length >= p.persone ? 'entrato' : p.stato === 'confermata' ? 'pagato' : 'in_lista',
+    importo: p.spesaMinima, oraCheckIn: ultimo?.ora ?? null, porta: ultimo?.porta ?? null,
+    lista: pr?.nomeDisplay ?? 'Maremma Musica', canale: 'diretto', origine: 'tavolo',
+    tavolo: { nome: t?.nome ?? 'Tavolo', persone: p.persone, entrati: p.ingressi.length, pagato: p.stato === 'confermata' },
+  };
+}
+
+function vociEvento(d: Readonly<Archivio>, eventoId: string): VocePorta[] {
+  return [
+    ...d.iscrizioni.filter((i) => i.eventoId === eventoId).map((i) => voce(d, i)),
+    ...d.prenotazioni.filter((p) => p.eventoId === eventoId).map((p) => voceTavolo(d, p)),
+  ];
 }
 
 export async function eventiPorta(s: Sessione) {
@@ -40,10 +62,11 @@ export async function eventiPorta(s: Sessione) {
 export async function elencoPorta(s: Sessione, eventoId: string): Promise<VocePorta[]> {
   soloStaff(s);
   const d = await leggi();
-  return d.iscrizioni.filter((i) => i.eventoId === eventoId).map((i) => voce(d, i));
+  return vociEvento(d, eventoId);
 }
 
-export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: OpzioniIngresso): Promise<EsitoPorta> {
+/** `rif`: id del movimento creato dal telefono. Serve ai tavoli, dove lo stesso QR passa più volte. */
+export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: OpzioniIngresso, rif?: string): Promise<EsitoPorta> {
   soloStaff(s);
   const chiaveSegreta = await segreto();
   if (chiave.startsWith('MM1.')) {
@@ -57,9 +80,17 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
   const ora = new Date(Math.min(new Date(o.ora).getTime() || Date.now(), Date.now())).toISOString();
   return modifica((d) => {
     const elenco = d.iscrizioni.filter((i) => i.eventoId === eventoId);
-    const voci = elenco.map((i) => voce(d, i));
-    const v = trovaVoce(voci, chiave);
+    const v = trovaVoce(vociEvento(d, eventoId), chiave);
     if (!v) return { esito: 'non_valido', motivo: 'Non è in lista per questa serata' } satisfies EsitoPorta;
+    if (v.tavolo) {
+      const p = d.prenotazioni.find((x) => x.id === v.id)!;
+      // Sincronizzazione ripetuta dello stesso passaggio: è già contato, non entra un'altra persona.
+      const gia = rif ? p.ingressi.find((x) => x.rif === rif) : undefined;
+      if (gia) return { esito: 'entrato', voce: v, incassato: 0, ora: gia.ora, primaPagato: true } satisfies EsitoPorta;
+      const r = decidiIngresso(v, { ...o, ora });
+      if (r.aggiornata) p.ingressi.push({ rif: rif ?? randomUUID(), ora, porta: o.porta });
+      return r.esito;
+    }
     const { esito, aggiornata } = decidiIngresso(v, { ...o, ora });
     if (aggiornata) {
       const i = elenco.find((x) => x.id === v.id)!;
@@ -110,7 +141,8 @@ export async function registraCassa(s: Sessione, eventoId: string, rif: string, 
 /** Ogni sincronizzazione aggiorna lo stato della porta, visibile all'admin. */
 export async function segnaPorta(nome: string, eventoId: string) {
   await modifica((d) => {
-    const ingressi = d.iscrizioni.filter((i) => i.eventoId === eventoId && i.porta === nome && i.stato === 'entrato').length;
+    const ingressi = d.iscrizioni.filter((i) => i.eventoId === eventoId && i.porta === nome && i.stato === 'entrato').length
+      + d.prenotazioni.filter((p) => p.eventoId === eventoId).reduce((n, p) => n + p.ingressi.filter((x) => x.porta === nome).length, 0);
     const p = d.porte.find((x) => x.nome === nome && x.eventoId === eventoId);
     const ultimoSync = new Date().toISOString();
     if (p) Object.assign(p, { ultimoSync, ingressi });

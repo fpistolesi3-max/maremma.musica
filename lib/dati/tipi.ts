@@ -26,6 +26,7 @@ export interface Evento {
   lineup: string[];
   infoArrivo: string | null;
   locandinaUrl: string | null;
+  piantinaUrl: string | null;     // foto o disegno della sala, sfondo della mappa dei tavoli
   prezzoLista: number;
   prezzoCassa: number | null;     // ingresso pagato in cassa senza lista; null = come la lista
   etaMinima: number;
@@ -45,6 +46,64 @@ export interface Lotto {
   dataFine: string | null;
   visibileDaPr: boolean;
   ordine: number;
+}
+
+export type StatoTavolo = 'libero' | 'riservato' | 'confermato' | 'non_in_vendita';
+
+/** Tavolo di una serata: si prende con una spesa minima, non a persona. */
+export interface Tavolo {
+  id: string;
+  eventoId: string;
+  nome: string;                   // T4, Privé 2…
+  zona: string | null;            // Pista, Privé, Terrazza…
+  posti: number | null;           // quante persone ci stanno; null = non indicato
+  spesaMinima: number;
+  stato: StatoTavolo;
+  nota: string | null;            // solo admin: es. a chi è riservato
+  visibileDaPr: boolean;          // false = nessun PR lo può proporre
+  prAbilitati: string[] | null;   // a quali PR è affidato; null = tutti (se visibileDaPr)
+  ordine: number;
+  x: number | null;               // posizione sulla mappa, in % della piantina (0–100); null = non sulla mappa
+  y: number | null;
+}
+
+/** rimborsata = era pagata, annullata e restituiti i soldi; annullata = chiusa senza rimborso. */
+export type StatoPrenotazione = 'in_attesa' | 'confermata' | 'annullata' | 'rimborsata' | 'scaduta';
+
+/** Come è arrivato l'anticipo del tavolo. */
+export type MetodoTavolo = 'bonifico' | 'satispay' | 'contanti' | 'pos';
+
+/**
+ * Richiesta di un tavolo. Nasce "in attesa": il tavolo è fermo ma la spesa minima va pagata in anticipo
+ * entro `scade`, altrimenti decade. Quando l'admin segna il pagamento diventa "confermata" e il QR vale.
+ */
+export interface PrenotazioneTavolo {
+  id: string;
+  tavoloId: string;
+  eventoId: string;
+  prId: string | null;            // null = Maremma Musica
+  nome: string;
+  cognome: string;
+  email: string;
+  telefono: string;
+  persone: number;
+  spesaMinima: number;            // quella del tavolo al momento della richiesta
+  stato: StatoPrenotazione;
+  scade: string;                  // termine per pagare
+  tokenQr: string;                // un solo QR per tutto il tavolo
+  codice: string;
+  inseritaDa: 'cliente' | 'pr';
+  consensoPrivacyAt: string;
+  createdAt: string;
+  pagatoAt: string | null;
+  metodoPagamento: MetodoTavolo | null;
+  pagatoDa: string | null;        // email di chi ha segnato il pagamento
+  chiusaAt: string | null;        // annullata, rimborsata o scaduta
+  chiusaDa: string | null;        // email di chi l'ha annullata o rimborsata; null = scaduta da sola
+  promemoriaAt: string | null;    // promemoria del termine già mandato
+  avvisoChiusuraAt: string | null; // email "prenotazione chiusa" già mandata al cliente
+  /** Persone del tavolo già entrate. `rif` è l'id creato dal telefono della porta: una sincronizzazione ripetuta non conta due volte. */
+  ingressi: { rif: string; ora: string; porta: string }[];
 }
 
 export interface Pr {
@@ -142,4 +201,6 @@ export interface Archivio {
   posta: EmailInviata[];
   porte: StatoPorta[];
   consegne: Consegna[];
+  tavoli: Tavolo[];
+  prenotazioni: PrenotazioneTavolo[];
 }

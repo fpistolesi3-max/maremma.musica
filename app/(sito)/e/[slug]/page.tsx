@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { eventoPerSlug, locationVisibile, usatiPerLotto } from '@/lib/dati/pubblico';
 import { leggi } from '@/lib/dati/archivio';
+import { tavoliPubblici } from '@/lib/dati/tavoli';
 import { chipLista } from '@/lib/regole';
 import { dataPunti, euro, giornoSett, giornoSettLungo, meseCorto, meseLungo, numeroEvento, orari, giorno2 } from '@/lib/formato';
 import { BottoneLista, Locandina, PuoIscriversi } from '@/components/evento';
@@ -34,6 +35,8 @@ export default async function PaginaEvento({ params }: Props) {
   const chip = chipLista(ep.stato);
   const prezzo = ep.stato.tipo === 'aperta' ? euro(ep.stato.prezzo) : ep.stato.tipo === 'libero' ? 'Libero' : ep.lotti[0] ? euro(ep.lotti[0].prezzo) : e.prezzoLista ? euro(e.prezzoLista) : 'Libero';
   const puo = PuoIscriversi(ep.stato);
+  const tavoli = (await tavoliPubblici(e.slug))?.tavoli ?? [];
+  const tavoliLiberi = tavoli.filter((t) => t.libero);
 
   const domande = [
     ...(e.highlight?.toLowerCase().includes('premio') ? [{ d: `Come si vince il ${e.highlight.toLowerCase().replace(/ alla.*$/, '')}?`, r: 'Regolamento in arrivo: chi vota, a che ora si premia e come si ritira il premio.' /* TODO: cliente — regolamento premio */ }] : []),
@@ -102,6 +105,20 @@ export default async function PaginaEvento({ params }: Props) {
             </div>
           )}
 
+          {tavoli.length > 0 && (
+            <div className="flex flex-col gap-4 border border-linea bg-notte-2 px-5 py-5 md:flex-row md:items-center md:gap-7 md:px-8 md:py-7">
+              <div className="flex flex-grow flex-col gap-2">
+                <span className="font-display text-[32px] font-black uppercase leading-none">Tavoli</span>
+                <span className="text-[15px] leading-[22px] text-osso-2">
+                  {tavoliLiberi.length > 0
+                    ? `${tavoliLiberi.length} ${tavoliLiberi.length === 1 ? 'libero' : 'liberi'}, spesa minima da ${euro(Math.min(...tavoliLiberi.map((t) => t.spesaMinima)))}. Scegli il tuo sulla mappa.`
+                    : 'Tutti presi, per ora. Se una prenotazione decade il tavolo torna libero.'}
+                </span>
+              </div>
+              <Link href={`/tavoli/${e.slug}`} className="mm-btn mm-btn--linea flex-none" style={{ minHeight: 52 }}>{tavoliLiberi.length > 0 ? 'Prenota un tavolo' : 'Vedi i tavoli'}</Link>
+            </div>
+          )}
+
           <div className="hidden items-center gap-7 border border-linea bg-notte-2 px-8 py-7 md:flex">
             <div className="flex flex-grow flex-col gap-2">
               <span className="font-display text-[32px] font-black uppercase leading-none">{chip.testo}</span>
@@ -148,12 +165,14 @@ export default async function PaginaEvento({ params }: Props) {
       </section>
 
       {/* Barra fissa in basso su telefono */}
-      <div className="fixed inset-x-0 bottom-0 z-20 flex items-center gap-[14px] border-t border-linea bg-notte px-4 pt-3 md:hidden" style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}>
+      <div className={`fixed inset-x-0 bottom-0 z-20 flex items-center border-t ${tavoli.length > 0 ? 'gap-2' : 'gap-[14px]'} border-linea bg-notte px-4 pt-3 md:hidden`} style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="whitespace-nowrap font-display text-[24px] font-black uppercase leading-none">{giorno2(e.data)} {meseCorto(e.data)}</span>
           <span className="truncate font-mono text-[10px] leading-[14px] text-osso-2">{e.nome.toUpperCase()}</span>
         </div>
-        <BottoneLista ep={ep} className="flex-none" style={{ minHeight: 52, padding: '0 16px' }} />
+        {/* Su telefono le due strade stanno qui, una accanto all'altra. */}
+        {tavoli.length > 0 && <Link href={`/tavoli/${e.slug}`} className="mm-btn mm-btn--linea flex-none" style={{ minHeight: 52, padding: '0 12px', fontSize: 13 }}>Tavolo</Link>}
+        <BottoneLista ep={ep} className="flex-none" style={{ minHeight: 52, padding: tavoli.length > 0 ? '0 12px' : '0 16px', fontSize: tavoli.length > 0 ? 13 : undefined }} />
       </div>
     </div>
   );
