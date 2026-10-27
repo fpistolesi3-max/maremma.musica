@@ -249,6 +249,8 @@
 .mm-mini-disco { display: inline-block; width: .8em; height: .8em; flex: none; border-radius: 50%; background: radial-gradient(circle, var(--arancio) 0 22%, var(--notte) 23% 26%, #16191f 27% 100%); box-shadow: 0 0 0 1px #262b35; }
 @keyframes mm-scorri { to { transform: translateX(-50%); } }
 
+.mm-parallasse__strato { position: absolute; left: 0; right: 0; top: -10%; height: 120%; will-change: transform; }
+.mm-foto > .mm-parallasse__strato { display: flex; align-items: flex-end; padding: 14px; }
 .mm-foto {
   position: relative; overflow: hidden; background: #111419;
   background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(106,114,128,.10) 14px 15px);

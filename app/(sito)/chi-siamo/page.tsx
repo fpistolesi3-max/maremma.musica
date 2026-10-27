@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Disco } from '@/components/ui';
+import { Parallasse } from '@/components/parallasse';
 
 export const metadata: Metadata = { title: 'Chi siamo', description: 'La crew di Maremma Musica: techno in giro per la Maremma, dai campi sportivi alle pinete.' };
 
@@ -46,7 +47,7 @@ export default function ChiSiamo() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {RESIDENTI.map((r) => (
               <div key={r.nome} className="flex flex-col gap-4">
-                <div className="mm-foto aspect-[4/5]">Foto · da fornire</div>
+                <Parallasse className="mm-foto aspect-[4/5]" velocita={0.08}>Foto · da fornire</Parallasse>
                 <span className="font-display text-[32px] font-black uppercase leading-none">{r.nome}</span>
                 <span className="dato text-osso-2">{r.ruolo}</span>
               </div>
