@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido } from './regole';
+import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, percorsoInterno } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
 import { categoriaDaControllare, cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro } from './formato';
@@ -204,4 +204,9 @@ test('prevendita: pagamento in ritardo vale solo se c’è ancora posto, altrime
   assert.equal(pagamentoIscrizioneValido({ ...base, doppione: true }), false, 'ha già un altro QR valido');
   assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'annullato' } }), false, 'ha lasciato il posto');
   assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'pagato' } }), false, 'pagata due volte');
+});
+
+test('accesso: "dopo" accetta solo percorsi interni (niente reindirizzamenti verso altri siti)', () => {
+  for (const ok of ['/', '/admin', '/door', '/gestione/pr?serata=1', '/e/halloween-party/prevendita']) assert.equal(percorsoInterno(ok), true, ok);
+  for (const no of ['//evil.com', '/\\evil.com', '/\\\\evil.com', 'https://evil.com', 'evil.com', '/\t/evil.com', '/\n/evil.com', '/ /evil.com', '', null, undefined]) assert.equal(percorsoInterno(no as string), false, String(no));
 });
