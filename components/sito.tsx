@@ -30,7 +30,7 @@ export function Testata() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M4 8h16M4 16h16" /></svg>
           </summary>
           <nav aria-label="Menu" className="absolute inset-x-0 top-16 border-b border-linea bg-notte px-4 pb-6 pt-2">
-            {[...VOCI, { href: '/biglietto', testo: 'Il mio QR' }, { href: '/accedi', testo: 'Area PR e staff' }].map((v) => (
+            {[...VOCI, { href: '/biglietto', testo: 'Il mio QR' }, { href: '/accedi', testo: 'Accedi' }].map((v) => (
               <Link key={v.href} href={v.href} className="block border-b border-linea py-4 font-display text-[28px] font-extrabold uppercase leading-none no-underline">
                 {v.testo}
               </Link>
@@ -57,8 +57,7 @@ export function Piede() {
             <div className="contents md:flex md:w-[180px] md:flex-col md:gap-[14px]">
               <span className="etichetta hidden md:block">Sito</span>
               <Link href="/biglietto" className="py-[10px] font-sans text-[16px] font-medium leading-[22px] no-underline md:py-0">Il mio QR</Link>
-              <Link href="/accedi?dopo=/pr" className="py-[10px] font-sans text-[16px] font-medium leading-[22px] no-underline md:py-0">Area PR</Link>
-              <Link href="/door" className="py-[10px] font-sans text-[16px] font-medium leading-[22px] no-underline md:py-0">Staff porta</Link>
+              <Link href="/accedi" className="py-[10px] font-sans text-[16px] font-medium leading-[22px] no-underline md:py-0">Accedi</Link>
             </div>
             <div className="contents md:flex md:w-[180px] md:flex-col md:gap-[14px]">
               <span className="etichetta hidden md:block">Legale</span>

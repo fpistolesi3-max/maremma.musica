@@ -23,7 +23,7 @@ export default async function Accedi({ searchParams }: Props) {
   if (s && !altroRuolo) redirect(destinazionePer(s.utente, s.pr, dopoSicuro));
   const sviluppo = modalitaProva();
   const d = sviluppo ? await leggi() : null;
-  const RUOLI = { admin: 'Admin', staff: 'Staff porta', pr: 'PR' } as const;
+  const RUOLI = { admin: 'Admin', staff: 'Staff', pr: 'PR' } as const;
   const accountProva = d ? d.utenti
     .filter((u) => u.email.endsWith('.test'))
     .map((u) => ({ email: u.email, etichetta: `${RUOLI[u.ruolo]}${u.prId ? ` · ${d.pr.find((p) => p.id === u.prId)?.nomeDisplay ?? ''}` : ''}` })) : [];
@@ -32,7 +32,7 @@ export default async function Accedi({ searchParams }: Props) {
       <header className="flex h-16 items-center px-4 md:h-24 md:px-10"><MarchioLink /></header>
       <main className="mx-auto flex w-full max-w-[440px] flex-grow flex-col gap-8 px-4 pb-16 pt-6 md:pt-12">
         <div className="flex flex-col gap-4">
-          <span className="font-mono text-[11px] tracking-[.06em] text-arancio">✦ AREA PR · PORTA · ADMIN</span>
+          <span className="font-mono text-[11px] tracking-[.06em] text-arancio">✦ AREA RISERVATA</span>
           <h1 className="m-0 font-display text-[64px] font-black uppercase leading-[.84] md:text-[80px]">Entra.</h1>
           <p className="m-0 text-[17px] leading-[26px] text-osso-2">Scrivi l’email con cui la crew ti ha dato l’accesso.</p>
         </div>
