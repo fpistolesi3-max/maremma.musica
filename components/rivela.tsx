@@ -8,20 +8,23 @@ import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
  */
 export function Rivela({ children, indice = 0, className = '' }: { children: ReactNode; indice?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = ref.current;
-    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const dentro = inner.current;
+    if (!el || !dentro || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     if (el.getBoundingClientRect().top < window.innerHeight) return;
-    el.classList.add('mm-rivela--prima');
+    dentro.classList.add('mm-rivela--prima');
     const io = new IntersectionObserver(([v]) => {
       if (!v.isIntersecting) return;
-      el.classList.remove('mm-rivela--prima');
+      dentro.classList.remove('mm-rivela--prima');
       io.disconnect();
     }, { rootMargin: '0px 0px -8% 0px' });
     io.observe(el);
-    return () => { io.disconnect(); el.classList.remove('mm-rivela--prima'); };
+    return () => { io.disconnect(); dentro.classList.remove('mm-rivela--prima'); };
   }, []);
 
-  return <div ref={ref} className={`mm-rivela ${className}`} style={{ '--i': indice } as CSSProperties}>{children}</div>;
+  // l'osservato è il guscio esterno: il clip-path dell'interno lo renderebbe "invisibile" all'observer
+  return <div ref={ref} className={className}><div ref={inner} className="mm-rivela" style={{ '--i': indice } as CSSProperties}>{children}</div></div>;
 }
