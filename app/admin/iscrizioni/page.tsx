@@ -45,26 +45,26 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
           <button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }}>Filtra</button>
         </form>
         <div className="mm-scroll">
-          <table className="mm-classifica">
+          <table className="mm-classifica mm-schede">
             <thead><tr><th>Persona</th><th>Serata</th><th>Lista</th><th className="mm-num">Importo</th><th>Stato</th><th>Iscritto</th><th /></tr></thead>
             <tbody>
               {righe.slice(0, 500).map(({ iscrizione: i, evento, lista }) => (
                 <tr key={i.id}>
-                  <td>
+                  <td className="mm-pieno">
                     <div className="text-[15px] font-medium">{i.anonimizzata ? 'Dati cancellati' : `${i.nome} ${i.cognome}`}</div>
                     <div className="font-mono text-[11px] text-osso-2">{i.anonimizzata ? `${i.etaAllaSerata != null ? `${i.etaAllaSerata} ANNI · ` : ''}${i.origine === 'cassa' ? 'INGRESSO IN CASSA' : 'ANONIMIZZATA'}` : `${nascita(i.dataNascita)} · ${i.origine === 'cassa' ? `INGRESSO IN CASSA${i.porta ? ` · ${i.porta}` : ''}` : `${i.email} · ${mostraCodice(i.codice)}`}`}</div>
                   </td>
-                  <td className="whitespace-nowrap font-mono text-[12px]">{dataPunti(evento.data)} {evento.nome}</td>
-                  <td className="whitespace-nowrap text-[14px]">{lista}</td>
-                  <td className="mm-num">{euro(i.importo)}{i.metodoPagamento && <div className="text-[10px] text-osso-3">{{ online: 'ONLINE', porta_contanti: 'CONTANTI', porta_pos: 'POS' }[i.metodoPagamento]}</div>}</td>
-                  <td>
+                  <td data-et="Serata" className="whitespace-nowrap font-mono text-[12px]">{dataPunti(evento.data)} {evento.nome}</td>
+                  <td data-et="Lista" className="whitespace-nowrap text-[14px]">{lista}</td>
+                  <td data-et="Importo" className="mm-num">{euro(i.importo)}{i.metodoPagamento && <div className="text-[10px] text-osso-3">{{ online: 'ONLINE', porta_contanti: 'CONTANTI', porta_pos: 'POS' }[i.metodoPagamento]}</div>}</td>
+                  <td data-et="Stato">
                     {i.pagamentoOnline?.daRimborsare
                       ? <span className="mm-chip mm-chip--incassare">Da rimborsare</span>
                       : <ChipIscrizione stato={i.stato} testo={i.stato === 'entrato' && i.oraCheckIn ? `Entrato ${ora(i.oraCheckIn)}` : undefined} />}
                     {i.rifiutoIngresso && <div className="mt-1"><span className="mm-chip mm-chip--incassare" title={`Rifiutato da ${i.rifiutoIngresso.da} · ${i.rifiutoIngresso.porta}`}>Rifiutato {ora(i.rifiutoIngresso.ora)}{i.categoria ? ` · ${i.categoria}` : ''}</span></div>}
                   </td>
-                  <td className="whitespace-nowrap font-mono text-[11px] text-osso-2">{quandoRelativo(i.createdAt)}</td>
-                  <td><AzioniIscrizione id={i.id} stato={i.stato} pagato={Boolean(i.metodoPagamento)} online={i.metodoPagamento === 'online'}
+                  <td data-et="Iscritto" className="whitespace-nowrap font-mono text-[11px] text-osso-2">{quandoRelativo(i.createdAt)}</td>
+                  <td className="mm-pieno"><AzioniIscrizione id={i.id} stato={i.stato} pagato={Boolean(i.metodoPagamento)} online={i.metodoPagamento === 'online'}
                     nominativo={evento.senzaTelefono && !i.anonimizzata ? { nome: i.nome, cognome: i.cognome, nascita: i.dataNascita, email: i.origine === 'cassa' ? null : i.email } : null}
                     daRimborsare={Boolean(i.pagamentoOnline?.daRimborsare)} maiPagata={Boolean(i.pagamentoOnline && !i.metodoPagamento)} /></td>
                 </tr>

@@ -15,14 +15,14 @@ export default async function AdminStaff() {
       <div className="flex flex-col gap-8 px-4 py-6 md:px-12">
         <NuovoStaff />
         <div className="mm-scroll">
-          <table className="mm-classifica">
+          <table className="mm-classifica mm-schede">
             <thead><tr><th>Email</th><th>Ruolo</th><th /></tr></thead>
             <tbody>
               {utenti.map((u) => (
                 <tr key={u.id}>
-                  <td className="font-mono text-[13px]">{u.email}{u.id === s.utente.id && <span className="mm-classifica__tu">TU</span>}</td>
-                  <td><span className={`mm-chip ${u.ruolo === 'admin' ? 'mm-chip--lista' : 'mm-chip--pagato'}`}>{u.ruolo === 'admin' ? 'Admin' : 'Staff porta'}</span></td>
-                  <td>{u.id !== s.utente.id && <RimuoviStaff id={u.id} />}</td>
+                  <td className="mm-pieno font-mono text-[13px]">{u.email}{u.id === s.utente.id && <span className="mm-classifica__tu">TU</span>}</td>
+                  <td data-et="Ruolo"><span className={`mm-chip ${u.ruolo === 'admin' ? 'mm-chip--lista' : 'mm-chip--pagato'}`}>{u.ruolo === 'admin' ? 'Admin' : 'Staff porta'}</span></td>
+                  <td className="mm-pieno">{u.id !== s.utente.id && <RimuoviStaff id={u.id} />}</td>
                 </tr>
               ))}
             </tbody>
