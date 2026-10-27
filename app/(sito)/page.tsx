@@ -92,7 +92,7 @@ export default async function Home() {
 
       {/* MANIFESTO */}
       <section id="crew" className="border-t border-linea">
-        <div className="contenitore flex flex-col gap-6 pb-14 pt-12 md:flex-row md:items-center md:gap-20 md:pb-[120px] md:pt-16">
+        <div className="contenitore flex flex-col gap-6 pb-14 pt-12 md:flex-row md:items-center md:gap-10 md:pb-[120px] md:pt-16 lg:gap-20">
           <div className="flex flex-grow flex-col gap-6 md:gap-9">
             <span className="font-mono text-[11px] leading-none tracking-[.06em] text-arancio md:text-[12px]">✦ LA CREW</span>
             <h2 className="m-0 font-display text-[72px] font-black uppercase leading-[.84] md:text-[96px] xl:text-[120px]">Techno dove<br /><span className="text-arancio">non te lo</span><br />aspetti.</h2>
@@ -103,7 +103,7 @@ export default async function Home() {
             <Link href="/chi-siamo" className="link-sottolineato self-start py-3">Chi siamo →</Link>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/img/logo-maremma-musica.png" alt="Logo Maremma Musica" className="mt-4 h-[300px] w-[300px] self-center md:mt-0 md:h-[440px] md:w-[440px] md:flex-none" />
+          <img src="/img/logo-maremma-musica.png" alt="Logo Maremma Musica" className="mt-4 h-[300px] w-[300px] self-center md:mt-0 md:h-[300px] md:w-[300px] md:flex-none lg:h-[440px] lg:w-[440px]" />
         </div>
       </section>
 

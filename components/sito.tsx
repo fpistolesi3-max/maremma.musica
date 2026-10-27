@@ -46,8 +46,8 @@ export function Piede() {
   return (
     <footer id="contatti" className="border-t border-linea bg-vinile">
       <div className="contenitore flex flex-col gap-9 pb-8 pt-12 md:gap-16 md:pb-12 md:pt-[72px]">
-        <div className="flex flex-col gap-9 md:flex-row md:gap-20">
-          <p className="m-0 flex-grow font-display text-[52px] font-black uppercase leading-[.86] md:text-[72px]">Ci vediamo<br />sotto cassa.</p>
+        <div className="flex flex-col gap-9 md:flex-row md:flex-wrap md:gap-x-10 md:gap-y-9 lg:flex-nowrap lg:gap-20">
+          <p className="m-0 flex-grow font-display text-[52px] font-black uppercase leading-[.86] md:basis-full md:text-[72px] lg:basis-auto">Ci vediamo<br />sotto cassa.</p>
           <div className="flex flex-col gap-[10px] md:w-[260px] md:gap-[14px]">
             <span className="etichetta">Contatti</span>
             <a href="mailto:maremmamusica@gmail.com" className="font-mono text-[13px] leading-5 no-underline md:text-[14px]">maremmamusica@gmail.com</a>

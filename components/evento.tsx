@@ -55,7 +55,7 @@ export function RigaEvento({ ep, ultima }: { ep: EventoPubblico; ultima?: boolea
   return (
     <Link
       href={`/e/${e.slug}`}
-      className={`mm-riga-data grid grid-cols-[84px_minmax(0,1fr)] gap-4 border-t border-linea py-5 text-osso no-underline hover:text-osso md:grid-cols-[120px_250px_minmax(0,1fr)_220px_40px] md:items-center md:gap-10 md:py-7 ${ultima ? 'border-b' : ''}`}
+      className={`mm-riga-data grid grid-cols-[84px_minmax(0,1fr)] gap-4 border-t border-linea py-5 text-osso no-underline hover:text-osso md:grid-cols-[120px_200px_minmax(0,1fr)_auto_24px] md:items-center md:gap-5 md:py-7 lg:grid-cols-[120px_250px_minmax(0,1fr)_220px_40px] lg:gap-10 ${ultima ? 'border-b' : ''}`}
     >
       <Locandina e={e} className="h-[126px] w-[84px] md:h-[180px] md:w-[120px]" />
       {/* data grande solo da desktop */}
