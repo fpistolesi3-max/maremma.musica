@@ -274,8 +274,7 @@
 .mm-classifica th, .mm-classifica__nome { white-space: nowrap; }
 
 /* Caricamento iniziale: overlay della home, max 1,2 s. Senza JS si chiude da solo con la sola animazione CSS. */
-.mm-caricamento { position: fixed; inset: 0; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: var(--notte); animation: mm-cari-fine 1.2s linear both; }
-@media (display-mode: standalone) { .mm-caricamento { display: flex; } }
+.mm-caricamento { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: var(--notte); animation: mm-cari-fine 1.2s linear both; }
 .mm-caricamento__disco { animation: mm-cari-giro 1.2s cubic-bezier(.2,.6,.3,1) both; }
 .mm-caricamento__barra { width: 160px; height: 2px; background: var(--arancio); transform-origin: left; animation: mm-cari-barra .8s cubic-bezier(.4,0,.2,1) both; }
 .mm-caricamento--esce { animation: mm-cari-tendina .35s cubic-bezier(.7,0,.3,1) both; }

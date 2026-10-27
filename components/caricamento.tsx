@@ -7,7 +7,7 @@ import { TitoloDecodifica } from './titolo-decodifica';
 const CHIAVE = 'mm-caricamento';
 
 /**
- * Caricamento iniziale della home, solo con il sito aperto come app installata (standalone): overlay di al massimo 1,2 s, una volta per sessione.
+ * Caricamento iniziale della home: overlay di al massimo 1,2 s, una volta per sessione.
  * Non blocca il rendering (il contenuto è sotto); senza JS si chiude da solo con CSS;
  * un tocco, clic o tasto lo chiude subito; con prefers-reduced-motion non compare.
  */
@@ -20,8 +20,6 @@ export function Caricamento() {
     const el = ref.current;
     if (!el) return;
     const saltare = () => {
-      // solo con il sito aperto come app installata: in browser non compare
-      if (!(window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone)) return true;
       try {
         if (sessionStorage.getItem(CHIAVE)) return true;
         const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
