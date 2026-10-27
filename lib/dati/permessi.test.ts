@@ -154,6 +154,7 @@ test('prevendita online: posto fermo, pagamento, ritardo da rimborsare, porta, p
   // Pagamento (webhook): vale una volta sola anche se arriva due volte
   assert.equal((await m.prevendita.confermaPagamentoIscrizione(id, 'pi_lista_1')).esito, 'confermata');
   assert.equal((await m.prevendita.confermaPagamentoIscrizione(id, 'pi_lista_1')).esito, 'gia');
+  assert.equal((await m.prevendita.confermaPagamentoIscrizione(id, 'pi_lista_doppio')).esito, 'gia', 'secondo pagamento: il QR resta valido');
   const pagata = (await m.archivio.leggi()).iscrizioni.find((i) => i.id === id)!;
   assert.deepEqual([pagata.stato, pagata.metodoPagamento, pagata.pagamentoOnline!.pagamento], ['pagato', 'online', 'pi_lista_1']);
   const live1 = (await m.admin.serataLive(admin, halloween.id))!;
@@ -386,6 +387,9 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   await assert.rejects(tv.prenotazioniAdmin(staff, ev.id), /non_autorizzato/);
   // Pagato sul sito: con la prenotazione attiva lo stato del tavolo non si cambia a mano né si elimina
   assert.equal((await tv.confermaPagamentoOnline(p1.id, 'pi_a1')).esito, 'gia', 'lo stesso pagamento conta una volta');
+  assert.equal((await tv.confermaPagamentoOnline(p1.id, 'pi_a1_doppio')).esito, 'gia', 'secondo pagamento: la prenotazione resta valida');
+  const p1dopo = (await m.archivio.leggi()).prenotazioni.find((x) => x.id === p1.id)!;
+  assert.deepEqual([p1dopo.stato, p1dopo.pagamentoOnline!.pagamento, p1dopo.pagamentoOnline!.daRimborsare], ['confermata', 'pi_a1', false]);
   await assert.rejects(async () => m.admin.salvaTavolo(admin, { ...base, id: await id('A1'), nome: 'A1', posti: 3 }), /prenotato per 4 persone/, 'posti sotto il gruppo prenotato');
   await m.admin.salvaTavolo(admin, { ...base, id: await id('A1'), nome: 'A1', stato: 'libero', posti: 4 });
   assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'A1')!.stato, 'confermato');

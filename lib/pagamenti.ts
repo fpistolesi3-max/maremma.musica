@@ -73,6 +73,12 @@ export async function statoCheckout(id: string): Promise<{ pagato: boolean; paga
   return { pagato: s.payment_status === 'paid', pagamento: s.payment_intent };
 }
 
+/** Chiude una pagina di pagamento ancora aperta (se ne apre una nuova: due pagine pagate sarebbero un doppio addebito). Se è già chiusa o pagata non fa niente. */
+export async function chiudiCheckout(id: string | null | undefined) {
+  if (!id || id.startsWith('prova_') || modoPagamentoOnline() !== 'stripe') return;
+  try { await stripe('POST', `/checkout/sessions/${encodeURIComponent(id)}/expire`, {}); } catch { /* già chiusa o pagata */ }
+}
+
 /** Restituisce i soldi di un pagamento online (intero). Quelli di prova non vanno da nessuna parte. */
 export async function rimborsa(pagamento: string) {
   if (pagamento.startsWith('prova_')) return;
