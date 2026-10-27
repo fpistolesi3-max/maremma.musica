@@ -6,6 +6,7 @@ import { leggi, modifica, segreto } from './dati/archivio';
 import type { Pr, Ruolo, Utente } from './dati/tipi';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
 import { modalitaProva } from './prova';
+import { percorsoInterno } from './regole';
 
 // Accesso senza password per PR, staff porta e admin: link magico o codice a 6 cifre via email.
 // La sessione è un cookie firmato HMAC (httpOnly). Nessuna password viene mai salvata.
@@ -74,7 +75,7 @@ export function puoAprire(ruolo: Ruolo, percorso: string) {
 }
 
 export function destinazionePer(utente: Utente, pr: Pr | null, dopo?: string | null) {
-  if (dopo && dopo.startsWith('/') && !dopo.startsWith('//') && dopo !== '/pr' && puoAprire(utente.ruolo, dopo)) return dopo;
+  if (percorsoInterno(dopo) && dopo !== '/pr' && puoAprire(utente.ruolo, dopo)) return dopo;
   if (utente.ruolo === 'admin') return '/admin';
   if (utente.ruolo === 'staff') return '/door';
   return pr ? `/pr/${pr.handle}` : '/';
