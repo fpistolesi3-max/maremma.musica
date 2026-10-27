@@ -747,3 +747,11 @@ test('anonimizzazione: dopo 30 giorni spariscono i dati personali, restano età 
   const { giaIscritto } = await import('../regole');
   assert.equal(giaIscritto(dopo, ev.id, '', ''), undefined, 'una riga anonima non conta come doppione');
 });
+
+test('cruscotto admin: solo l’admin, con la prossima serata e i rimborsi da fare', async () => {
+  await assert.rejects(m.admin.cruscotto(await sessione('porta@maremmamusica.test')), /non_autorizzato/);
+  await assert.rejects(m.admin.cruscotto(await sessione('test-pr@maremmamusica.test')), /non_autorizzato/);
+  const c = await m.admin.cruscotto(await sessione('admin@maremmamusica.test'));
+  const d = await m.archivio.leggi();
+  assert.equal(c.daRimborsare, d.iscrizioni.filter((i) => i.pagamentoOnline?.daRimborsare).length);
+});

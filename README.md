@@ -134,7 +134,7 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   WhatsApp, Google, locandina, diretto). Il canale si riconosce dal social di provenienza o dal link
   etichettato `/e/[slug]?da=instagram` (la pagina dà i link pronti da copiare). Anche nella serata live
   dell'admin e alla porta ("Lista: Maremma Musica · da Instagram").
-- Admin: `/admin` serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con lotti e tavoli (spesa minima, zona, posti, stato, mappa con piantina del locale) · PR · iscrizioni
+- Admin: `/admin` home con la prossima serata e le cose da fare (rimborsi, tavoli in attesa) · serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con lotti e tavoli (spesa minima, zona, posti, stato, mappa con piantina del locale) · PR · iscrizioni
   (annulla/rimborsa/CSV) · staff.
 
 ## Da completare con il cliente (`TODO: cliente` nel codice)
@@ -171,3 +171,6 @@ su Storage e il modulo le riduce prima dell'invio (limite 4 MB, quello di Vercel
 2. Per il browser di Instagram: manda il link a te stesso in DM su Instagram e aprilo da lì.
 3. Scanner con fotocamera: avvia `npm run dev:https` e apri `https://<IP-del-PC>:3000/door`
    (accetta l'avviso sul certificato di sviluppo).
+
+### Area admin da telefono
+Da telefono le tabelle dell'admin (serate, iscrizioni, PR, staff) diventano schede (`.mm-schede` in `app/globals.css`, le etichette vengono da `data-et`). I filtri delle iscrizioni e i moduli "Aggiungi PR" / "Dai accesso" sono richiudibili (`Filtri`, `Apribile` in `components/admin/ui.tsx`): chiusi mostrano i filtri attivi e "Azzera". Le azioni secondarie di una serata stanno nel menu "Altro". Il modulo serata ha le sezioni Dati, Prevendite, Porta (cassa, senza telefono), Copertina, PR, Tipi di prevendita, Tavoli; la barra Salva resta sopra la navigazione. Gli stati hanno sempre lo stesso colore (`ChipSerata`, `ChipIscrizione`): in attesa/da rimborsare ambra, pagato bianco, entrato verde, rimborsato grigio tratteggiato, annullato/scaduta rosso barrato. La porta (`/door`) non è toccata.
