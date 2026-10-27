@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
-import { cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
+import { categoriaDaControllare, cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro } from './formato';
 import type { Evento, Iscrizione, Lotto } from './dati/tipi';
 import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
@@ -101,6 +101,22 @@ test('tipi di prevendita: categoria venduta dai PR scelti', () => {
   assert.equal(statoLista(e, [donne], {}, { adesso: PRIMA, daPr: true, prId: 'pr1' }).tipo, 'aperta');
   assert.equal(statoLista(e, [donne], {}, { adesso: PRIMA, daPr: true, prId: 'pr2' }).tipo, 'chiusa', 'altro PR: non si vende');
   assert.equal(statoLista(e, [donne], {}, { adesso: PRIMA }).tipo, 'aperta', 'dal sito vale per tutti');
+});
+
+test('porta: con categoria l’ingresso si registra solo dopo "Fai entrare"; senza categoria (o Standard) subito', () => {
+  const v: VocePorta = { id: 'x', token: 'MM1.a.b.c', codice: 'ABCD1234', nome: 'Giulia', cognome: 'Bianchi', dataNascita: '2001-05-14', stato: 'pagato', importo: 7, oraCheckIn: null, porta: null, lista: 'Maremma Musica', canale: 'diretto', origine: 'lista', categoria: 'Donne' };
+  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: '2026-10-31T23:41:00Z' };
+  const r = decidiIngresso(v, o);
+  assert.equal(r.esito.esito, 'da_confermare', 'categoria: prima la scelta dello staff');
+  assert.equal(r.aggiornata, null, 'niente ingresso registrato');
+  const ok = decidiIngresso({ ...v, rifiuto: { ora: '2026-10-31T23:40:00Z', porta: 'P2', da: 'porta@x.it' } }, { ...o, confermato: true });
+  assert.equal(ok.esito.esito, 'entrato', 'dopo un "Non rientra" si può comunque far entrare');
+  assert.equal(ok.aggiornata?.stato, 'entrato');
+  assert.equal(decidiIngresso({ ...v, categoria: 'Standard' }, o).esito.esito, 'entrato', 'Standard: come oggi');
+  assert.equal(decidiIngresso({ ...v, categoria: null }, o).esito.esito, 'entrato');
+  assert.equal(decidiIngresso({ ...v, stato: 'in_attesa' }, o).esito.esito, 'non_pagato', 'non pagata: prima di tutto non entra');
+  assert.equal(categoriaDaControllare({ categoria: ' standard ' }), false);
+  assert.equal(categoriaDaControllare({ categoria: 'Donne' }), true);
 });
 
 test('porta: chi è in lista ha già pagato online, non si incassa; non pagato non entra', () => {

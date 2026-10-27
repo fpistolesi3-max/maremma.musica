@@ -129,6 +129,10 @@ export async function serataLive(s: Sessione, eventoId: string) {
       const sue = attive.filter((i) => i.lottoId === l.id);
       return { id: l.id, nome: l.nome, categoria: l.categoria, posti: l.quantita, venduti: sue.length, entrati: sue.filter((i) => i.stato === 'entrato').length, incassato: somma(sue.filter((i) => i.metodoPagamento === 'online')) };
     }),
+    // Chi lo staff ha rifiutato alla porta (categoria non rispettata): l'iscrizione resta valida, l'admin decide se rimborsare.
+    rifiuti: iscr.filter((i) => i.rifiutoIngresso).sort((a, b) => b.rifiutoIngresso!.ora.localeCompare(a.rifiutoIngresso!.ora)).map((i) => ({
+      id: i.id, nome: `${i.nome} ${i.cognome}`, categoria: i.categoria, entrato: i.stato === 'entrato', ...i.rifiutoIngresso!,
+    })),
     incassato: incassatoOnline + incassatoCassa,
     fuori: attive.filter((i) => i.stato !== 'entrato').length,
     perMezzora,
@@ -415,7 +419,7 @@ export async function csvEvento(s: Sessione, eventoId: string) {
   const d = await leggi();
   const evento = d.eventi.find((e) => e.id === eventoId);
   if (!evento) return null;
-  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Tipo di prevendita', 'Categoria', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Newsletter'];
+  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Tipo di prevendita', 'Categoria', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Rifiutato alla porta', 'Newsletter'];
   const PAGAMENTO = { online: 'online', porta_contanti: 'porta contanti', porta_pos: 'porta POS' } as const;
   const righe = d.iscrizioni
     .filter((i) => i.eventoId === eventoId)
@@ -427,6 +431,7 @@ export async function csvEvento(s: Sessione, eventoId: string) {
       i.importo.toFixed(2).replace('.', ','), i.stato, i.metodoPagamento ? PAGAMENTO[i.metodoPagamento] : '',
       i.pagatoAt ? `${dataCompleta(i.pagatoAt)} ${oraDi(i.pagatoAt)}` : '', i.pagamentoOnline?.daRimborsare ? 'sì' : '',
       `${dataCompleta(i.createdAt)} ${oraDi(i.createdAt)}`, i.oraCheckIn ? oraDi(i.oraCheckIn) : '', i.porta ?? '',
+      i.rifiutoIngresso ? `${oraDi(i.rifiutoIngresso.ora)} · ${i.rifiutoIngresso.porta} · ${i.rifiutoIngresso.da}` : '',
       i.consensoMarketing ? 'sì' : 'no',
     ].map(cella).join(';'));
   // BOM + punto e virgola: si apre bene nell'Excel italiano.

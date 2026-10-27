@@ -166,6 +166,29 @@ export default async function SerataLive({ params }: Props) {
             </div>
           </section>
 
+          {l.rifiuti.length > 0 && (
+            <section className="flex flex-col gap-[10px]">
+              <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Rifiutati alla porta</h2>
+              <span className="text-[14px] text-osso-2">La categoria non rispettata: l&apos;iscrizione resta valida, decidi tu se rimborsare (da <Link href={`/admin/iscrizioni?evento=${e.id}`} className="link-sottolineato">Iscrizioni</Link>).</span>
+              <div className="mm-scroll">
+                <table className="mm-classifica">
+                  <thead><tr><th>Persona</th><th>Categoria</th><th>Alle</th><th>Porta</th><th>Da</th></tr></thead>
+                  <tbody>
+                    {l.rifiuti.map((r) => (
+                      <tr key={r.id}>
+                        <td className="mm-classifica__nome">{r.nome}{r.entrato && <span className="text-osso-2"> · poi entrato</span>}</td>
+                        <td>{r.categoria ?? '—'}</td>
+                        <td className="mm-num">{ora(r.ora)}</td>
+                        <td>{r.porta}</td>
+                        <td className="text-[13px]">{r.da}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
           {l.perTipo.length > 0 && (
             <section className="flex flex-col gap-[10px]">
               <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Per tipo di prevendita</h2>

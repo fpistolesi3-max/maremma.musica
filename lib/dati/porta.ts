@@ -20,7 +20,7 @@ function voce(d: Readonly<Archivio>, i: Iscrizione): VocePorta {
   const pr = i.prId ? d.pr.find((p) => p.id === i.prId) : null;
   return {
     id: i.id, token: i.tokenQr, codice: i.codice, nome: i.nome, cognome: i.cognome, dataNascita: i.dataNascita,
-    stato: i.stato, importo: i.importo, oraCheckIn: i.oraCheckIn, porta: i.porta, lista: i.origine === 'cassa' ? 'Cassa' : pr?.nomeDisplay ?? 'Maremma Musica', categoria: i.categoria ?? null, canale: i.canale ?? 'diretto', origine: i.origine ?? 'lista',
+    stato: i.stato, importo: i.importo, oraCheckIn: i.oraCheckIn, porta: i.porta, lista: i.origine === 'cassa' ? 'Cassa' : pr?.nomeDisplay ?? 'Maremma Musica', categoria: i.categoria ?? null, rifiuto: i.rifiutoIngresso ?? null, canale: i.canale ?? 'diretto', origine: i.origine ?? 'lista',
   };
 }
 
@@ -105,6 +105,23 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
       i.stato = 'entrato'; i.oraCheckIn = ora; i.porta = o.porta;
     }
     return esito;
+  });
+}
+
+/**
+ * "Non rientra": lo staff ha controllato la categoria e la persona non entra. Non registra l'ingresso; salva chi, quando e da
+ * quale porta (l'admin lo vede e decide se rimborsare). L'iscrizione resta valida. Ripetibile: la sincronizzazione può arrivare due volte.
+ */
+export async function rifiutaIngresso(s: Sessione, eventoId: string, chiave: string, o: { porta: string; ora: string }): Promise<EsitoPorta> {
+  soloStaff(s);
+  const ora = new Date(Math.min(new Date(o.ora).getTime() || Date.now(), Date.now())).toISOString();
+  return modifica((d): EsitoPorta => {
+    const v = trovaVoce(vociEvento(d, eventoId), chiave);
+    const i = v && !v.tavolo ? d.iscrizioni.find((x) => x.id === v.id && x.eventoId === eventoId) : undefined;
+    if (!v || !i) return { esito: 'non_valido', motivo: 'Non è in lista per questa serata' };
+    if (i.stato === 'entrato') return { esito: 'gia_entrato', voce: voce(d, i) };
+    i.rifiutoIngresso = { ora, porta: o.porta, da: s.utente.email };
+    return { esito: 'rifiutato', voce: voce(d, i) };
   });
 }
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePorta, nuovoId } from './store';
 import { Fotocamera } from './fotocamera';
-import { cercaPerNome, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type VocePorta } from '@/lib/porta-logica';
+import { categoriaDaControllare, cercaPerNome, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type VocePorta } from '@/lib/porta-logica';
 import type { MetodoPagamento } from '@/lib/dati/tipi';
 import { etichettaCanale } from '@/lib/canali';
 import { SchermoCassa } from './cassa';
@@ -72,19 +72,29 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
   const mostra = useCallback((esito: EsitoPorta) => {
     clearTimeout(ritorno.current);
     setSchermo({ tipo: 'esito', esito });
-    // Dopo un ingresso riuscito torna da solo allo scanner (mockup: 2 secondi). Con una categoria da controllare resta a schermo.
-    if (esito.esito === 'entrato' && !esito.voce.categoria) {
+    // Dopo un ingresso riuscito (o un "Non rientra") torna da solo allo scanner (mockup: 2 secondi).
+    if (esito.esito === 'entrato' || esito.esito === 'rifiutato') {
       ritorno.current = setTimeout(() => setSchermo({ tipo: 'scanner' }), 2000);
     }
   }, []);
 
-  const entra = useCallback((v: VocePorta) => {
+  /** `confermato`: lo staff ha toccato "Fai entrare" dopo aver controllato la categoria. */
+  const entra = useCallback((v: VocePorta, confermato = false) => {
     const s = usePorta.getState();
-    const { esito, aggiornata } = decidiIngresso(v, { metodo, porta: s.porta, ora: new Date().toISOString() });
+    const { esito, aggiornata } = decidiIngresso(v, { metodo, porta: s.porta, ora: new Date().toISOString(), confermato });
     if (aggiornata) {
-      s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, metodo, ora: aggiornata.oraCheckIn! });
+      s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, metodo, ora: aggiornata.oraCheckIn!, ...(confermato ? { conferma: true } : {}) });
     }
     mostra(esito);
+  }, [metodo, mostra]);
+
+  /** "Non rientra": nessun ingresso, il rifiuto va in coda come gli ingressi (anche offline) e l'iscrizione resta valida. */
+  const rifiuta = useCallback((v: VocePorta) => {
+    const s = usePorta.getState();
+    const ora = new Date().toISOString();
+    const aggiornata: VocePorta = { ...v, rifiuto: { ora, porta: s.porta, da: 'staff' } };
+    s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, metodo, ora, rifiuto: true });
+    mostra({ esito: 'rifiutato', voce: aggiornata });
   }, [metodo, mostra]);
 
   /** Ingresso in cassa: entra subito sul telefono, il server lo registra alla prossima sincronizzazione. */
@@ -128,7 +138,7 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
   if (!pronto) return <div className="min-h-dvh bg-vinile" />;
 
   const colori = schermo.tipo === 'esito'
-    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso' }[schermo.esito.esito]
+    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
     : schermo.tipo === 'cerca' || schermo.tipo === 'impostazioni' || schermo.tipo === 'cassa' ? 'bg-notte text-osso' : 'bg-vinile text-osso';
   const suPieno = schermo.tipo === 'esito';
 
@@ -266,6 +276,8 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
         <Esito esito={schermo.esito} cassa={cassaAttiva} online={st.online} salvatoAlle={st.salvatoAlle}
           onRiprova={() => { if (schermo.esito.esito === 'non_pagato') void riprova(schermo.esito.voce); }}
           onCassa={() => setSchermo({ tipo: 'cassa' })}
+          onFaiEntrare={() => { if (schermo.esito.esito === 'da_confermare') entra(schermo.esito.voce, true); }}
+          onNonRientra={() => { if (schermo.esito.esito === 'da_confermare') rifiuta(schermo.esito.voce); }}
           onChiudi={() => { clearTimeout(ritorno.current); setSchermo({ tipo: 'scanner' }); }} />
       )}
     </div>
@@ -292,8 +304,8 @@ function StatoRete() {
   );
 }
 
-function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onChiudi }: {
-  esito: EsitoPorta; cassa: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCassa: () => void; onChiudi: () => void;
+function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onFaiEntrare, onNonRientra, onChiudi }: {
+  esito: EsitoPorta; cassa: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCassa: () => void; onFaiEntrare: () => void; onNonRientra: () => void; onChiudi: () => void;
 }) {
   const linea = 'my-[10px] h-px bg-current opacity-30';
   const X = <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>;
@@ -309,22 +321,16 @@ function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onChiudi
             {v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()} · PAGATO` : incasso ? `${euro(esito.incassato)} INCASSATI` : esito.primaPagato ? 'PAGATO' : v.importo > 0 ? 'PAGATO' : 'INGRESSO LIBERO'} · {oraDi(esito.ora)}
           </span>
           <span className="font-display text-[104px] font-black uppercase leading-[.8]">{incasso ? 'Entrato' : 'Valido'}</span>
-          {v.categoria && (
-            <div className="border-[3px] border-current px-3 py-2" role="alert">
-              <span className="block font-mono text-[11px] font-medium leading-4">CONTROLLA IL DOCUMENTO · PREVENDITA RISERVATA</span>
-              <span className="block font-display text-[56px] font-black uppercase leading-[.9]">{v.categoria}</span>
-            </div>
-          )}
           {/* Un QR per tutto il tavolo: ogni passaggio è una persona. */}
           {v.tavolo && <span className="font-display text-[56px] font-black uppercase leading-[.85]">{v.tavolo.entrati} di {v.tavolo.persone}</span>}
           <div className={linea} />
           <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
-          <span className="text-[17px] font-medium leading-6">{testoLista(v)}</span>
+          <span className="text-[17px] font-medium leading-6">{testoLista(v)}{categoriaDaControllare(v) ? ` · ${v.categoria!.toUpperCase()} CONTROLLATA` : ''}</span>
         </div>
         <div className="flex flex-none flex-col gap-3 px-4 pb-7">
-          <div className="h-[3px] bg-[rgba(5,5,5,.18)]"><div className="h-full bg-vinile" style={v.categoria ? { width: 0 } : { animation: 'mm-barra 2s linear forwards' }} /></div>
+          <div className="h-[3px] bg-[rgba(5,5,5,.18)]"><div className="h-full bg-vinile" style={{ animation: 'mm-barra 2s linear forwards' }} /></div>
           <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onChiudi}>Prossimo</button>
-          <span className="text-center font-mono text-[11px] font-medium leading-[14px]">{v.categoria ? 'TOCCA PROSSIMO QUANDO HAI CONTROLLATO' : 'TORNO ALLO SCANNER TRA 2 S'}</span>
+          <span className="text-center font-mono text-[11px] font-medium leading-[14px]">TORNO ALLO SCANNER TRA 2 S</span>
         </div>
       </>
     );
@@ -356,12 +362,49 @@ function Esito({ esito, cassa, online, salvatoAlle, onRiprova, onCassa, onChiudi
     );
   }
 
+  // Prevendita con categoria: l'ingresso si registra solo dopo la scelta dello staff.
+  if (esito.esito === 'da_confermare') {
+    const v = esito.voce;
+    return (
+      <>
+        <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
+          <span className="font-mono text-[13px] font-medium leading-[18px]">PREVENDITA RISERVATA · CONTROLLA IL DOCUMENTO</span>
+          <span className="font-display text-[88px] font-black uppercase leading-[.85] [overflow-wrap:anywhere]">{v.categoria}</span>
+          <div className={linea} />
+          <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
+          <span className="font-mono text-[13px] font-medium leading-[18px]">NASCITA {nascita(v.dataNascita)} · {anni(v.dataNascita)} ANNI</span>
+          {v.rifiuto && <span className="text-[17px] font-semibold leading-6">Rifiutato alle {oraDi(v.rifiuto.ora)}{v.rifiuto.da !== 'staff' ? ` da ${v.rifiuto.da}` : ''} ({v.rifiuto.porta.replace('P', 'PORTA ')}). Puoi comunque farlo entrare.</span>}
+          <span className="text-[17px] font-medium leading-6">{testoLista(v)}</span>
+        </div>
+        <div className="flex flex-none flex-col gap-3 px-4 pb-7">
+          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 76, fontSize: 22 }} onClick={onFaiEntrare}>Fai entrare</button>
+          <button type="button" className="mm-btn" style={{ border: '2px solid var(--vinile)', color: 'var(--vinile)', minHeight: 76, fontSize: 22 }} onClick={onNonRientra}>Non rientra</button>
+          <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 44 }} onClick={onChiudi}>Torna allo scanner</button>
+        </div>
+      </>
+    );
+  }
+
+  if (esito.esito === 'rifiutato') {
+    const v = esito.voce;
+    return (
+      <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
+        {X}
+        <span className="font-mono text-[13px] font-medium leading-[18px]">{(v.categoria ?? '').toUpperCase()} · RIFIUTO SALVATO{!online ? ' · SI SINCRONIZZA AL RITORNO DELLA RETE' : ''}</span>
+        <span className="font-display text-[100px] font-black uppercase leading-[.8]">Non<br />entra</span>
+        <div className={linea} />
+        <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
+        <span className="text-[17px] font-medium leading-6">L’iscrizione resta valida: decide l’admin se rimborsare.</span>
+      </div>
+    );
+  }
+
   const v = 'voce' in esito ? esito.voce : null;
   const pieno = esito.esito === 'gia_entrato' && esito.voce.tavolo ? esito.voce.tavolo : null;
   const dettaglio = pieno ? `TAVOLO ${pieno.nome.toUpperCase()} · ${pieno.entrati} DI ${pieno.persone} GIÀ ENTRATI`
     : esito.esito === 'gia_entrato'
     ? `STESSO QR · ENTRATO ${esito.voce.oraCheckIn ? oraDi(esito.voce.oraCheckIn) : ''}${esito.voce.porta ? ` · ${esito.voce.porta.replace('P', 'PORTA ')}` : ''}`
-    : esito.esito === 'annullato' ? 'QR ANNULLATO DALLA CREW' : esito.motivo.toUpperCase();
+    : esito.esito === 'annullato' ? 'QR ANNULLATO DALLA CREW' : esito.esito === 'non_valido' ? esito.motivo.toUpperCase() : '';
   return (
     <>
       <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">

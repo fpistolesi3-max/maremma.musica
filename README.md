@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (31 test: token QR, età, doppioni, lotti, prevendita online, porta, cassa, permessi, tavoli), `npm run typecheck`,
+Altri comandi: `npm test` (33 test: token QR, età, doppioni, lotti, prevendita online, porta, cassa, permessi, tavoli), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -60,7 +60,7 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
 - **Uscita**: subito, N giorni prima della serata (segue la data se la serata si sposta) o data fissa. **Chiusura**: alla serata, N ore prima o data fissa.
   I tipi si avvicendano di norma per date decise dall'admin (es. il primo fino al 30/10, il successivo dal 31/10) anche se i posti non sono finiti; "Esce solo quando finiscono i posti del tipo prima" è un'opzione facoltativa.
 - **Categoria** (es. *Donne*): chiunque può comprarla, ma è riservata. Il modulo lo dice con il rinvio ai termini e condizioni (dove vanno spiegate le regole) e, se l'admin lo vuole (spenta di default), chiede la casella "Dichiaro di rientrare nella categoria".
-  Alla porta la scheda mostra la categoria in grande, anche offline, e non torna da sola allo scanner finché lo staff non tocca *Prossimo*. L'ingresso è già registrato alla scansione: se non rientra, l'admin riporta l'iscrizione indietro da *Iscrizioni*.
+  **Alla porta** (tipi con una categoria vera; senza categoria o "Standard" si entra con la sola scansione): la scansione NON registra l'ingresso. La scheda mostra la categoria in grande, il nome e l'età, con due pulsanti grandi: **Fai entrare** registra l'ingresso, **Non rientra** salva il rifiuto (chi, quando, porta) e non registra nulla. L'iscrizione resta valida: l'admin vede i rifiutati nella serata live (*Rifiutati alla porta*) e in *Iscrizioni*, e decide se rimborsare. Se lo stesso QR viene ripassato la scheda dice "Rifiutato alle 23:40" e si può comunque far entrare. Offline funziona uguale: sia "Fai entrare" sia "Non rientra" vanno in coda e si sincronizzano al ritorno della rete (`lib/porta-logica.ts` `decidiIngresso`, `lib/dati/porta.ts` `rifiutaIngresso`). Il server non registra mai l'ingresso di una prevendita con categoria senza la conferma dello staff.
 - **PR**: ogni tipo si vende da tutti i link PR, solo da alcuni PR o solo dal sito.
 - **Modelli rapidi** (un prezzo · Early bird + Standard · Early bird + Donne + Standard) e **copia da un'altra serata** (le uscite relative seguono la nuova data; quelle a data fissa vanno controllate). Si possono sostituire i tipi solo se nessuno si è ancora iscritto.
 - La categoria resta sull'iscrizione; il CSV ha le colonne *Tipo di prevendita* e *Categoria*; la serata live ha la tabella *Per tipo di prevendita*.

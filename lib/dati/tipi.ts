@@ -138,11 +138,15 @@ export interface Pr {
   createdAt: string;
 }
 
+/** Lo staff ha controllato la categoria alla porta e la persona non rientra: chi, quando, da quale porta. */
+export interface RifiutoIngresso { ora: string; porta: string; da: string }
+
 export interface Iscrizione {
   id: string;
   eventoId: string;
   lottoId: string | null;
   categoria: string | null;       // categoria del tipo di prevendita all'iscrizione (si controlla alla porta)
+  rifiutoIngresso?: RifiutoIngresso | null; // ultimo "Non rientra" dello staff alla porta; l'iscrizione resta valida
   prId: string | null;            // null = Lista Maremma Musica
   nome: string;
   cognome: string;

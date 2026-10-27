@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sessioneCorrente } from '@/lib/sessione';
-import { cassaAttivaPorta, checkIn, elencoPorta, registraCassa, segnaPorta } from '@/lib/dati/porta';
+import { cassaAttivaPorta, checkIn, elencoPorta, registraCassa, rifiutaIngresso, segnaPorta } from '@/lib/dati/porta';
 import type { MetodoPagamento } from '@/lib/dati/tipi';
 import type { DatiCassa, EsitoPorta } from '@/lib/porta-logica';
 
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ elenco: await elencoPorta(s, eventoId), cassa: await cassaAttivaPorta(s, eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
-interface Movimento { idLocale: string; chiave: string; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa }
+interface Movimento { idLocale: string; chiave: string; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa; conferma?: boolean; rifiuto?: boolean }
 
 /**
  * POST /api/door → applica gli ingressi registrati sul telefono (anche offline, con l'orario vero)
@@ -37,7 +37,9 @@ export async function POST(req: Request) {
     const metodo: MetodoPagamento = m.metodo === 'porta_pos' ? 'porta_pos' : 'porta_contanti';
     const esito = m.cassa
       ? await registraCassa(s, corpo.eventoId, String(m.idLocale), m.cassa, { metodo, porta, ora: m.ora })
-      : await checkIn(s, corpo.eventoId, String(m.chiave), { metodo, porta, ora: m.ora }, String(m.idLocale));
+      : m.rifiuto
+        ? await rifiutaIngresso(s, corpo.eventoId, String(m.chiave), { porta, ora: m.ora })
+        : await checkIn(s, corpo.eventoId, String(m.chiave), { metodo, porta, ora: m.ora, confermato: m.conferma === true }, String(m.idLocale));
     esiti.push({ idLocale: m.idLocale, esito });
   }
   await segnaPorta(porta, corpo.eventoId);
