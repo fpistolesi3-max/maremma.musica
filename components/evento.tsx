@@ -4,6 +4,7 @@ import type { EventoPubblico } from '@/lib/dati/pubblico';
 import { chipLista, type StatoLista } from '@/lib/regole';
 import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
 import { Freccia, LocandinaInArrivo } from './ui';
+import { BinarioCinetico } from './binario-cinetico';
 
 // Pezzi della lista date e della pagina evento, dai mockup Home / Evento.
 
@@ -54,7 +55,7 @@ export function RigaEvento({ ep, ultima }: { ep: EventoPubblico; ultima?: boolea
   return (
     <Link
       href={`/e/${e.slug}`}
-      className={`mm-riga-data grid grid-cols-[84px_minmax(0,1fr)] gap-4 border-t border-linea py-5 text-osso no-underline hover:text-osso md:grid-cols-[120px_250px_minmax(0,1fr)_220px_40px] md:items-center md:gap-10 md:py-7 ${ultima ? 'border-b' : ''}`}
+      className={`mm-riga-data grid grid-cols-[84px_minmax(0,1fr)] gap-4 border-t border-linea py-5 text-osso no-underline hover:text-osso md:grid-cols-[120px_200px_minmax(0,1fr)_auto_24px] md:items-center md:gap-5 md:py-7 lg:grid-cols-[120px_250px_minmax(0,1fr)_220px_40px] lg:gap-10 ${ultima ? 'border-b' : ''}`}
     >
       <Locandina e={e} className="h-[126px] w-[84px] md:h-[180px] md:w-[120px]" />
       {/* data grande solo da desktop */}
@@ -91,7 +92,7 @@ export function Nastro({ eventi }: { eventi: Evento[] }) {
       {voci.map((e, n) => (
         <span key={`${e.id}-${n}`} className="contents">
           <Link href={`/e/${e.slug}`} tabIndex={nascosto || n >= eventi.length ? -1 : undefined} className="text-[24px] md:text-[34px]">{dataPunti(e.data)} {e.nome}</Link>
-          <i aria-hidden="true">✦</i>
+          {n % 2 ? <i aria-hidden="true">✦</i> : <b className="mm-mini-disco" aria-hidden="true" />}
         </span>
       ))}
     </div>
@@ -103,7 +104,7 @@ export function Nastro({ eventi }: { eventi: Evento[] }) {
         className="mm-nastro absolute -left-10 top-7 flex h-12 w-[calc(100%+80px)] -rotate-3 items-center md:-left-[60px] md:top-11 md:h-16 md:w-[calc(100%+120px)] md:-rotate-2"
       >
         {/* due giri identici: l'animazione scorre di metà e riparte senza stacco */}
-        <div className="mm-nastro__binario">{[giro('a', false), giro('b', true)]}</div>
+        <BinarioCinetico>{[giro('a', false), giro('b', true)]}</BinarioCinetico>
       </nav>
     </div>
   );

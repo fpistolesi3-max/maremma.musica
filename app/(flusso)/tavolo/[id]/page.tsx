@@ -118,7 +118,7 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
             <div className="mm-biglietto__strappo" aria-hidden="true" />
             {v.prenotazione.stato === 'confermata' && (
               <>
-                <div className="mm-biglietto__qr"><QrBiglietto valore={v.prenotazione.tokenQr} etichetta={`QR del tavolo ${v.tavolo.nome}`} /></div>
+                <div className="mm-biglietto__qr"><QrBiglietto valore={v.prenotazione.tokenQr} etichetta={`QR del tavolo ${v.tavolo.nome}`} stampa={Boolean(nuovo || pagato)} /></div>
                 <div className="mm-biglietto__codice">{mostraCodice(v.prenotazione.codice)}</div>
               </>
             )}

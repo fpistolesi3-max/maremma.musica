@@ -81,7 +81,7 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
           </div>
 
           <div className="flex flex-col">
-            <section className="flex justify-center px-4 md:px-0"><BigliettoQr b={b} /></section>
+            <section className="flex justify-center px-4 md:px-0"><BigliettoQr b={b} appenaPagato={appenaPagato} /></section>
             <section className="flex flex-col gap-3 px-4 pt-7 md:hidden">
               <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} />
             </section>

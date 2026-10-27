@@ -152,6 +152,11 @@
 .mm-biglietto__strappo::after { right: calc(-1 * var(--space-4) - 13px); }
 .mm-biglietto__qr { margin: var(--space-6) var(--space-6) var(--space-4); background: var(--osso); padding: var(--space-4); border-radius: var(--radius-sm); }
 .mm-biglietto__qr svg { display: block; width: 100%; height: auto; }
+/* Momento del biglietto: il QR si stampa a righe (24 scatti) e il biglietto si "strappa" con un piccolo scossone. */
+.mm-stampa { animation: mm-stampa 1.4s steps(24, end) both; }
+.mm-biglietto--strappo { animation: mm-strappo .6s cubic-bezier(.3,1.6,.5,1) both; transform-origin: 50% 0; }
+@keyframes mm-stampa { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes mm-strappo { 0% { transform: translateY(-10px) rotate(-1.4deg); } 55% { transform: translateY(2px) rotate(.5deg); } 100% { transform: none; } }
 .mm-biglietto__codice { text-align: center; font: 500 20px/24px var(--font-mono); letter-spacing: .06em; }
 .mm-biglietto__dati { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); padding: var(--space-4) var(--space-6) var(--space-6); }
 .mm-biglietto__dati dt { font: 600 12px/16px var(--font-sans); letter-spacing: .14em; text-transform: uppercase; color: var(--osso-2); margin: 0 0 var(--space-1); }
@@ -222,6 +227,8 @@
     repeating-radial-gradient(circle at center, #16191f 0 2px, #0a0c10 2px 4px);
   box-shadow: 0 0 0 1px #262b35, 0 30px 80px rgba(0,0,0,.6);
 }
+.mm-viva-disco { transform: rotate(var(--giro, 0deg)); will-change: transform; }
+.mm-viva-locandina { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); will-change: transform; }
 .mm-disco__etichetta {
   position: absolute; inset: 31%; border-radius: 50%; background: var(--osso); color: var(--notte);
   text-align: center; font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; line-height: 1.4;
@@ -239,8 +246,11 @@
 .mm-nastro a, .mm-nastro span { font-family: var(--font-display); font-weight: 900; text-transform: uppercase; letter-spacing: .01em; color: var(--notte); text-decoration: none; }
 .mm-nastro a:hover { color: var(--arancio); }
 .mm-nastro i { font-style: normal; color: var(--arancio); }
+.mm-mini-disco { display: inline-block; width: .8em; height: .8em; flex: none; border-radius: 50%; background: radial-gradient(circle, var(--arancio) 0 22%, var(--notte) 23% 26%, #16191f 27% 100%); box-shadow: 0 0 0 1px #262b35; }
 @keyframes mm-scorri { to { transform: translateX(-50%); } }
 
+.mm-parallasse__strato { position: absolute; left: 0; right: 0; top: -10%; height: 120%; will-change: transform; }
+.mm-foto > .mm-parallasse__strato { display: flex; align-items: flex-end; padding: 14px; }
 .mm-foto {
   position: relative; overflow: hidden; background: #111419;
   background-image: repeating-linear-gradient(135deg, transparent 0 14px, rgba(106,114,128,.10) 14px 15px);
@@ -263,7 +273,24 @@
 
 .mm-classifica th, .mm-classifica__nome { white-space: nowrap; }
 
+/* Caricamento iniziale: overlay della home, max 1,2 s. Senza JS si chiude da solo con la sola animazione CSS. */
+.mm-caricamento { position: fixed; inset: 0; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: var(--notte); animation: mm-cari-fine 1.2s linear both; }
+@media (display-mode: standalone) { .mm-caricamento { display: flex; } }
+.mm-caricamento__disco { animation: mm-cari-giro 1.2s cubic-bezier(.2,.6,.3,1) both; }
+.mm-caricamento__barra { width: 160px; height: 2px; background: var(--arancio); transform-origin: left; animation: mm-cari-barra .8s cubic-bezier(.4,0,.2,1) both; }
+.mm-caricamento--esce { animation: mm-cari-tendina .35s cubic-bezier(.7,0,.3,1) both; }
+@keyframes mm-cari-giro { from { transform: rotate(-200deg); } to { transform: rotate(360deg); } }
+@keyframes mm-cari-barra { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes mm-cari-tendina { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 100% 0); visibility: hidden; } }
+@keyframes mm-cari-fine { 0%, 70% { clip-path: inset(0 0 0 0); } 99% { clip-path: inset(0 0 100% 0); } 100% { clip-path: inset(0 0 100% 0); visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .mm-caricamento { display: none; } }
+
+/* Entrate allo scroll: lo stato "prima" lo mette solo il JS, senza JS tutto è visibile. */
+.mm-rivela { transition: clip-path .7s cubic-bezier(.2,.7,.2,1) calc(var(--i, 0) * 90ms), transform .7s cubic-bezier(.2,.7,.2,1) calc(var(--i, 0) * 90ms), opacity .5s calc(var(--i, 0) * 90ms); }
+.mm-rivela--prima { clip-path: inset(100% 0 0 0); transform: translateY(32px); opacity: 0; }
+
 @media (prefers-reduced-motion: reduce) {
+  .mm-rivela { transition: none; }
   .mm-nastro__binario { animation: none; }
   .mm-nastro { overflow-x: auto; }
   .mm-riga-data img, .mm-riga-data .mm-freccia { transition: none; }

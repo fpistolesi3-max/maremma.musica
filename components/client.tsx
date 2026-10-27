@@ -5,10 +5,25 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 /** QR del biglietto: moduli vinile su fondo osso, livello di correzione M. */
-export function QrBiglietto({ valore, etichetta }: { valore: string; etichetta: string }) {
+export function QrBiglietto({ valore, etichetta, stampa = false }: { valore: string; etichetta: string; stampa?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // "Si stampa" riga per riga una volta sola: il segno in sessionStorage evita il replay a ogni ricarica.
+  useEffect(() => {
+    const el = ref.current;
+    if (!stampa || !el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const chiave = `mm-stampa-${valore.slice(-12)}`;
+    try { if (sessionStorage.getItem(chiave)) return; sessionStorage.setItem(chiave, '1'); } catch { /* si stampa e basta */ }
+    const bil = el.closest('.mm-biglietto');
+    el.classList.add('mm-stampa');
+    bil?.classList.add('mm-biglietto--strappo');
+    const fine = setTimeout(() => { el.classList.remove('mm-stampa'); bil?.classList.remove('mm-biglietto--strappo'); }, 2200);
+    return () => clearTimeout(fine);
+  }, [stampa, valore]);
   return (
+    <div ref={ref}>
     <QRCodeSVG value={valore} level="M" marginSize={0} fgColor="#050505" bgColor="#e1d7c9" role="img" aria-label={etichetta}
       style={{ display: 'block', width: '100%', height: 'auto' }} size={320} />
+    </div>
   );
 }
 
