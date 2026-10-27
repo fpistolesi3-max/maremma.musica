@@ -38,7 +38,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
   const azione = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="grid gap-x-12 gap-y-8 px-4 pb-12 md:px-12 lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="grid gap-x-12 gap-y-8 px-4 pb-28 md:px-12 md:pb-12 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="flex min-w-0 flex-col self-start border-b border-linea">
       <form id="form-serata" action={invia} className="flex flex-col">
       <input type="hidden" name="id" value={v.id ?? ''} />
@@ -195,7 +195,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
           <span className="text-[14px] leading-5">La locandina fa da sfondo sfocato alla prevendita: il modulo resta leggibile sopra qualsiasi colore.</span>
           {v.id && v.slug && <a href={`/e/${v.slug}/prevendita`} target="_blank" className="link-sottolineato self-start py-2">Apri la prevendita →</a>}
         </div>
-        <div className="sticky bottom-[76px] z-10 flex gap-2 bg-notte py-3 md:bottom-0">
+        <div className="fixed inset-x-0 bottom-[61px] z-30 flex gap-2 border-t border-linea bg-notte px-4 py-3 md:sticky md:inset-x-auto md:bottom-0 md:z-10 md:border-0 md:px-0">
           <button type="submit" form="form-serata" onClick={() => { azione.current!.value = 'bozza'; }} className="mm-btn mm-btn--linea flex-1" disabled={inCorso}>{v.pubblicato ? 'Metti in bozza' : 'Salva bozza'}</button>
           <button type="submit" form="form-serata" onClick={() => { azione.current!.value = 'pubblica'; }} className="mm-btn mm-btn--primario flex-1" disabled={inCorso}>{v.pubblicato ? 'Salva' : 'Pubblica serata'}</button>
         </div>

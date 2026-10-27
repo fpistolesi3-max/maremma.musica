@@ -754,4 +754,12 @@ test('cruscotto admin: solo l’admin, con la prossima serata e i rimborsi da fa
   const c = await m.admin.cruscotto(await sessione('admin@maremmamusica.test'));
   const d = await m.archivio.leggi();
   assert.equal(c.daRimborsare, d.iscrizioni.filter((i) => i.pagamentoOnline?.daRimborsare).length);
+  const prima = c.tavoliDaRimborsare.reduce((t, x) => t + x.n, 0);
+  const pr0 = d.prenotazioni.find((p) => !p.pagamentoOnline?.daRimborsare);
+  assert.ok(pr0, 'serve una prenotazione nei dati di prova');
+  await m.archivio.modifica((x) => { x.prenotazioni.find((p) => p.id === pr0.id)!.pagamentoOnline = { sessione: null, pagamento: 'pi_cruscotto', daRimborsare: true }; });
+  const dopo = await m.admin.cruscotto(await sessione('admin@maremmamusica.test'));
+  const tavoli = dopo.tavoliDaRimborsare.find((x) => x.eventoId === pr0.eventoId);
+  assert.equal(dopo.tavoliDaRimborsare.reduce((t, x) => t + x.n, 0), prima + 1, 'il tavolo da rimborsare compare nel cruscotto');
+  assert.ok(tavoli && tavoli.n >= 1);
 });

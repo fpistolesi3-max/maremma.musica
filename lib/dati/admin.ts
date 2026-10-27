@@ -47,6 +47,7 @@ export async function cruscotto(s: Sessione) {
       evento: prossima,
       inLista: iscr.filter((i) => i.origine !== 'cassa').length,
       entrati: iscr.filter((i) => i.stato === 'entrato').length,
+      entratiCassa: iscr.filter((i) => i.stato === 'entrato' && i.origine === 'cassa').length,
       incassato: iscr.filter((i) => i.metodoPagamento).reduce((t, i) => t + i.importo, 0),
       tavoliPagati: tavoli.filter((p) => p.stato === 'confermata').length,
       tavoliInAttesa: tavoli.filter((p) => p.stato === 'in_attesa').length,
@@ -54,9 +55,11 @@ export async function cruscotto(s: Sessione) {
   })();
   const nomeEvento = (id: string) => d.eventi.find((e) => e.id === id)?.nome ?? '';
   const daRimborsare = d.iscrizioni.filter((i) => i.pagamentoOnline?.daRimborsare);
+  const tavoliDaRimborsare = d.prenotazioni.filter((p) => p.pagamentoOnline?.daRimborsare);
+  const tavoliRimborso = [...new Set(tavoliDaRimborsare.map((p) => p.eventoId))].map((id) => ({ eventoId: id, nome: nomeEvento(id), n: tavoliDaRimborsare.filter((p) => p.eventoId === id).length }));
   const inAttesa = d.prenotazioni.filter((p) => p.stato === 'in_attesa' && prenotazioneAttiva(p) && !prenotazioneScaduta(p));
   const perSerata = [...new Set(inAttesa.map((p) => p.eventoId))].map((id) => ({ eventoId: id, nome: nomeEvento(id), n: inAttesa.filter((p) => p.eventoId === id).length }));
-  return { prossima: numeri, daRimborsare: daRimborsare.length, tavoliInAttesa: perSerata };
+  return { prossima: numeri, daRimborsare: daRimborsare.length, tavoliDaRimborsare: tavoliRimborso, tavoliInAttesa: perSerata };
 }
 
 export async function eventoAdmin(s: Sessione, id: string) {

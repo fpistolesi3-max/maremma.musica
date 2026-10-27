@@ -13,6 +13,7 @@ export default async function AdminSerate() {
   const [serate, c] = await Promise.all([elencoSerate(s), cruscotto(s)]);
   const daFare = [
     c.daRimborsare > 0 && { chiave: 'rimb', testo: `${c.daRimborsare} ${c.daRimborsare === 1 ? 'pagamento da rimborsare' : 'pagamenti da rimborsare'}`, href: '/admin/iscrizioni?stato=da_rimborsare' },
+    ...c.tavoliDaRimborsare.map((t) => ({ chiave: `rt-${t.eventoId}`, testo: `${t.n} ${t.n === 1 ? 'tavolo da rimborsare' : 'tavoli da rimborsare'} · ${t.nome}`, href: `/admin/eventi/${t.eventoId}/modifica#tavoli` })),
     ...c.tavoliInAttesa.map((t) => ({ chiave: t.eventoId, testo: `${t.n} ${t.n === 1 ? 'tavolo' : 'tavoli'} in attesa di pagamento · ${t.nome}`, href: `/admin/eventi/${t.eventoId}/modifica#tavoli` })),
   ].filter((x): x is { chiave: string; testo: string; href: string } => Boolean(x));
   const p = c.prossima;
@@ -27,8 +28,8 @@ export default async function AdminSerate() {
             <span className="font-mono text-[12px] text-osso-2">{giornoSett(p.evento.data)} {dataPunti(p.evento.data)}</span>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4">
-            <Numero etichetta="In lista" valore={String(p.inLista)} />
-            <Numero etichetta="Entrati" valore={String(p.entrati)} colore="text-ok" bordo />
+            <Numero etichetta="In lista" valore={String(p.inLista)} nota="SENZA LA CASSA" />
+            <Numero etichetta="Entrati" valore={String(p.entrati)} colore="text-ok" nota={p.entratiCassa ? `DI CUI ${p.entratiCassa} IN CASSA` : undefined} bordo />
             <Numero etichetta="Incassato" valore={euro(p.incassato)} />
             <Numero etichetta="Tavoli pagati" valore={String(p.tavoliPagati)} nota={p.tavoliInAttesa ? `${p.tavoliInAttesa} IN ATTESA` : undefined} bordo />
           </div>
