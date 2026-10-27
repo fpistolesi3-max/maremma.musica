@@ -10,6 +10,11 @@ export function linkTavolo(origine: string, id: string, email: string) {
   return `${origine}/tavolo/${id}?email=${encodeURIComponent(email)}`;
 }
 
+/** Apre la pagina di pagamento online della prenotazione (ne crea una nuova a ogni apertura). */
+export function linkPagamento(origine: string, id: string, email: string) {
+  return `${origine}/tavolo/${id}/paga?email=${encodeURIComponent(email)}`;
+}
+
 /** "sab 24.10 alle 18:30": il termine per pagare, scritto per esteso. */
 export function quandoScade(iso: string) {
   return `${giornoSett(iso).toLowerCase()} ${dataPunti(iso)} alle ${ora(iso)}`;
@@ -33,39 +38,63 @@ function riquadro(v: PrenotazioneVista, extra: string) {
 </div>`;
 }
 
-/** Subito dopo la richiesta: il tavolo è fermo, ma va pagato entro il termine. */
+/** Richiesta inserita dal PR o dalla crew (tavolo venduto a voce): al cliente arriva il link per pagare sul sito. */
 export async function inviaRichiestaTavolo(v: PrenotazioneVista, origine: string) {
   const { prenotazione: p, evento: e, tavolo: t } = v;
-  // TODO: cliente — come si paga l'anticipo (bonifico, Satispay, contanti al PR) e a chi.
   const corpo = `
-<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ciao ${escapeHtml(p.nome)}, il tavolo ${escapeHtml(t.nome)} è fermo a tuo nome. Per confermarlo va pagata in anticipo la spesa minima di <strong>${euro(p.spesaMinima)}</strong> entro <strong>${quandoScade(p.scade)}</strong>: ti contattiamo noi al ${escapeHtml(p.telefono)} per il pagamento.</p>
-<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0 0 24px;">Se il pagamento non arriva entro il termine la prenotazione decade e il tavolo torna libero.</p>
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ciao ${escapeHtml(p.nome)}, ${escapeHtml(v.lista)} ha fermato per te il tavolo ${escapeHtml(t.nome)}. Per confermarlo paga online la spesa minima di <strong>${euro(p.spesaMinima)}</strong> entro <strong>${quandoScade(p.scade)}</strong>: con carta, Apple Pay o Google Pay. Subito dopo ti arriva il QR del tavolo.</p>
+<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0 0 24px;">Se non paghi entro il termine il tavolo torna libero.</p>
 ${riquadro(v, '')}
-${bottoneEmail(linkTavolo(origine, p.id, p.email), 'Vedi la prenotazione →')}`;
-  await inviaEmail({ a: p.email, oggetto: `Tavolo in attesa di pagamento · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Tavolo fermo.', corpo) });
+${bottoneEmail(linkPagamento(origine, p.id, p.email), `Paga ${euro(p.spesaMinima)} →`)}`;
+  await inviaEmail({ a: p.email, oggetto: `Paga il tuo tavolo · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Tavolo fermo.', corpo) });
 }
 
-/** Agli admin, appena arriva una richiesta: altrimenti la scoprono solo aprendo la serata. */
-export async function inviaAvvisoAdmin(v: PrenotazioneVista, destinatari: string[], origine: string) {
+/** Agli admin: un tavolo è stato pagato sul sito (non c'è niente da fare) o un pagamento va rimborsato. */
+export async function inviaAvvisoAdmin(v: PrenotazioneVista, destinatari: string[], origine: string, caso: 'pagato_online' | 'da_rimborsare') {
   const { prenotazione: p, evento: e, tavolo: t } = v;
+  const chi = `${escapeHtml(`${p.nome} ${p.cognome}`)}`;
+  const pr = p.inseritaDa === 'pr' ? ` (inserita dal PR ${escapeHtml(v.lista)})` : '';
+  const frase = {
+    pagato_online: `${chi} ha pagato online il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)}${pr}: ${euro(p.spesaMinima)}. È confermato e il QR è partito, non serve fare niente.`,
+    da_rimborsare: `${chi} ha pagato online ${euro(p.spesaMinima)} per il tavolo ${escapeHtml(t.nome)} quando la prenotazione era già chiusa e il tavolo non era più suo. <strong>Va rimborsato</strong>: lo trovi nello storico dei tavoli della serata.`,
+  }[caso];
+  const oggetto = {
+    pagato_online: `Tavolo ${t.nome} pagato online`, da_rimborsare: `Da rimborsare: tavolo ${t.nome}`,
+  }[caso];
   const corpo = `
-<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${escapeHtml(`${p.nome} ${p.cognome}`)} ha chiesto il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)}${p.inseritaDa === 'pr' ? ` (inserita dal PR ${escapeHtml(v.lista)})` : ''}. Resta fermo fino a <strong>${quandoScade(p.scade)}</strong>: quando ricevi i ${euro(p.spesaMinima)} segna il pagamento.</p>
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${frase}</p>
 ${riquadro(v, '')}
 <p style="font:400 14px/22px Arial,sans-serif;margin:0 0 24px;color:#e1d7c9;">Telefono ${escapeHtml(p.telefono)} · ${escapeHtml(p.email)}</p>
 ${bottoneEmail(`${origine}/admin/eventi/${e.id}/modifica#tavoli`, 'Apri i tavoli →')}`;
   for (const a of destinatari) {
-    await inviaEmail({ a, oggetto: `Nuova richiesta tavolo ${t.nome} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Richiesta tavolo.', corpo) });
+    await inviaEmail({ a, oggetto: `${oggetto} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail(caso === 'da_rimborsare' ? 'Da rimborsare.' : 'Tavolo pagato.', corpo) });
   }
 }
 
-/** Al cliente, quando il termine si avvicina e il pagamento non è ancora arrivato. */
-export async function inviaPromemoriaTavolo(v: PrenotazioneVista, origine: string) {
+/** Richiesta inserita dal PR (o dalla crew), ancora da pagare: al cliente il link per pagare, al PR l'avviso. */
+export async function inviaPromemoriaRichiestaPr(v: PrenotazioneVista, emailPr: string | null, origine: string) {
+  const { prenotazione: p, evento: e, tavolo: t } = v;
+  const cliente = `
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ciao ${escapeHtml(p.nome)}, il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)} è ancora fermo per te fino a <strong>${quandoScade(p.scade)}</strong>. Paga ora la spesa minima di <strong>${euro(p.spesaMinima)}</strong> e ti arriva subito il QR: dopo il termine il tavolo torna libero.</p>
+${riquadro(v, '')}
+${bottoneEmail(linkPagamento(origine, p.id, p.email), `Paga ${euro(p.spesaMinima)} →`)}`;
+  await inviaEmail({ a: p.email, oggetto: `Il tuo tavolo ti aspetta · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Manca il pagamento.', cliente) });
+  if (!emailPr) return;
+  const pr = `
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${escapeHtml(`${p.nome} ${p.cognome}`)} non ha ancora pagato il tavolo ${escapeHtml(t.nome)} che hai fermato per ${escapeHtml(e.nome)}. Scade <strong>${quandoScade(p.scade)}</strong>, poi torna libero: scrivi a ${escapeHtml(p.nome)} al <strong>${escapeHtml(p.telefono)}</strong>. Il link per pagare l'abbiamo appena rimandato per email.</p>
+${riquadro(v, '')}
+${bottoneEmail(`${origine}/pr`, 'Apri i tuoi tavoli →')}`;
+  await inviaEmail({ a: emailPr, oggetto: `Da pagare: tavolo ${t.nome} di ${p.nome} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Tavolo non pagato.', pr) });
+}
+
+/** Al PR: la richiesta che aveva fermato per un cliente è scaduta senza pagamento, il tavolo è di nuovo in vendita. */
+export async function inviaScadutaAlPr(v: PrenotazioneVista, emailPr: string, origine: string) {
   const { prenotazione: p, evento: e, tavolo: t } = v;
   const corpo = `
-<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ciao ${escapeHtml(p.nome)}, il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)} è ancora in attesa del pagamento di <strong>${euro(p.spesaMinima)}</strong>. Il termine è <strong>${quandoScade(p.scade)}</strong>: dopo, la prenotazione decade e il tavolo torna libero.</p>
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${escapeHtml(`${p.nome} ${p.cognome}`)} non ha pagato il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)} entro il termine: la richiesta è scaduta e il tavolo è tornato libero. Se ${escapeHtml(p.nome)} lo vuole ancora, inserisci una nuova richiesta dalla tua area.</p>
 ${riquadro(v, '')}
-${bottoneEmail(linkTavolo(origine, p.id, p.email), 'Vedi la prenotazione →')}`;
-  await inviaEmail({ a: p.email, oggetto: `Il tuo tavolo sta per scadere · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Manca poco.', corpo) });
+${bottoneEmail(`${origine}/pr`, 'Apri i tuoi tavoli →')}`;
+  await inviaEmail({ a: emailPr, oggetto: `Scaduto: tavolo ${t.nome} di ${p.nome} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Tavolo tornato libero.', corpo) });
 }
 
 /** La prenotazione è chiusa: decaduta senza pagamento, annullata dalla crew o rimborsata. Così nessuno arriva convinto di avere il tavolo. */

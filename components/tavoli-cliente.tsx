@@ -15,9 +15,11 @@ const euro = (n: number) => `${n.toLocaleString('it-IT')} €`;
 /**
  * Scelta del tavolo (mappa se i tavoli sono stati posizionati, elenco sempre) e modulo di richiesta.
  * `perCliente`: la sta inserendo un PR a nome di un cliente. `chiuse`: la serata è iniziata, si guarda e basta.
+ * Si paga sempre sul sito: `scadenza` è quanto resta fermo il tavolo durante il pagamento (o fino a quando vale il
+ * link mandato al cliente). `nonAttivo`: il pagamento online non è ancora configurato, i tavoli si guardano e basta.
  */
-export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perCliente = false, chiuse = false }: {
-  tavoli: TavoloScelta[]; piantinaUrl: string | null; prHandle: string | null; scadenza: string; perCliente?: boolean; chiuse?: boolean;
+export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perCliente = false, chiuse = false, nonAttivo = false }: {
+  tavoli: TavoloScelta[]; piantinaUrl: string | null; prHandle: string | null; scadenza: string; perCliente?: boolean; chiuse?: boolean; nonAttivo?: boolean;
 }) {
   const [stato, invia, inCorso] = useActionState(prenotaTavoloAzione, INIZIALE);
   const e = stato.errori;
@@ -75,10 +77,11 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
           </button>
         ))}
       </div>
+      {nonAttivo && !chiuse && <p className="m-0 border border-linea px-4 py-3 text-osso-2">La prenotazione online dei tavoli arriva a breve. Per un tavolo, intanto, scrivici.</p>}
       {chiuse && <p className="m-0 border border-linea px-4 py-3 text-osso-2">La serata è già iniziata: i tavoli non si chiedono più dal sito. Per un tavolo libero chiedi alla crew all&apos;ingresso.</p>}
-      {!chiuse && liberi.length === 0 && <p className="m-0 text-osso-2">Tutti i tavoli sono già presi. Se una prenotazione decade, il tavolo torna libero qui.</p>}
+      {!chiuse && !nonAttivo && liberi.length === 0 && <p className="m-0 text-osso-2">Tutti i tavoli sono già presi. Se una prenotazione decade, il tavolo torna libero qui.</p>}
 
-      {!chiuse && liberi.length > 0 && (
+      {!chiuse && !nonAttivo && liberi.length > 0 && (
         <form action={invia} noValidate className="flex flex-col gap-[22px] border border-linea bg-notte-2 p-5">
           <input type="hidden" name="tavoloId" value={sel?.id ?? ''} />
           {prHandle && <input type="hidden" name="pr" value={prHandle} />}
@@ -98,9 +101,9 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
             <Campo id="tv-cognome" nome="cognome" etichetta="Cognome" errore={e.cognome} valore={v.cognome} autoComplete={perCliente ? 'off' : 'family-name'} />
           </div>
           <Campo id="tv-email" nome="email" etichetta={perCliente ? 'Email del cliente' : 'Email'} tipo="email" errore={e.email} valore={v.email} autoComplete={perCliente ? 'off' : 'email'} placeholder="nome@email.it"
-            aiuto="Lì arrivano la conferma e il QR del tavolo." />
+            aiuto={perCliente ? 'Lì arriva il link per pagare, poi il QR del tavolo.' : 'Lì arrivano la conferma e il QR del tavolo.'} />
           <div className="mm-campi-2">
-            <Campo id="tv-telefono" nome="telefono" etichetta="Telefono" tipo="tel" errore={e.telefono} valore={v.telefono} autoComplete={perCliente ? 'off' : 'tel'} aiuto="Per il pagamento anticipato." />
+            <Campo id="tv-telefono" nome="telefono" etichetta="Telefono" tipo="tel" errore={e.telefono} valore={v.telefono} autoComplete={perCliente ? 'off' : 'tel'} aiuto="Se serve contattarti per il tavolo." />
             <Campo id="tv-persone" nome="persone" etichetta="Quante persone" errore={e.persone} valore={v.persone} inputMode="numeric" aiuto={sel?.posti != null ? `Al massimo ${sel.posti}.` : undefined} />
           </div>
 
@@ -111,9 +114,12 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
           {e.privacy && <span className="-mt-2 text-[14px] leading-5 text-stop-testo">{e.privacy}</span>}
 
           <button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }} disabled={inCorso || !sel}>
-            {inCorso ? 'Un attimo…' : <>Chiedi il tavolo <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
+            {inCorso ? 'Un attimo…' : <>{perCliente ? 'Manda il link per pagare' : 'Continua al pagamento'} <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
           </button>
-          <span className="text-center font-mono text-[11px] leading-4 text-osso-2">SI PAGA IN ANTICIPO · ENTRO {scadenza.toUpperCase()} O IL TAVOLO TORNA LIBERO</span>
+          <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
+            {perCliente ? `AL CLIENTE ARRIVA IL LINK PER PAGARE · IL TAVOLO RESTA FERMO FINO A ${scadenza.toUpperCase()}`
+              : `SI PAGA ONLINE ORA · CARTA, APPLE PAY, GOOGLE PAY · IL TAVOLO RESTA FERMO ${scadenza.toUpperCase()}`}
+          </span>
         </form>
       )}
     </div>

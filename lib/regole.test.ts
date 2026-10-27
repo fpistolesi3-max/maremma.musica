@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamento, GIORNI_PAGAMENTO_TAVOLO } from './regole';
+import { componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
 import { cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro } from './formato';
@@ -106,12 +106,13 @@ test('canale di arrivo: link etichettato, pagina di provenienza, browser dei soc
 test('tavoli: termine per pagare entro l’apertura, richieste chiuse a serata iniziata', () => {
   const e = evento();                                   // apre il 31.10 alle 22:00 (Roma)
   const apertura = new Date(e.data).getTime();
-  // Lontano dalla serata: il termine è a qualche giorno dalla richiesta
+  // Lontano dalla serata: dal sito il tempo di pagare (30 minuti), con il link del PR o della crew 24 ore
   const presto = new Date('2026-10-20T12:00:00+02:00');
-  assert.equal(new Date(scadenzaPagamento(presto, e)).getTime(), presto.getTime() + GIORNI_PAGAMENTO_TAVOLO * 86_400_000);
-  // Il giorno prima: il termine si ferma all'apertura
-  const vicino = new Date('2026-10-30T18:00:00+01:00');
-  assert.equal(new Date(scadenzaPagamento(vicino, e)).getTime(), apertura);
+  assert.equal(new Date(scadenzaPagamentoOnline(presto, e)).getTime(), presto.getTime() + MINUTI_PAGAMENTO_ONLINE * 60_000);
+  assert.equal(new Date(scadenzaPagamentoOnline(presto, e, true)).getTime(), presto.getTime() + ORE_PAGAMENTO_ONLINE_PR * 3_600_000);
+  // La sera prima: il link del PR scadrebbe dopo l'apertura, quindi si ferma all'apertura
+  const vicino = new Date('2026-10-30T23:00:00+01:00');
+  assert.equal(new Date(scadenzaPagamentoOnline(vicino, e, true)).getTime(), apertura);
   assert.equal(richiesteTavoliAperte(e, vicino), true);
   // Dall'apertura in poi non si chiede più: il termine sarebbe già passato
   assert.equal(richiesteTavoliAperte(e, new Date(apertura)), false);

@@ -5,7 +5,8 @@ import { notFound } from 'next/navigation';
 import { COOKIE_PR } from '@/lib/costanti';
 import { sessioneCorrente } from '@/lib/sessione';
 import { tavoliPubblici } from '@/lib/dati/tavoli';
-import { scadenzaPagamento } from '@/lib/regole';
+import { MINUTI_PAGAMENTO_ONLINE, scadenzaPagamentoOnline } from '@/lib/regole';
+import { modoPagamentoTavoli } from '@/lib/pagamenti';
 import { quandoScade } from '@/lib/tavolo-email';
 import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
@@ -30,10 +31,13 @@ export default async function PaginaTavoli({ params, searchParams }: Props) {
   const { slug } = await params;
   const s = await sessioneCorrente();
   const comePr = s?.utente.ruolo === 'pr' && s.pr ? s.pr : null;
-  const handle = comePr?.handle ?? (await searchParams).pr ?? (await cookies()).get(COOKIE_PR)?.value ?? null;
+  // L'admin inserisce un tavolo venduto a voce: vede tutti i tavoli e la richiesta non va a nessun PR.
+  const comeAdmin = s?.utente.ruolo === 'admin';
+  const handle = comeAdmin ? null : comePr?.handle ?? (await searchParams).pr ?? (await cookies()).get(COOKIE_PR)?.value ?? null;
   const x = await tavoliPubblici(slug, handle, Boolean(comePr));
   if (!x) notFound();
   const e = x.evento;
+  const online = modoPagamentoTavoli() !== null;
 
   return (
     <div className="mm-grana flex min-h-dvh flex-col">
@@ -42,7 +46,7 @@ export default async function PaginaTavoli({ params, searchParams }: Props) {
           <Monogramma />
           <span className="font-sans text-[11px] font-semibold leading-none tracking-logo">MAREMMA MUSICA</span>
         </Link>
-        <Link href={comePr ? `/pr/${comePr.handle}?serata=${e.slug}` : `/e/${e.slug}`} className="font-mono text-[11px] text-osso-2 no-underline">← {comePr ? 'AREA PR' : 'LA SERATA'}</Link>
+        <Link href={comePr ? `/pr/${comePr.handle}?serata=${e.slug}` : comeAdmin ? `/admin/eventi/${e.id}/modifica#tavoli` : `/e/${e.slug}`} className="font-mono text-[11px] text-osso-2 no-underline">← {comePr ? 'AREA PR' : comeAdmin ? 'ADMIN' : 'LA SERATA'}</Link>
       </header>
       <main className="mx-auto flex w-full max-w-[720px] flex-col gap-8 px-4 pb-16 pt-8">
         <div className="flex flex-col gap-3">
@@ -50,12 +54,14 @@ export default async function PaginaTavoli({ params, searchParams }: Props) {
           <h1 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[80px]">Prenota <span className="text-arancio">un tavolo</span></h1>
           <span className="font-mono text-[11px] leading-4 text-osso-2">{e.nome.toUpperCase()} · {luogoTesto(e).toUpperCase()}</span>
           <p className="m-0 text-[16px] leading-6 text-osso-2">
-            Il tavolo si prende con una spesa minima, da pagare in anticipo. Dopo la richiesta resta fermo a tuo nome: se il pagamento non arriva in tempo torna libero.
+            {comeAdmin
+              ? 'Tavolo venduto a voce: inserisci i dati del cliente. Al cliente arriva il link per pagare sul sito e, a pagamento fatto, il QR.'
+              : 'Il tavolo si prende con una spesa minima, pagata subito online: scegli il tavolo, paga e ti arriva il QR per tutto il gruppo. Alla porta basta mostrarlo.'}
           </p>
           {x.pr && <CampoLista nome={x.pr.nomeDisplay} ufficiale={false} nota={comePr ? 'Vedi solo i tavoli affidati a te: la prenotazione resta nella tua lista.' : `Sei entrato dal link di ${x.pr.nomeDisplay}.`} />}
         </div>
-        <PrenotaTavolo tavoli={x.tavoli} piantinaUrl={e.piantinaUrl} prHandle={x.pr?.handle ?? null} perCliente={Boolean(comePr)} chiuse={!x.aperte}
-          scadenza={quandoScade(scadenzaPagamento(new Date(), e))} />
+        <PrenotaTavolo tavoli={x.tavoli} piantinaUrl={e.piantinaUrl} prHandle={x.pr?.handle ?? null} perCliente={Boolean(comePr) || comeAdmin} chiuse={!x.aperte} nonAttivo={!online}
+          scadenza={comePr || comeAdmin ? quandoScade(scadenzaPagamentoOnline(new Date(), e, true)) : `${MINUTI_PAGAMENTO_ONLINE} minuti`} />
       </main>
     </div>
   );

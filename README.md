@@ -1,13 +1,13 @@
 # Maremma Musica — sito MVP (offline)
 
-Opzione A: iscrizione in lista + pagamento alla porta. Niente pagamenti online.
+Opzione A: iscrizione in lista + pagamento alla porta. I tavoli si pagano già online con Stripe (vedi Tavoli); per la lista il passaggio a Stripe è da fare (decisione del 26.10: prevendite sempre con Stripe, alla serata solo da bere).
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (25 test: token QR, età, doppioni, lotti, porta, permessi, tavoli), `npm run typecheck`,
+Altri comandi: `npm test` (26 test: token QR, età, doppioni, lotti, porta, permessi, tavoli), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -44,7 +44,22 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
 - Prevendita: `/e/[slug]/prevendita?pr=[handle]` e il link PR `/e/[slug]/[handle]` (Lista bloccata).
   Il link PR lascia un cookie di 3 giorni: vince l'ultimo link visitato. Senza link: "Lista: Maremma Musica".
 - Biglietto: `/biglietto/[id]?email=…` (conferma, PDF, calendario), recupero da `/biglietto`.
-- Tavoli: `/tavoli/[slug]` (mappa e richiesta; `?pr=[handle]` la attribuisce al PR, qualunque tavolo scelga il cliente; "affidato ai PR" decide solo quali tavoli il PR può prenotare lui per un cliente) e `/tavolo/[id]?email=…` (stato della prenotazione e, a pagamento ricevuto, il QR unico del tavolo). La spesa minima si paga in anticipo: il tavolo resta fermo 3 giorni (`GIORNI_PAGAMENTO_TAVOLO`, mai oltre l'apertura), poi la prenotazione decade e torna libero. Dall'apertura della serata i tavoli non si chiedono più dal sito. L'admin segna il pagamento dalla serata, scegliendo come è arrivato (bonifico, Satispay, contanti, POS): resta scritto anche chi l'ha segnato. Un pagamento arrivato dopo il termine riattiva la prenotazione dallo storico, se il tavolo è ancora libero. Una prenotazione pagata si annulla con o senza rimborso (stato "rimborsata"). Gli stati sono gli stessi dappertutto: Libero, In attesa di pagamento, Pagato, Non in vendita; il PR vede solo i propri tavoli e può inserire la richiesta per un cliente (poi torna nella sua area con la conferma). Alla porta il QR del tavolo vale per tutto il gruppo: ogni passaggio fa entrare una persona fino al numero prenotato ("3 di 6"), poi "Tavolo pieno"; un tavolo non pagato non entra. Funziona anche offline come il resto dello scanner. Gli admin ricevono un'email a ogni richiesta; una volta al giorno `/api/cron/tavoli` (cron in `vercel.json`, protetto da `CRON_SECRET`) manda il promemoria a chi ha il termine entro 36 ore (così arriva sempre il giorno prima) e fa decadere le prenotazioni scadute, avvisando per email chi le ha perse; l'email al cliente parte subito anche quando la crew annulla o rimborsa. Tavoli e piantina si riprendono da un'altra serata (stesso locale), anche creando la serata. "Il mio QR" rimanda anche i link dei tavoli; storico e CSV delle prenotazioni nella serata. Un tavolo con prenotazioni nello storico non si elimina: si mette "Non in vendita".
+- Tavoli: `/tavoli/[slug]` (mappa e richiesta; `?pr=[handle]` la attribuisce al PR, qualunque tavolo scelga il cliente; "affidato ai PR" decide solo quali tavoli il PR può prenotare lui per un cliente) e `/tavolo/[id]?email=…` (stato della prenotazione e, a pagamento ricevuto, il QR unico del tavolo). La spesa minima si paga sul sito (vedi il punto sotto): nessun pagamento si segna a mano. Dall'apertura della serata i tavoli non si chiedono più dal sito. Una prenotazione pagata si annulla con o senza rimborso (stato "rimborsata"). Gli stati sono gli stessi dappertutto: Libero, In attesa di pagamento, Pagato, Non in vendita; il PR vede solo i propri tavoli e può inserire la richiesta per un cliente (poi torna nella sua area con la conferma). Alla porta il QR del tavolo vale per tutto il gruppo: ogni passaggio fa entrare una persona fino al numero prenotato ("3 di 6"), poi "Tavolo pieno"; un tavolo non pagato non entra. Funziona anche offline come il resto dello scanner. Gli admin ricevono un'email a ogni tavolo pagato; una volta al giorno `/api/cron/tavoli` (cron in `vercel.json`, protetto da `CRON_SECRET`) controlla i pagamenti, manda i promemoria e fa decadere le prenotazioni scadute (vedi sotto); l'email al cliente parte subito anche quando la crew annulla o rimborsa. Tavoli e piantina si riprendono da un'altra serata (stesso locale), anche creando la serata. "Il mio QR" rimanda anche i link dei tavoli; storico e CSV delle prenotazioni nella serata. Un tavolo con prenotazioni nello storico non si elimina: si mette "Non in vendita".
+- Pagamento dei tavoli: tutti i pagamenti passano dal sito, con Stripe (alla serata si paga solo il bar). Il cliente sceglie il tavolo e paga subito
+  la spesa minima sul sito (Stripe Checkout: carta, Apple Pay, Google Pay). Il tavolo resta fermo solo 30 minuti
+  (`MINUTI_PAGAMENTO_ONLINE`, il minimo di Stripe); a pagamento fatto la prenotazione si conferma da sola e parte il QR,
+  senza "Segna pagato". Chi chiude la pagina di pagamento può riprovare subito o lasciare libero il tavolo dalla sua pagina.
+  Se il PR inserisce la richiesta, o l'admin per un tavolo venduto a voce ("Prenota per un cliente" nella serata: qualunque
+  tavolo, lista Maremma Musica), il cliente riceve per email il link per pagare e ha 24 ore; se non ha ancora pagato, il controllo
+  del mattino (dopo almeno 3 ore dal link, `ORE_MINIME_PROMEMORIA_PR`) gli rimanda il link e avvisa il PR, che può contattare il cliente; se scade senza pagamento lo sanno sia il cliente sia il PR. Nell'area del PR, sulle richieste
+  ancora da pagare, "Manda il link su WhatsApp" (al numero del cliente) e "Copia il link per pagare". Anche il link dei tavoli
+  del PR (`/tavoli/[serata]?pr=…`) il sito lo ricorda per 3 giorni, come quello della lista. La conferma arriva dal webhook
+  `/api/pagamenti/stripe` (firma con `STRIPE_WEBHOOK_SECRET`) e, se tarda, dal ritorno del cliente sulla sua pagina. Un pagamento
+  arrivato quando il tavolo era già di un altro finisce nello storico come "da rimborsare"; "Rimborsa" restituisce i soldi
+  su Stripe. Senza chiave Stripe, in sviluppo e sull'istanza di prova, c'è la pagina finta `/dev/pagamento`: tutto il giro
+  senza soldi veri. Sul sito vero senza `STRIPE_SECRET_KEY` i tavoli si vedono ma non si prenotano. Una volta al giorno il cron
+  chiede a Stripe l'esito delle pagine di pagamento rimaste senza risposta, così un tavolo pagato non torna libero se il webhook
+  non arriva. Non esiste "Segna pagato": un tavolo diventa "in attesa" o "pagato" solo con una prenotazione pagata sul sito.
 - PR: `/pr/[handle]` — chi apre il link vede le prossime serate; il PR entrato vede la sua area.
 - Porta: `/door` — fotocamera o codice, "cerca per nome", contatore live, funziona senza rete
   (elenco e ingressi in coda salvati sul telefono, sincronizzati al ritorno del segnale).
@@ -79,7 +94,7 @@ Serve per provare il sito dal telefono, sempre all'ultima versione. Ogni push su
 
 1. **Supabase** → nuovo progetto (regione EU). Applica le migrazioni di `supabase/migrations/` (SQL editor, o `supabase db push`);
    per ora serve solo `20261005000000_archivio_mvp.sql` (tabella provvisoria + bucket `locandine`). Le migrazioni dei tavoli
-   (`20261006…`–`20261011…`) sono per lo schema relazionale, con le stesse regole di `lib/dati/tavoli.ts` e `lib/dati/porta.ts`.
+   (`20261006…`–`20261012…`) sono per lo schema relazionale, con le stesse regole di `lib/dati/tavoli.ts` e `lib/dati/porta.ts`.
    Copia *Project URL* e la chiave *service_role* (Settings → API).
 2. **Vercel** → *Add New Project* → importa il repo GitHub. Regione funzioni `fra1` (già in `vercel.json`).
    In *Environment Variables* inserisci quelle di `.env.example`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MM_SEGRETO`,

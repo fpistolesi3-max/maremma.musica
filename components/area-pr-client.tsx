@@ -80,3 +80,30 @@ export function CondividiLink({ link, testo }: { link: string; testo: string }) 
     </div>
   );
 }
+
+/**
+ * Richiesta inserita dal PR e non ancora pagata: il PR rimanda al cliente il link per pagare, su WhatsApp
+ * (direttamente al suo numero) o copiandolo. Utile se l'email non arriva o finisce nello spam.
+ */
+export function MandaLinkPagamento({ link, telefono, testo }: { link: string; telefono: string; testo: string }) {
+  const [msg, setMsg] = useState('');
+  const assoluto = () => (link.startsWith('/') ? `${window.location.origin}${link}` : link);
+  // Numero per WhatsApp: solo cifre, con il prefisso italiano se manca.
+  const cifre = telefono.replace(/\D/g, '');
+  const numero = telefono.trim().startsWith('+') || cifre.startsWith('00') ? cifre.replace(/^00/, '') : `39${cifre}`;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        <a className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} href="#"
+          onClick={(e) => { e.preventDefault(); window.location.href = `https://wa.me/${numero}?text=${encodeURIComponent(`${testo} ${assoluto()}`)}`; }}>
+          Manda il link su WhatsApp
+        </a>
+        <button type="button" className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}
+          onClick={async () => setMsg((await copiaTesto(assoluto())) ? 'Link per pagare copiato.' : 'Non riesco a copiarlo: usa WhatsApp.')}>
+          Copia il link per pagare
+        </button>
+      </div>
+      <span aria-live="polite" className="text-[13px] leading-5 text-ok">{msg}</span>
+    </div>
+  );
+}

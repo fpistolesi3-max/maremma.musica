@@ -19,6 +19,8 @@ export function middleware(req: NextRequest) {
   else if (evento && evento[1] === 'prevendita') handle = searchParams.get('pr');
   const generico = pathname.match(/^\/pr\/([^/]+)\/?$/);
   if (generico) handle = generico[1];
+  // Link dei tavoli del PR (/tavoli/[serata]?pr=…): come quello della lista, il sito lo ricorda per qualche giorno.
+  if (/^\/tavoli\/[^/]+\/?$/.test(pathname) && searchParams.get('pr')) handle = searchParams.get('pr');
   if (handle && HANDLE.test(handle.toLowerCase())) res.cookies.set(COOKIE_PR, handle.toLowerCase(), COOKIE);
 
   // Solo sulle pagine pubbliche: le aree di lavoro non contano come arrivi.

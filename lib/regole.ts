@@ -92,12 +92,20 @@ export function componiData(giorno: string, mese: string, anno: string): string 
   return `${a}-${String(m).padStart(2, '0')}-${String(g).padStart(2, '0')}`;
 }
 
-/** Giorni per pagare in anticipo un tavolo richiesto, prima che la prenotazione decada. */
-export const GIORNI_PAGAMENTO_TAVOLO = 3;
+/**
+ * Pagamento online (tutti i pagamenti passano dal sito): il tavolo resta fermo solo mentre il cliente paga.
+ * 30 minuti è il minimo che Stripe accetta per la scadenza della pagina di pagamento. Se la richiesta la
+ * inserisce il PR (o la crew, per un tavolo venduto a voce), il cliente riceve il link per email e ha più tempo.
+ */
+export const MINUTI_PAGAMENTO_ONLINE = 30;
+export const ORE_PAGAMENTO_ONLINE_PR = 24;
+/** Il promemoria della richiesta inserita dal PR (o dalla crew) parte solo se il cliente ha avuto il link da almeno queste ore. */
+export const ORE_MINIME_PROMEMORIA_PR = 3;
 
-/** Termine per pagare: qualche giorno dalla richiesta, ma mai oltre l'apertura della serata. */
-export function scadenzaPagamento(richiesta: Date, evento: Pick<Evento, 'data'>) {
-  return new Date(Math.min(richiesta.getTime() + GIORNI_PAGAMENTO_TAVOLO * 86_400_000, new Date(evento.data).getTime())).toISOString();
+/** Termine del pagamento: pochi minuti (o qualche ora, se inserita dal PR o dalla crew), mai oltre l'apertura. */
+export function scadenzaPagamentoOnline(richiesta: Date, evento: Pick<Evento, 'data'>, conLink = false) {
+  const durata = conLink ? ORE_PAGAMENTO_ONLINE_PR * 3_600_000 : MINUTI_PAGAMENTO_ONLINE * 60_000;
+  return new Date(Math.min(richiesta.getTime() + durata, new Date(evento.data).getTime())).toISOString();
 }
 
 /** Le richieste dei tavoli si chiudono all'apertura: dopo, il termine per pagare sarebbe già passato. */
