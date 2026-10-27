@@ -192,7 +192,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
           <span className="text-[14px] leading-5">La locandina fa da sfondo sfocato alla prevendita: il modulo resta leggibile sopra qualsiasi colore.</span>
           {v.id && v.slug && <a href={`/e/${v.slug}/prevendita`} target="_blank" className="link-sottolineato self-start py-2">Apri la prevendita →</a>}
         </div>
-        <div className="sticky bottom-0 flex gap-2 bg-notte py-3">
+        <div className="sticky bottom-[76px] z-10 flex gap-2 bg-notte py-3 md:bottom-0">
           <button type="submit" form="form-serata" onClick={() => { azione.current!.value = 'bozza'; }} className="mm-btn mm-btn--linea flex-1" disabled={inCorso}>{v.pubblicato ? 'Metti in bozza' : 'Salva bozza'}</button>
           <button type="submit" form="form-serata" onClick={() => { azione.current!.value = 'pubblica'; }} className="mm-btn mm-btn--primario flex-1" disabled={inCorso}>{v.pubblicato ? 'Salva' : 'Pubblica serata'}</button>
         </div>
