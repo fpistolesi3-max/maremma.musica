@@ -222,6 +222,8 @@
     repeating-radial-gradient(circle at center, #16191f 0 2px, #0a0c10 2px 4px);
   box-shadow: 0 0 0 1px #262b35, 0 30px 80px rgba(0,0,0,.6);
 }
+.mm-viva-disco { transform: rotate(var(--giro, 0deg)); will-change: transform; }
+.mm-viva-locandina { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); will-change: transform; }
 .mm-disco__etichetta {
   position: absolute; inset: 31%; border-radius: 50%; background: var(--osso); color: var(--notte);
   text-align: center; font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em; line-height: 1.4;

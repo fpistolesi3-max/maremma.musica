@@ -4,6 +4,8 @@ import { chipLista } from '@/lib/regole';
 import { giorno2, giornoSettLungo, meseCorto, numeroEvento, orari, dataPunti } from '@/lib/formato';
 import { ConCifraArancio, Locandina, Nastro, RigaEvento, luogo } from '@/components/evento';
 import { Disco, Freccia } from '@/components/ui';
+import { CopertinaViva } from '@/components/copertina-viva';
+import { TitoloDecodifica } from '@/components/titolo-decodifica';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,16 +30,16 @@ export default async function Home() {
               <CopertinaHero ep={primo} className="md:hidden" />
 
               <div className="mt-7 flex items-end gap-[14px] md:gap-[22px]">
-                <span className="font-display text-[196px] font-black leading-[.74] tracking-[-.02em] lg:text-[280px] xl:text-[360px]">{giorno2(primo.evento.data)}</span>
+                <TitoloDecodifica testo={giorno2(primo.evento.data)} className="font-display text-[196px] font-black leading-[.74] tracking-[-.02em] lg:text-[280px] xl:text-[360px]" />
                 <div className="flex flex-col gap-[10px] pb-1 md:gap-[14px] md:pb-2">
-                  <span className="font-display text-[72px] font-black uppercase leading-[.8] text-arancio xl:text-[128px]">{meseCorto(primo.evento.data)}</span>
+                  <TitoloDecodifica testo={meseCorto(primo.evento.data)} ritardo={150} className="font-display text-[72px] font-black uppercase leading-[.8] text-arancio xl:text-[128px]" />
                   <span className="font-mono text-[12px] leading-[1.5] text-osso-2 md:text-[14px]">
                     {giornoSettLungo(primo.evento.data).toUpperCase()}<br className="hidden md:block" /><span className="md:hidden"> · </span>{orari(primo.evento.data, primo.evento.dataFine)}
                   </span>
                 </div>
               </div>
               <div className="flex flex-col gap-3 md:gap-[14px]">
-                <h1 className="m-0 font-display text-[72px] font-black uppercase leading-[.86] md:text-[96px] xl:text-[124px]">{primo.evento.nome}</h1>
+                <TitoloDecodifica as="h1" testo={primo.evento.nome} ritardo={300} className="m-0 font-display text-[72px] font-black uppercase leading-[.86] md:text-[96px] xl:text-[124px]" />
                 {(primo.evento.highlight || primo.evento.lineup.length > 0) && (
                   <span className="font-display text-[26px] font-extrabold uppercase leading-none text-osso-2 md:text-[40px]">
                     <ConCifraArancio testo={primo.evento.highlight ?? primo.evento.lineup.join(' · ')} />
@@ -130,21 +132,21 @@ export default async function Home() {
 function CopertinaHero({ ep, className = '' }: { ep: Awaited<ReturnType<typeof eventiPubblici>>['prossimi'][number]; className?: string }) {
   const e = ep.evento;
   return (
-    <div className={`relative ${className}`}>
+    <CopertinaViva className={`relative ${className}`}>
       <div className="relative h-[470px] md:h-[760px]">
         <Disco
-          className="absolute left-[180px] top-0 h-[280px] w-[280px] md:left-[190px] md:top-[86px] md:h-[520px] md:w-[520px]"
+          className="mm-viva-disco absolute left-[180px] top-0 h-[280px] w-[280px] md:left-[190px] md:top-[86px] md:h-[520px] md:w-[520px]"
           etichetta={['MAREMMA<br>MUSICA', `LATO A<br>${numeroEvento(e.numero)}`]}
         />
         <Locandina
           e={e}
-          className="absolute left-0 top-[38px] h-[432px] w-[288px] shadow-pannello md:top-10 md:h-[585px] md:w-[390px]"
+          className="mm-viva-locandina absolute left-0 top-[38px] h-[432px] w-[288px] shadow-pannello md:top-10 md:h-[585px] md:w-[390px]"
           alt={`Locandina: ${e.nome}, ${dataPunti(e.data)}${e.highlight ? ` — ${e.highlight}` : ''}`}
         />
         <span className="absolute left-0 top-[645px] hidden font-mono text-[11px] leading-[14px] tracking-[.04em] text-osso-3 md:block">
           LOCANDINA · {dataPunti(e.data)} · {e.nome.toUpperCase()}
         </span>
       </div>
-    </div>
+    </CopertinaViva>
   );
 }
