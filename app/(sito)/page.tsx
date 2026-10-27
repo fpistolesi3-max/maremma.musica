@@ -8,6 +8,7 @@ import { Caricamento } from '@/components/caricamento';
 import { Rivela } from '@/components/rivela';
 import { CopertinaViva } from '@/components/copertina-viva';
 import { TitoloDecodifica } from '@/components/titolo-decodifica';
+import { PulsanteMorph } from '@/components/pulsante-morph';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,9 +55,9 @@ export default async function Home() {
               </div>
               <div className="mt-1 flex flex-col gap-[14px] md:mt-3 md:flex-row md:items-center md:gap-6">
                 {/* Porta alla pagina della serata: lì si sceglie tra lista e tavolo. */}
-                <Link href={`/e/${primo.evento.slug}`} className="mm-btn mm-btn--clip mm-btn--primario mm-btn--pieno md:w-auto" style={{ minHeight: 56, fontSize: 16, padding: '0 36px' }}>
+                <PulsanteMorph href={`/e/${primo.evento.slug}`} className="mm-btn--pieno md:w-auto" style={{ fontSize: 16, padding: '0 36px' }}>
                   Partecipa <Freccia />
-                </Link>
+                </PulsanteMorph>
                 <span className={`${chipLista(primo.stato).classe} self-start md:self-auto`}>{chipLista(primo.stato).testo}</span>
               </div>
             </div>

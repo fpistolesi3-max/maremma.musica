@@ -9,6 +9,7 @@ import { BinarioCinetico } from './binario-cinetico';
 // Pezzi della lista date e della pagina evento, dai mockup Home / Evento.
 
 import { luogoTesto as luogo } from '@/lib/luogo';
+import { PulsanteMorph } from '@/components/pulsante-morph';
 export { luogo };
 
 export function sottotitolo(e: Evento) {
@@ -31,9 +32,9 @@ export function PuoIscriversi(s: StatoLista) {
 export function BottoneLista({ ep, className = '', style }: { ep: EventoPubblico; className?: string; style?: React.CSSProperties }) {
   if (PuoIscriversi(ep.stato)) {
     return (
-      <Link href={`/e/${ep.evento.slug}/prevendita`} className={`mm-btn mm-btn--clip mm-btn--primario ${className}`} style={style}>
+      <PulsanteMorph href={`/e/${ep.evento.slug}/prevendita`} className={className} style={style}>
         Mettiti in lista <Freccia />
-      </Link>
+      </PulsanteMorph>
     );
   }
   const motivo = { dal: ep.stato.tipo === 'dal' && ep.stato.dal ? `Lista dal ${dataPunti(ep.stato.dal)}` : 'Lista chiusa', piena: 'Lista piena', chiusa: 'Lista chiusa', passata: 'Serata passata' }[ep.stato.tipo as 'dal' | 'piena' | 'chiusa' | 'passata'];
