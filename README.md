@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (29 test: token QR, età, doppioni, lotti, prevendita online, porta, cassa, permessi, tavoli), `npm run typecheck`,
+Altri comandi: `npm test` (33 test: token QR, età, doppioni, lotti, prevendita online, porta, cassa, permessi, tavoli), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -52,6 +52,19 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
   pagare ritrova la stessa iscrizione. Un pagamento arrivato tardi vale se nel lotto c'è ancora posto e la serata non è
   iniziata, altrimenti è "da rimborsare" (email agli admin, filtro nelle Iscrizioni). Il rimborso lo fa solo l'admin
   ("Rimborsa" restituisce i soldi su Stripe); il cliente non annulla da solo. Lotti a 0 € e serate libere: QR subito.
+
+### Tipi di prevendita
+Ogni serata ha più tipi di prevendita (i "lotti": Early bird, Donne, Standard…), decisi dall'admin in *Modifica serata → Tipi di prevendita*:
+nome, prezzo, posti, **categoria**, uscita e chiusura. **Il cliente non sceglie**: il sito vende il primo tipo aperto e con posti, nell'ordine
+dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina serata ("Esce tra 3 giorni", "Esaurito").
+- **Uscita**: subito, N giorni prima della serata (segue la data se la serata si sposta) o data fissa. **Chiusura**: alla serata, N ore prima o data fissa.
+  I tipi si avvicendano di norma per date decise dall'admin (es. il primo fino al 30/10, il successivo dal 31/10) anche se i posti non sono finiti; "Esce solo quando finiscono i posti del tipo prima" è un'opzione facoltativa.
+- **Categoria** (es. *Donne*): chiunque può comprarla, ma è riservata. Il modulo lo dice con il rinvio ai termini e condizioni (dove vanno spiegate le regole) e, se l'admin lo vuole (spenta di default), chiede la casella "Dichiaro di rientrare nella categoria".
+  **Alla porta** (tipi con una categoria vera; senza categoria o "Standard" si entra con la sola scansione): la scansione NON registra l'ingresso. La scheda mostra la categoria in grande, il nome e l'età, con due pulsanti grandi: **Fai entrare** registra l'ingresso, **Non rientra** salva il rifiuto (chi, quando, porta) e non registra nulla. L'iscrizione resta valida: l'admin vede i rifiutati nella serata live (*Rifiutati alla porta*) e in *Iscrizioni*, e decide se rimborsare. Se lo stesso QR viene ripassato la scheda dice "Rifiutato alle 23:40" e si può comunque far entrare. Offline funziona uguale: sia "Fai entrare" sia "Non rientra" vanno in coda e si sincronizzano al ritorno della rete (`lib/porta-logica.ts` `decidiIngresso`, `lib/dati/porta.ts` `rifiutaIngresso`). Il server non registra mai l'ingresso di una prevendita con categoria senza la conferma dello staff.
+- **PR**: ogni tipo si vende da tutti i link PR, solo da alcuni PR o solo dal sito.
+- **Modelli rapidi** (un prezzo · Early bird + Standard · Early bird + Donne + Standard) e **copia da un'altra serata** (le uscite relative seguono la nuova data; quelle a data fissa vanno controllate). Si possono sostituire i tipi solo se nessuno si è ancora iscritto.
+- La categoria resta sull'iscrizione; il CSV ha le colonne *Tipo di prevendita* e *Categoria*; la serata live ha la tabella *Per tipo di prevendita*.
+- Supabase: `supabase/migrations/20261014000000_tipi_prevendita.sql` (colonne su `lotti` e `iscrizioni`, `porta_elenco` con la categoria; RLS invariata).
   Il link del PR attribuisce la vendita al PR come prima. Senza chiave Stripe c'è la pagina di prova `/dev/pagamento`;
   sul sito vero senza `STRIPE_SECRET_KEY` la prevendita a pagamento resta chiusa ("Prevendita in arrivo").
 - Biglietto: `/biglietto/[id]?email=…` (stato del pagamento, poi QR, PDF, calendario; "Paga" apre `/biglietto/[id]/paga`,

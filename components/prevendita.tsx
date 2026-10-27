@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { eventoPerSlug, prValido, prevenditaOnlineAttiva } from '@/lib/dati/pubblico';
+import { eventoPerSlug, prValido, prevenditaOnlineAttiva, usatiPerLotto } from '@/lib/dati/pubblico';
+import { leggi } from '@/lib/dati/archivio';
 import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
-import { chipLista } from '@/lib/regole';
+import { chipLista, tipiVista } from '@/lib/regole';
 import { luogoTesto } from '@/lib/luogo';
 import { CampoLista, IconaIndietro, Monogramma } from './ui';
 import { ModuloPrevendita } from './modulo-prevendita';
@@ -21,7 +22,7 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
 
   const handleCookie = (await cookies()).get(COOKIE_PR)?.value ?? null;
   const pr = (await prValido(handleDaUrl, e)) ?? (await prValido(handleCookie, e));
-  const ep = pr ? (await eventoPerSlug(slug, true))! : base;
+  const ep = pr ? (await eventoPerSlug(slug, true, pr.id))! : base;
 
   // A pagamento si vende solo con il pagamento online attivo (sul sito vero serve la chiave di Stripe).
   const inArrivo = ep.stato.tipo === 'aperta' && !prevenditaOnlineAttiva();
@@ -29,6 +30,9 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
   const aPagamento = ep.stato.tipo === 'aperta';
   const totaleEtichetta = aPagamento ? 'Paghi ora online' : 'Ingresso';
   const totaleValore = ep.stato.tipo === 'aperta' ? euro(ep.stato.prezzo) : 'Libero';
+  const tipo = ep.stato.tipo === 'aperta' || ep.stato.tipo === 'libero' ? ep.stato.lotto : null;
+  const usati = usatiPerLotto(await leggi(), e.id);
+  const prossimo = tipo ? tipiVista(e, ep.lotti, usati, { daPr: Boolean(pr), prId: pr?.id }).find((t) => t.stato === 'presto' || t.stato === 'dopo_precedente') : null;
   const dataBreve = `${giornoSett(e.data)} ${giorno2(e.data)} ${meseCorto(e.data).toUpperCase()}`;
 
   return (
@@ -65,7 +69,8 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
           <div className="border-t border-linea bg-notte-2 px-4 pb-8 pt-6 md:border-t md:px-8 md:pb-8">
             {aperta ? (
               <ModuloPrevendita slug={e.slug} prHandle={pr?.handle ?? null} totaleEtichetta={totaleEtichetta} totaleValore={totaleValore} etaMinima={e.etaMinima}
-                aPagamento={aPagamento} soloPrevendita={!e.cassaAttiva}>
+                aPagamento={aPagamento} soloPrevendita={!e.cassaAttiva}
+                tipo={tipo && (tipo.categoria || ep.lotti.length > 1) ? { nome: tipo.nome, categoria: tipo.categoria, conferma: tipo.confermaCategoria, prossimo: prossimo ? `${prossimo.lotto.nome}${prossimo.dal ? ` dal ${dataPunti(prossimo.dal.toISOString())}` : ' quando finiscono i posti'}` : null } : null}>
                 {pr
                   ? <CampoLista nome={pr.nomeDisplay} ufficiale={false} nota={`Sei entrato dal link di ${pr.nomeDisplay}: resti nella sua lista.`} />
                   : <CampoLista nome="Maremma Musica" ufficiale />}
@@ -75,7 +80,7 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
                 <span className={(inArrivo ? 'mm-chip mm-chip--pagato' : chipLista(ep.stato).classe) + ' self-start'}>{inArrivo ? 'Prevendita in arrivo' : chipLista(ep.stato).testo}</span>
                 <p className="m-0 text-[17px] leading-[26px]">
                   {inArrivo ? 'La prevendita online apre a breve: torna qui nei prossimi giorni.'
-                    : ep.stato.tipo === 'dal' ? `La lista apre il ${dataPunti(ep.stato.dal)}. Torna qui quel giorno.`
+                    : ep.stato.tipo === 'dal' ? (ep.stato.dal ? `La lista apre il ${dataPunti(ep.stato.dal)}. Torna qui quel giorno.` : 'Il prossimo tipo di prevendita esce quando finiscono i posti di quello attuale.')
                     : ep.stato.tipo === 'piena' ? 'I posti in lista sono finiti. Tieni d’occhio Instagram: a volte se ne liberano.'
                       : 'La lista per questa serata è chiusa.'}
                 </p>

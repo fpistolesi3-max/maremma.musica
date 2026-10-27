@@ -12,7 +12,7 @@ import { lasciaPosto } from '@/lib/dati/prevendita';
 import { apriPagamentoIscrizione } from '@/lib/pagamento-prevendita';
 
 export interface StatoModulo {
-  errori: Partial<Record<'nome' | 'cognome' | 'nascita' | 'email' | 'privacy' | 'generale', string>>;
+  errori: Partial<Record<'nome' | 'cognome' | 'nascita' | 'email' | 'privacy' | 'categoria' | 'generale', string>>;
   valori: Record<string, string>;
   recupero?: string;
 }
@@ -23,7 +23,7 @@ export async function iscriviti(_prima: StatoModulo, f: FormData): Promise<Stato
   const valori = {
     nome: testo(f, 'nome'), cognome: testo(f, 'cognome'),
     giorno: testo(f, 'giorno'), mese: testo(f, 'mese'), anno: testo(f, 'anno'),
-    email: testo(f, 'email'), marketing: f.get('marketing') ? '1' : '', privacy: f.get('privacy') ? '1' : '',
+    email: testo(f, 'email'), marketing: f.get('marketing') ? '1' : '', confermaCategoria: f.get('confermaCategoria') ? '1' : '', privacy: f.get('privacy') ? '1' : '',
   };
   const slug = testo(f, 'slug');
   const handlePr = testo(f, 'pr') || null;
@@ -42,7 +42,7 @@ export async function iscriviti(_prima: StatoModulo, f: FormData): Promise<Stato
   // Canale: cookie lasciato all'arrivo, altrimenti il browser interno del social da cui sta compilando.
   const canale = normalizzaCanale((await cookies()).get(COOKIE_CANALE)?.value) ?? canaleDaUserAgent((await headers()).get('user-agent')) ?? 'diretto';
   const esito = await creaIscrizione({
-    slug, handlePr, canale, nome: valori.nome, cognome: valori.cognome, dataNascita: dataNascita!, email: valori.email, marketing: Boolean(valori.marketing),
+    slug, handlePr, canale, confermaCategoria: Boolean(f.get('confermaCategoria')), nome: valori.nome, cognome: valori.cognome, dataNascita: dataNascita!, email: valori.email, marketing: Boolean(valori.marketing),
   });
   if (!esito.ok) {
     const campo = (esito.campo ?? 'generale') as keyof StatoModulo['errori'];

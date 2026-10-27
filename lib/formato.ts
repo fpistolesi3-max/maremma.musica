@@ -65,6 +65,14 @@ export function quandoRelativo(iso: string, adesso = new Date()) {
   return `${dataPunti(iso)} ${ora(iso)}`;
 }
 
+/** "Esce tra 3 giorni" / "Esce tra 5 ore" / "Esce tra poco": per i tipi di prevendita non ancora usciti. */
+export function esceTra(dal: Date, adesso = new Date()) {
+  const ore = Math.ceil((dal.getTime() - adesso.getTime()) / 3_600_000);
+  if (ore <= 1) return 'Esce tra poco';
+  if (ore < 48) return `Esce tra ${ore} ore`;
+  return `Esce tra ${Math.ceil(ore / 24)} giorni`;
+}
+
 export function slugDa(testo: string) {
   return testo.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);

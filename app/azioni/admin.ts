@@ -4,8 +4,9 @@ import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { sessioneCorrente, type Sessione } from '@/lib/sessione';
+import type { NomeModello } from '@/lib/tipi-modelli';
 import {
-  cambiaStatoIscrizione, cambiaStatoPr, copiaTavoli, creaPr, creaStaff, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
+  applicaModelloTipi, cambiaStatoIscrizione, cambiaStatoPr, copiaTipi, copiaTavoli, creaPr, creaStaff, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
 } from '@/lib/dati/admin';
 import { salvaMedia } from '@/lib/dati/media';
 import { chiudiRimborsoIscrizione, pagamentoIscrizioneDi } from '@/lib/dati/prevendita';
@@ -118,27 +119,51 @@ export async function salvaLottoAzione(_p: EsitoAzione, f: FormData): Promise<Es
   const eventoId = t(f, 'eventoId');
   const nome = t(f, 'nome');
   const prezzo = num(t(f, 'prezzo'));
-  if (!nome) return { errore: 'Dai un nome al lotto (es. "Primo lotto").' };
+  if (!nome) return { errore: 'Dai un nome al tipo (es. "Early bird").' };
   if (prezzo == null || Number.isNaN(prezzo) || prezzo < 0) return { errore: 'Prezzo non valido.' };
   const quantita = num(t(f, 'quantita'));
   const inizio = t(f, 'dataInizio');
   const fine = t(f, 'dataFine');
+  const giorni = num(t(f, 'uscitaGiorniPrima'));
+  const ore = num(t(f, 'fineOrePrima'));
+  const usaGiorni = t(f, 'uscitaModo') === 'giorni' && giorni != null && !Number.isNaN(giorni) && giorni >= 0;
+  const usaOre = t(f, 'fineModo') === 'ore' && ore != null && !Number.isNaN(ore) && ore >= 0;
+  const abilitati = t(f, 'prModo') === 'alcuni' ? f.getAll('prAbilitati').map(String) : null;
   await salvaLotto(s, {
     id: t(f, 'id') || null, eventoId, nome, prezzo,
     quantita: quantita == null || Number.isNaN(quantita) ? null : Math.round(quantita),
-    dataInizio: inizio ? isoRoma(inizio.slice(0, 10), inizio.slice(11, 16) || '00:00') : null,
-    dataFine: fine ? isoRoma(fine.slice(0, 10), fine.slice(11, 16) || '23:59') : null,
-    visibileDaPr: f.get('visibileDaPr') === 'on', ordine: Number(t(f, 'ordine') || 0),
+    dataInizio: !usaGiorni && t(f, 'uscitaModo') === 'data' && inizio ? isoRoma(inizio.slice(0, 10), inizio.slice(11, 16) || '00:00') : null,
+    dataFine: !usaOre && t(f, 'fineModo') === 'data' && fine ? isoRoma(fine.slice(0, 10), fine.slice(11, 16) || '23:59') : null,
+    uscitaGiorniPrima: usaGiorni ? Math.round(giorni!) : null, fineOrePrima: usaOre ? Math.round(ore!) : null,
+    categoria: t(f, 'categoria').slice(0, 40) || null, confermaCategoria: Boolean(t(f, 'categoria')) && f.get('confermaCategoria') === 'on',
+    dopoPrecedente: f.get('dopoPrecedente') === 'on', prAbilitati: abilitati && abilitati.length ? abilitati : null,
+    visibileDaPr: t(f, 'prModo') !== 'nessuno', ordine: Number(t(f, 'ordine') || 0),
   });
   revalidatePath('/', 'layout');
-  return { ok: 'Lotto salvato.' };
+  return { ok: 'Tipo salvato.' };
 }
 
 export async function eliminaLottoAzione(id: string) {
   const s = await admin();
   try { await eliminaLotto(s, id); } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/', 'layout');
-  return { ok: 'Lotto eliminato.' };
+  return { ok: 'Tipo eliminato.' };
+}
+
+export async function modelloTipiAzione(eventoId: string, modello: NomeModello): Promise<EsitoAzione> {
+  const s = await admin();
+  try { await applicaModelloTipi(s, eventoId, modello); } catch (e) { return { errore: (e as Error).message }; }
+  revalidatePath('/', 'layout');
+  return { ok: 'Modello applicato: ritocca prezzi, posti e uscite.' };
+}
+
+export async function copiaTipiAzione(eventoId: string, daEventoId: string): Promise<EsitoAzione> {
+  const s = await admin();
+  try {
+    const r = await copiaTipi(s, daEventoId, eventoId);
+    revalidatePath('/', 'layout');
+    return { ok: `${r.copiati} tipi copiati.${r.dateFisse ? ` ${r.dateFisse} hanno una data fissa: controllala.` : ''}` };
+  } catch (e) { return { errore: (e as Error).message }; }
 }
 
 const STATI_TAVOLO: StatoTavolo[] = ['libero', 'riservato', 'confermato', 'non_in_vendita'];

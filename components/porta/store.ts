@@ -8,7 +8,7 @@ import type { DatiCassa, EsitoPorta, VocePorta } from '@/lib/porta-logica';
 // Stato del telefono della porta, salvato in localStorage: l'elenco resta anche senza campo
 // e gli ingressi fatti offline aspettano in coda finché torna la connessione.
 
-export interface Movimento { idLocale: string; voceId: string; chiave: string; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa }
+export interface Movimento { idLocale: string; voceId: string; chiave: string; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa; conferma?: boolean; rifiuto?: boolean }
 
 interface StatoPorta {
   eventoId: string | null;
@@ -86,7 +86,7 @@ export const usePorta = create<StatoPorta>()(
           if (r.status === 401) { set({ serveAccesso: true }); return null; }
           if (!r.ok) throw new Error(String(r.status));
           const dati = (await r.json()) as { esiti: { idLocale: string; esito: EsitoPorta }[]; elenco: VocePorta[]; cassa: boolean; ora: string };
-          const conflitti = dati.esiti.filter((e) => e.esito.esito !== 'entrato').length;
+          const conflitti = dati.esiti.filter((e) => e.esito.esito !== 'entrato' && e.esito.esito !== 'rifiutato').length;
           set((s) => {
             const rimasti = s.coda.filter((m) => !inviati.some((x) => x.idLocale === m.idLocale));
             return { coda: rimasti, elenco: unisci(dati.elenco, rimasti, s.elenco), salvatoAlle: dati.ora, cassa: dati.cassa, conflitti: s.conflitti + conflitti, online: true, serveAccesso: false };

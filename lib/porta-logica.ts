@@ -1,5 +1,5 @@
 // Logica della porta condivisa da server e telefono dello staff (che la usa anche senza campo).
-import type { MetodoPagamento, StatoIscrizione } from './dati/tipi';
+import type { MetodoPagamento, RifiutoIngresso, StatoIscrizione } from './dati/tipi';
 
 export interface VocePorta {
   id: string;
@@ -13,6 +13,8 @@ export interface VocePorta {
   oraCheckIn: string | null;
   porta: string | null;
   lista: string;
+  categoria?: string | null;  // categoria della prevendita (es. Donne): lo staff la controlla a vista
+  rifiuto?: RifiutoIngresso | null; // "Non rientra" già dato dallo staff (si può comunque far entrare)
   canale: string;             // da dove si è iscritto (instagram, diretto…): utile quando non c'è un PR
   origine: 'lista' | 'cassa' | 'tavolo'; // cassa = registrato alla porta, senza QR
   /**
@@ -21,6 +23,9 @@ export interface VocePorta {
    */
   tavolo?: { nome: string; persone: number; entrati: number; pagato: boolean };
 }
+
+/** Va controllata alla porta: una categoria vera (es. Donne). Nessuna categoria, o "Standard", entra con la sola scansione. */
+export const categoriaDaControllare = (v: Pick<VocePorta, 'categoria'>) => Boolean(v.categoria && v.categoria.trim().toLowerCase() !== 'standard');
 
 /** Persone che una voce porta dentro: una, oppure tutto il gruppo del tavolo. La prevendita non pagata non conta. */
 export function personeVoce(v: VocePorta) {
@@ -38,6 +43,8 @@ export interface DatiCassa { nome: string; cognome: string; dataNascita: string;
 export type EsitoPorta =
   | { esito: 'entrato'; voce: VocePorta; incassato: number; ora: string; primaPagato: boolean }
   | { esito: 'non_pagato'; voce: VocePorta }    // prevendita chiesta ma non (ancora) pagata online: non entra
+  | { esito: 'da_confermare'; voce: VocePorta }  // prevendita con categoria: entra solo dopo "Fai entrare" dello staff
+  | { esito: 'rifiutato'; voce: VocePorta }       // lo staff ha toccato "Non rientra": niente ingresso, rifiuto salvato
   | { esito: 'gia_entrato'; voce: VocePorta }
   | { esito: 'annullato'; voce: VocePorta }
   | { esito: 'non_valido'; motivo: string };
@@ -47,6 +54,8 @@ export interface OpzioniIngresso {
   metodo: MetodoPagamento;
   porta: string;
   ora: string;
+  /** Lo staff ha toccato "Fai entrare" dopo aver controllato la categoria. */
+  confermato?: boolean;
 }
 
 /**
@@ -68,6 +77,7 @@ export function decidiIngresso(voce: VocePorta, o: OpzioniIngresso): { esito: Es
   if (voce.stato === 'entrato') return { esito: { esito: 'gia_entrato', voce }, aggiornata: null };
   if (voce.stato === 'scaduta') return { esito: { esito: 'non_valido', motivo: 'Prevendita mai pagata' }, aggiornata: null };
   if (voce.stato === 'in_attesa') return { esito: { esito: 'non_pagato', voce }, aggiornata: null };
+  if (categoriaDaControllare(voce) && !o.confermato) return { esito: { esito: 'da_confermare', voce }, aggiornata: null };
   const aggiornata: VocePorta = { ...voce, stato: 'entrato', oraCheckIn: o.ora, porta: o.porta };
   return { esito: { esito: 'entrato', voce: aggiornata, incassato: 0, ora: o.ora, primaPagato: voce.stato === 'pagato' }, aggiornata };
 }

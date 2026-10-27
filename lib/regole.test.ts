@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido } from './regole';
+import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
-import { cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
+import { categoriaDaControllare, cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro } from './formato';
 import type { Evento, Iscrizione, Lotto } from './dati/tipi';
 import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
@@ -14,7 +14,7 @@ const evento = (p: Partial<Evento> = {}): Evento => ({
   dressCode: null, lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 10, etaMinima: 18, pubblicato: true, prAbilitati: null,
   createdAt: '', updatedAt: '', ...p,
 });
-const lotto = (p: Partial<Lotto> = {}): Lotto => ({ id: 'l1', eventoId: 'e1', nome: 'Lista', prezzo: 10, quantita: null, dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0, ...p });
+const lotto = (p: Partial<Lotto> = {}): Lotto => ({ id: 'l1', eventoId: 'e1', nome: 'Lista', prezzo: 10, quantita: null, dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0, categoria: null, confermaCategoria: false, uscitaGiorniPrima: null, fineOrePrima: null, dopoPrecedente: false, prAbilitati: null, ...p });
 const PRIMA = new Date('2026-10-01T12:00:00Z');
 
 test('token QR: firmato, non falsificabile, legato alla serata', () => {
@@ -63,6 +63,60 @@ test('lotti: primo aperto con posti, lotti futuri, lista piena, link PR', () => 
   assert.equal(statoLista(e, [lotto({ dataInizio: '2026-12-01T00:00:00+01:00' })], {}, { adesso: PRIMA }).tipo, 'dal');
   assert.equal(statoLista(e, [lotto({ visibileDaPr: false })], {}, { adesso: PRIMA, daPr: true }).tipo, 'chiusa');
   assert.equal(statoLista(e, [], {}, { adesso: new Date('2026-11-02T00:00:00Z') }).tipo, 'passata');
+});
+
+test('tipi di prevendita: uscita relativa alla serata, fine, esaurimento e successivo', () => {
+  const e = evento(); // apertura 31.10 alle 22:00 (+01:00)
+  const early = lotto({ id: 'early', nome: 'Early bird', categoria: 'Early bird', prezzo: 8, quantita: 2, uscitaGiorniPrima: 14, fineOrePrima: 24 * 7 });
+  const donne = lotto({ id: 'donne', ordine: 1, nome: 'Donne', categoria: 'Donne', prezzo: 5, uscitaGiorniPrima: 7 });
+  const std = lotto({ id: 'std', ordine: 2, nome: 'Standard', prezzo: 12, dopoPrecedente: true });
+  const f = finestraLotto(early, e);
+  assert.equal(f.inizio?.toISOString(), '2026-10-17T21:00:00.000Z', '14 giorni prima dell’apertura');
+  assert.equal(f.fine?.toISOString(), '2026-10-24T21:00:00.000Z', 'chiude 7 giorni prima');
+  const tipi = [early, donne, std];
+  const a = (iso: string, usati: Record<string, number> = {}) => new Date(iso) && statoLista(e, tipi, usati, { adesso: new Date(iso) });
+  const prima = a('2026-10-10T12:00:00Z');
+  assert.equal(prima.tipo === 'dal' && prima.lotto?.id, 'early', 'prima di tutto: esce l’Early bird');
+  const s1 = a('2026-10-20T12:00:00Z');
+  assert.equal(s1.tipo === 'aperta' && s1.lotto?.id, 'early', '16 giorni prima: Early bird');
+  assert.equal(s1.tipo === 'aperta' && s1.lotto?.id === 'early' ? s1.prezzo : 0, 8);
+  const esaurito = a('2026-10-20T12:00:00Z', { early: 2 });
+  assert.equal(esaurito.tipo, 'dal', 'Early finito, Donne non è ancora uscito');
+  assert.equal(esaurito.tipo === 'dal' && esaurito.lotto?.id, 'donne');
+  const s2 = a('2026-10-26T12:00:00Z');
+  assert.equal(s2.tipo === 'aperta' && s2.lotto?.id, 'donne', 'Early chiuso (7 giorni prima), si apre Donne');
+  const v = tipiVista(e, tipi, {}, { adesso: new Date('2026-10-26T12:00:00Z') });
+  assert.deepEqual(v.map((t) => t.stato), ['chiuso', 'in_vendita', 'dopo_precedente']);
+  const dopo = tipiVista(e, tipi, { donne: 0 }, { adesso: new Date('2026-10-26T12:00:00Z') });
+  assert.equal(dopo[2].stato, 'dopo_precedente', 'Standard attende che Donne (senza limite) sia esaurito: non lo è mai');
+  const soloDonne = [donne, lotto({ ...std, id: 'std2', quantita: null, ordine: 2 })];
+  const limitato = [lotto({ ...donne, quantita: 3 }), soloDonne[1]];
+  const s3 = statoLista(e, limitato, { donne: 3 }, { adesso: new Date('2026-10-26T12:00:00Z') });
+  assert.equal(s3.tipo === 'aperta' && s3.lotto?.id, 'std2', 'finiti i posti di Donne esce Standard');
+});
+
+test('tipi di prevendita: categoria venduta dai PR scelti', () => {
+  const e = evento();
+  const donne = lotto({ id: 'donne', categoria: 'Donne', prAbilitati: ['pr1'] });
+  assert.equal(statoLista(e, [donne], {}, { adesso: PRIMA, daPr: true, prId: 'pr1' }).tipo, 'aperta');
+  assert.equal(statoLista(e, [donne], {}, { adesso: PRIMA, daPr: true, prId: 'pr2' }).tipo, 'chiusa', 'altro PR: non si vende');
+  assert.equal(statoLista(e, [donne], {}, { adesso: PRIMA }).tipo, 'aperta', 'dal sito vale per tutti');
+});
+
+test('porta: con categoria l’ingresso si registra solo dopo "Fai entrare"; senza categoria (o Standard) subito', () => {
+  const v: VocePorta = { id: 'x', token: 'MM1.a.b.c', codice: 'ABCD1234', nome: 'Giulia', cognome: 'Bianchi', dataNascita: '2001-05-14', stato: 'pagato', importo: 7, oraCheckIn: null, porta: null, lista: 'Maremma Musica', canale: 'diretto', origine: 'lista', categoria: 'Donne' };
+  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: '2026-10-31T23:41:00Z' };
+  const r = decidiIngresso(v, o);
+  assert.equal(r.esito.esito, 'da_confermare', 'categoria: prima la scelta dello staff');
+  assert.equal(r.aggiornata, null, 'niente ingresso registrato');
+  const ok = decidiIngresso({ ...v, rifiuto: { ora: '2026-10-31T23:40:00Z', porta: 'P2', da: 'porta@x.it' } }, { ...o, confermato: true });
+  assert.equal(ok.esito.esito, 'entrato', 'dopo un "Non rientra" si può comunque far entrare');
+  assert.equal(ok.aggiornata?.stato, 'entrato');
+  assert.equal(decidiIngresso({ ...v, categoria: 'Standard' }, o).esito.esito, 'entrato', 'Standard: come oggi');
+  assert.equal(decidiIngresso({ ...v, categoria: null }, o).esito.esito, 'entrato');
+  assert.equal(decidiIngresso({ ...v, stato: 'in_attesa' }, o).esito.esito, 'non_pagato', 'non pagata: prima di tutto non entra');
+  assert.equal(categoriaDaControllare({ categoria: ' standard ' }), false);
+  assert.equal(categoriaDaControllare({ categoria: 'Donne' }), true);
 });
 
 test('porta: chi è in lista ha già pagato online, non si incassa; non pagato non entra', () => {
