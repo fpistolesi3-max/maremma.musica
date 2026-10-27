@@ -4,8 +4,8 @@ import { notFound } from 'next/navigation';
 import { eventoPerSlug, locationVisibile, usatiPerLotto } from '@/lib/dati/pubblico';
 import { leggi } from '@/lib/dati/archivio';
 import { tavoliPubblici } from '@/lib/dati/tavoli';
-import { chipLista } from '@/lib/regole';
-import { dataPunti, euro, giornoSett, giornoSettLungo, meseCorto, meseLungo, numeroEvento, orari, giorno2 } from '@/lib/formato';
+import { chipLista, tipiVista } from '@/lib/regole';
+import { dataPunti, esceTra, euro, giornoSett, giornoSettLungo, meseCorto, meseLungo, numeroEvento, orari, giorno2 } from '@/lib/formato';
 import { BottoneLista, Locandina, PuoIscriversi } from '@/components/evento';
 import { Disco } from '@/components/ui';
 
@@ -33,6 +33,7 @@ export default async function PaginaEvento({ params }: Props) {
   const maps = visibile && (e.lat != null ? `https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}` : e.location || e.comune ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([e.location, e.comune].filter(Boolean).join(', '))}` : null);
   const usati = usatiPerLotto(await leggi(), e.id);
   const chip = chipLista(ep.stato);
+  const tipi = tipiVista(e, ep.lotti, usati, {});
   const prezzo = ep.stato.tipo === 'aperta' ? euro(ep.stato.prezzo) : ep.stato.tipo === 'libero' ? 'Libero' : ep.lotti[0] ? euro(ep.lotti[0].prezzo) : e.prezzoLista ? euro(e.prezzoLista) : 'Libero';
   const puo = PuoIscriversi(ep.stato);
   const tavoli = (await tavoliPubblici(e.slug))?.tavoli ?? [];
@@ -88,22 +89,26 @@ export default async function PaginaEvento({ params }: Props) {
             <Info largo titolo="Età" valore={e.etaMinima > 0 ? `${e.etaMinima}+` : 'Per tutti'} nota="Porta un documento: il nome deve combaciare con il QR." />
           </div>
 
-          {ep.lotti.length > 1 && (
+          {(tipi.length > 1 || tipi.some((t) => t.lotto.categoria)) && (
             <div className="flex flex-col">
-              <span className="etichetta pb-3">Prezzi per lotto</span>
-              {ep.lotti.map((l) => {
-                const pieno = l.quantita != null && (usati[l.id] ?? 0) >= l.quantita;
-                const attivo = ep.stato.tipo === 'aperta' && ep.stato.lotto?.id === l.id;
+              <span className="etichetta pb-3">Prevendite</span>
+              {tipi.map((t) => {
+                const attivo = t.stato === 'in_vendita';
+                const l = t.lotto;
+                const nota = t.stato === 'esaurito' ? 'esaurito' : t.stato === 'chiuso' ? 'chiuso'
+                  : t.stato === 'presto' ? `${esceTra(t.dal!)} · ${euro(l.prezzo)}`
+                  : t.stato === 'dopo_precedente' ? `esce quando finisce la precedente · ${euro(l.prezzo)}`
+                  : `in vendita ora · ${euro(l.prezzo)} online`;
                 return (
                   <div key={l.id} className="flex items-baseline justify-between gap-4 border-t border-linea py-3 last:border-b">
-                    <span className={`font-display text-[22px] font-extrabold uppercase ${attivo ? 'text-osso' : 'text-osso-2'}`}>{l.nome}</span>
-                    <span className="dato text-osso-2">
-                      {l.dataInizio && `dal ${dataPunti(l.dataInizio)} · `}{l.dataFine && `fino al ${dataPunti(l.dataFine)} · `}
-                      <span className={attivo ? 'text-arancio' : ''}>{pieno ? 'esaurito' : `${euro(l.prezzo)} online`}</span>
+                    <span className={`font-display text-[22px] font-extrabold uppercase ${attivo ? 'text-osso' : 'text-osso-2'} ${t.stato === 'esaurito' || t.stato === 'chiuso' ? 'line-through' : ''}`}>
+                      {l.nome}{l.categoria && l.categoria !== l.nome && <small className="ml-2 font-mono text-[11px] font-normal">{l.categoria.toUpperCase()}</small>}
                     </span>
+                    <span className="dato text-right text-osso-2"><span className={attivo ? 'text-arancio' : ''}>{nota}</span></span>
                   </div>
                 );
               })}
+              {tipi.some((t) => t.lotto.categoria) && <span className="pt-3 text-[13px] leading-5 text-osso-2">Le prevendite con una categoria (es. Donne) sono riservate: alla porta si controlla il documento.</span>}
             </div>
           )}
 
