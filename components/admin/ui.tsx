@@ -57,3 +57,13 @@ export function Apribile({ titolo, children }: { titolo: string; children: React
     </details>
   );
 }
+
+/** Azioni secondarie di una pagina in un menu "Altro" (i link figli diventano voci). */
+export function MenuAltro({ children }: { children: ReactNode }) {
+  return (
+    <details className="group relative">
+      <summary className="mm-btn mm-btn--muto cursor-pointer list-none [&::-webkit-details-marker]:hidden">Altro</summary>
+      <div className="absolute right-0 z-20 mt-1 flex min-w-[220px] flex-col border border-linea-forte bg-notte-2 [&>a]:px-4 [&>a]:py-3 [&>a]:text-[15px] [&>a]:text-osso [&>a]:no-underline [&>a:hover]:bg-notte">{children}</div>
+    </details>
+  );
+}
