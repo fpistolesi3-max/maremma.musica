@@ -384,7 +384,7 @@ function Esito({ esito, cassa, senzaTelefono, online, salvatoAlle, onRiprova, on
       <>
         <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
           <span className="font-mono text-[13px] font-medium leading-[18px]">{categoriaDaControllare(v) ? 'PREVENDITA RISERVATA · CONTROLLA IL DOCUMENTO' : 'SERATA SENZA TELEFONO · CONTROLLA IL DOCUMENTO'}</span>
-          <span className="font-display text-[88px] font-black uppercase leading-[.85] [overflow-wrap:anywhere]">{categoriaDaControllare(v) ? v.categoria : 'Documento'}</span>
+          <span className={`font-display ${categoriaDaControllare(v) ? 'text-[88px]' : 'text-[64px]'} font-black uppercase leading-[.85] [overflow-wrap:anywhere]`}>{categoriaDaControllare(v) ? v.categoria : 'Documento'}</span>
           <div className={linea} />
           <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
           <span className="font-mono text-[13px] font-medium leading-[18px]">NASCITA {nascita(v.dataNascita)} · {anni(v.dataNascita)} ANNI</span>

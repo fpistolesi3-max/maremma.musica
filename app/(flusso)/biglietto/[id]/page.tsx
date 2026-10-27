@@ -64,7 +64,7 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
                   <span className="font-mono text-[11px] leading-none tracking-[.06em] text-ok">{b.iscrizione.importo > 0 ? `✓ PAGAMENTO RICEVUTO · ${euro(b.iscrizione.importo)}` : '✓ ISCRIZIONE CONFERMATA'}</span>
                   <h1 className="m-0 font-display text-[96px] font-black uppercase leading-[.82]">Sei<br /><span className="text-arancio">in lista.</span></h1>
                   <p className="m-0 text-[18px] leading-[27px]">
-                    Ci vediamo sotto cassa, {b.iscrizione.nome}.{b.evento.dressCode ? ` Dress code: ${b.evento.dressCode.toLowerCase()}.` : ''} Alla porta mostra questo QR con un documento.
+                    Ci vediamo sotto cassa, {b.iscrizione.nome}.{b.evento.dressCode ? ` Dress code: ${b.evento.dressCode.toLowerCase()}.` : ''} {b.evento.senzaTelefono ? 'Serata senza telefono: alla porta porta un documento.' : 'Alla porta mostra questo QR con un documento.'}
                   </p>
                 </>
               ) : (
@@ -76,14 +76,14 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
               )}
             </section>
             <section className="hidden flex-col gap-3 md:flex">
-              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} />
+              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} />
             </section>
           </div>
 
           <div className="flex flex-col">
             <section className="flex justify-center px-4 md:px-0"><BigliettoQr b={b} appenaPagato={appenaPagato} /></section>
             <section className="flex flex-col gap-3 px-4 pt-7 md:hidden">
-              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} />
+              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} />
             </section>
             <section className="mx-4 mt-9 flex flex-col gap-[14px] border border-linea bg-notte-2 px-5 py-6 md:mx-0">
               <span className="font-display text-[30px] font-black uppercase leading-[.95]">Porta la tua gente</span>
@@ -158,12 +158,12 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
   );
 }
 
-function Azioni({ id, email, nuovo }: { id: string; email: string; nuovo: boolean }) {
+function Azioni({ id, email, nuovo, senzaTelefono }: { id: string; email: string; nuovo: boolean; senzaTelefono: boolean }) {
   const q = `?email=${encodeURIComponent(email)}`;
   return (
     <>
-      {nuovo && <span className="text-[14px] leading-5 text-osso-2">Ti abbiamo mandato il QR a <span className="text-osso">{email}</span>.</span>}
-      <a className="mm-btn mm-btn--linea mm-btn--pieno" href={`/api/biglietto/${id}/pdf${q}`} target="_blank" rel="noopener">Scarica PDF</a>
+      {nuovo && <span className="text-[14px] leading-5 text-osso-2">{senzaTelefono ? 'Ti abbiamo mandato la conferma a' : 'Ti abbiamo mandato il QR a'} <span className="text-osso">{email}</span>.</span>}
+      {!senzaTelefono && <a className="mm-btn mm-btn--linea mm-btn--pieno" href={`/api/biglietto/${id}/pdf${q}`} target="_blank" rel="noopener">Scarica PDF</a>}
       {/* Fase 2: Apple/Google Wallet */}
       <button type="button" className="mm-btn mm-btn--linea mm-btn--pieno" disabled>Salva nel Wallet · in arrivo</button>
       <a className="mm-btn mm-btn--muto self-center" href={`/api/biglietto/${id}/calendario${q}`}>Aggiungi al calendario</a>

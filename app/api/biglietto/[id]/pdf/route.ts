@@ -21,6 +21,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const b = await bigliettoPubblico(id, email);
   // Il QR c'è solo per le iscrizioni valide: una prevendita non ancora pagata non ha biglietto.
   if (!b || (!isAttiva(b.iscrizione) && !b.iscrizione.metodoPagamento)) return new Response('Biglietto non trovato', { status: 404 });
+  // Serata senza telefono: niente QR, quindi niente PDF col QR.
+  if (b.evento.senzaTelefono) return new Response('Serata senza telefono: alla porta serve il documento', { status: 404 });
   const { iscrizione: i, evento: e } = b;
 
   const pdf = await PDFDocument.create();
