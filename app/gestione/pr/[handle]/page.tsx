@@ -5,7 +5,6 @@ import { dettaglioPr, type TipoAttivita } from '@/lib/dati/gestione-pr';
 import { dataPunti, euro, giornoSett, ora, parti, quandoRelativo } from '@/lib/formato';
 import { Resa, Riquadro, SceltaSerata } from '@/components/gestione';
 import { ChipIscrizione } from '@/components/ui';
-import { AnnullaConsegna, ConfermaConsegna } from '@/components/gestione-client';
 import { etichettaCanale } from '@/lib/canali';
 
 export const metadata = { title: 'Attività PR' };
@@ -13,12 +12,10 @@ export const metadata = { title: 'Attività PR' };
 type Props = { params: Promise<{ handle: string }>; searchParams: Promise<{ serata?: string }> };
 
 const ATTIVITA: Record<TipoAttivita, { testo: string; colore: string }> = {
-  iscrizione: { testo: 'Iscritto', colore: 'text-arancio' },
-  pagato_al_pr: { testo: 'Pagato al PR', colore: 'text-attesa' },
+  iscrizione: { testo: 'In lista', colore: 'text-arancio' },
   entrato: { testo: 'Entrato', colore: 'text-ok' },
   annullato: { testo: 'Annullato', colore: 'text-stop-testo' },
   rimborsato: { testo: 'Rimborsato', colore: 'text-stop-testo' },
-  consegna: { testo: 'Soldi consegnati', colore: 'text-ok' },
 };
 const GIORNI = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
 
@@ -51,21 +48,9 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
       <div className="grid grid-cols-2 border-l border-linea lg:grid-cols-4">
         <Riquadro etichetta="In lista" valore={n.inLista} nota={`+${n.nuovi24h} NELLE ULTIME 24H`} />
         <Riquadro etichetta="Entrati" valore={n.entrati} colore="text-ok" nota={n.resa != null ? `RESA ${n.resa}%` : 'PORTA NON ANCORA APERTA'} />
-        <Riquadro etichetta="Da ritirare" valore={euro(n.daRitirare)} colore={n.daRitirare ? 'text-attesa' : undefined} nota={`${euro(n.consegnato)} GIÀ CONSEGNATI`} />
+        <Riquadro etichetta="Pagato online" valore={euro(n.incassatoOnline)} nota="PREVENDITA SUL SITO" />
         <Riquadro etichetta="Annullati" valore={n.annullati} nota={n.ultimaAttivita ? `ULTIMA ATTIVITÀ ${quandoRelativo(n.ultimaAttivita)}` : 'NESSUNA ATTIVITÀ'} />
       </div>
-
-      <section className="flex flex-col gap-4 border-b border-linea px-4 py-6 md:flex-row md:items-center md:justify-between md:px-10">
-        <div className="flex flex-col gap-1">
-          <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Soldi dal PR</h2>
-          <span className="text-[14px] leading-5 text-osso-2">
-            {n.daRitirare > 0
-              ? `${x.pr.nomeDisplay} ha in mano ${euro(n.daRitirare)} di clienti che gli hanno pagato prima${x.evento ? ` (${x.evento.nome})` : ''}. Quando te li dà, conferma qui.`
-              : `Niente da ritirare${x.evento ? ` per ${x.evento.nome}` : ''}.`}
-          </span>
-        </div>
-        <ConfermaConsegna prId={x.pr.id} prNome={x.pr.nomeDisplay} eventoId={x.evento?.id ?? null} serata={x.evento ? `${x.evento.nome} ${dataPunti(x.evento.data)}` : 'tutte le serate'} importo={n.daRitirare} />
-      </section>
 
       <div className="grid gap-x-12 px-4 md:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col">
@@ -88,7 +73,7 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
             <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Per serata</h2>
             <div className="mm-scroll">
               <table className="mm-classifica">
-                <thead><tr><th>Serata</th><th className="mm-num">Lista</th><th className="mm-num">Entrati</th><th style={{ width: '28%' }}>Resa</th><th className="mm-num">Da ritirare</th></tr></thead>
+                <thead><tr><th>Serata</th><th className="mm-num">Lista</th><th className="mm-num">Entrati</th><th style={{ width: '28%' }}>Resa</th><th className="mm-num">Online</th></tr></thead>
                 <tbody>
                   {x.serate.map((r) => (
                     <tr key={r.evento.id}>
@@ -96,7 +81,7 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
                       <td className="mm-num">{r.inLista}</td>
                       <td className="mm-num">{r.entrati}</td>
                       <td><Resa valore={r.resa} /></td>
-                      <td className={`mm-num ${r.daRitirare ? 'text-attesa' : ''}`}>{euro(r.daRitirare)}</td>
+                      <td className="mm-num">{euro(r.incassatoOnline)}</td>
                     </tr>
                   ))}
                   {x.serate.length === 0 && <tr><td colSpan={5} className="text-osso-2">Nessuna serata.</td></tr>}
@@ -115,7 +100,7 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
                 <div key={i.id} className={`flex items-center gap-3 border-t border-linea py-3 ${k === Math.min(x.iscrizioni.length, 200) - 1 ? 'border-b' : ''}`}>
                   <div className="flex min-w-0 flex-grow flex-col gap-[3px]">
                     <span className="text-[15px] font-medium leading-5">{i.nome}</span>
-                    <span className="font-mono text-[11px] text-osso-3">{quandoRelativo(i.createdAt)}{i.metodoPagamento === 'pr' ? ` · ${euro(i.importo)} AL PR${i.consegnaId ? ' · CONSEGNATI' : ' · DA RITIRARE'}` : ''} · {etichettaCanale(i.canale).toUpperCase()}</span>
+                    <span className="font-mono text-[11px] text-osso-3">{quandoRelativo(i.createdAt)}{i.metodoPagamento === 'online' ? ` · ${euro(i.importo)} ONLINE` : ''} · {etichettaCanale(i.canale).toUpperCase()}</span>
                   </div>
                   <ChipIscrizione stato={i.stato} testo={i.stato === 'entrato' && i.oraCheckIn ? `Entrato ${ora(i.oraCheckIn)}` : undefined} />
                 </div>
@@ -126,20 +111,6 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
         </div>
 
         <aside className="flex flex-col gap-[10px] border-t border-linea py-6 lg:border-t-0">
-          <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Consegne</h2>
-          <div className="flex flex-col pb-6">
-            {x.consegne.map((c) => (
-              <div key={c.id} className={`flex items-center gap-3 border-t border-linea py-3 ${c.annullataAt ? 'opacity-50' : ''}`}>
-                <div className="flex min-w-0 flex-grow flex-col gap-[2px]">
-                  <span className={`font-display text-[22px] font-extrabold leading-none ${c.annullataAt ? 'line-through' : 'text-ok'}`}>{euro(c.importo)}</span>
-                  <span className="font-mono text-[11px] text-osso-2">{quandoRelativo(c.confermataAt)} · {c.evento.toUpperCase()} · {c.iscrizioni.length} CLIENTI</span>
-                  <span className="font-mono text-[10px] text-osso-3">RICEVUTI DA {c.confermataDa}{c.annullataAt ? ` · ANNULLATA DA ${c.annullataDa}` : ''}</span>
-                </div>
-                {x.admin && !c.annullataAt && <AnnullaConsegna id={c.id} />}
-              </div>
-            ))}
-            {x.consegne.length === 0 && <p className="m-0 border-t border-linea py-3 text-[14px] text-osso-2">Nessuna consegna registrata.</p>}
-          </div>
           <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Attività recente</h2>
           <ol className="m-0 flex list-none flex-col p-0">
             {x.attivita.map((a, k) => (
@@ -147,7 +118,7 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
                 <span className="font-mono text-[11px] leading-4 text-osso-2">{quandoRelativo(a.quando)}</span>
                 <span className="flex min-w-0 flex-col gap-[2px]">
                   <span className={`font-mono text-[11px] uppercase ${ATTIVITA[a.tipo].colore}`}>
-                    {ATTIVITA[a.tipo].testo}{a.tipo === 'pagato_al_pr' ? ` · ${euro(a.importo)}` : ''}{a.tipo === 'entrato' && a.porta ? ` · ${a.porta}` : ''}
+                    {ATTIVITA[a.tipo].testo}{a.tipo === 'iscrizione' && a.importo > 0 ? ` · ${euro(a.importo)} online` : ''}{a.tipo === 'entrato' && a.porta ? ` · ${a.porta}` : ''}
                   </span>
                   <span className="text-[15px] leading-5">{a.nome}</span>
                   {!x.evento && <span className="font-mono text-[10px] text-osso-3">{a.evento.toUpperCase()}</span>}

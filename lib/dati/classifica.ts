@@ -11,13 +11,14 @@ export interface RigaClassifica {
 }
 
 /**
- * Classifica della serata: solo totali. Ai PR arriva senza incassi e senza nessun nome di cliente
+ * Classifica della serata: solo totali, contano le prevendite pagate (o gratis) e gli entrati. Ai PR arriva senza incassi e senza nessun nome di cliente
  * (equivalente della funzione classifica_pr() nello schema Supabase).
  */
 export function calcolaClassifica(d: Readonly<Archivio>, eventoId: string, vista: { admin: boolean; prId?: string | null }): RigaClassifica[] {
   const righe = new Map<string, RigaClassifica>();
   for (const i of d.iscrizioni) {
     if (i.eventoId !== eventoId || i.origine === 'cassa') continue; // la cassa non è la lista di nessuno
+    if (i.stato === 'in_attesa' || i.stato === 'scaduta') continue; // conta solo la prevendita pagata
     const k = i.prId ?? '_mm';
     let r = righe.get(k);
     if (!r) {
@@ -27,7 +28,7 @@ export function calcolaClassifica(d: Readonly<Archivio>, eventoId: string, vista
     }
     if (isAttiva(i)) r.inLista += 1;
     if (i.stato === 'entrato') r.entrati += 1;
-    if (vista.admin && isAttiva(i) && i.metodoPagamento) r.incassato! += i.importo;
+    if (vista.admin && isAttiva(i) && i.metodoPagamento === 'online') r.incassato! += i.importo; // incassato online
   }
   // Un PR senza iscritti compare comunque nella propria classifica.
   if (vista.prId && !righe.has(vista.prId)) {

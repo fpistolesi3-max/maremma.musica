@@ -4,7 +4,6 @@ import { panoramicaPr } from '@/lib/dati/gestione-pr';
 import { dataPunti, euro, giornoSett, quandoRelativo } from '@/lib/formato';
 import { Resa, Riquadro, SceltaSerata } from '@/components/gestione';
 import { AggiornamentoLive } from '@/components/admin/live';
-import { ConfermaConsegna } from '@/components/gestione-client';
 
 export const metadata = { title: 'Attività PR' };
 
@@ -17,7 +16,6 @@ export default async function AttivitaPr({ searchParams }: Props) {
   const p = await panoramicaPr(s, (serata as string) ?? null);
   const q = p.evento ? `?serata=${p.evento.id}` : '?serata=tutte';
   const totaleLista = p.totali.inLista + p.diretta.inLista;
-  const nomeSerata = p.evento ? `${p.evento.nome} ${dataPunti(p.evento.data)}` : 'tutte le serate';
 
   return (
     <>
@@ -39,8 +37,7 @@ export default async function AttivitaPr({ searchParams }: Props) {
         <Riquadro etichetta="In lista dai PR" valore={p.totali.inLista}
           nota={totaleLista ? `${Math.round((p.totali.inLista / totaleLista) * 100)}% DEL TOTALE · +${p.totali.nuovi24h} IN 24H` : undefined} />
         <Riquadro etichetta="Entrati dai PR" valore={p.totali.entrati} colore="text-ok" nota={p.totali.resa != null ? `RESA ${p.totali.resa}%` : 'LA PORTA NON È ANCORA APERTA'} />
-        <Riquadro etichetta="Da ritirare dai PR" valore={euro(p.totali.daRitirare)} colore={p.totali.daRitirare ? 'text-attesa' : undefined}
-          nota={`${euro(p.totali.consegnato)} GIÀ CONSEGNATI`} />
+        <Riquadro etichetta="Prevendita dai PR" valore={euro(p.totali.incassatoOnline)} nota="PAGATA ONLINE SUL SITO" />
         <Riquadro etichetta="Senza PR" valore={p.diretta.inLista} nota={<Link href={`/gestione/canali${q}`} className="text-osso-2">DA SOCIAL E SITO · VEDI CANALI →</Link>} />
       </div>
 
@@ -62,12 +59,11 @@ export default async function AttivitaPr({ searchParams }: Props) {
                 <span><b className="block font-display text-[24px] font-black text-osso">{r.inLista}</b>LISTA</span>
                 <span><b className="block font-display text-[24px] font-black text-arancio">+{r.nuovi24h}</b>24H</span>
                 <span><b className="block font-display text-[24px] font-black text-ok">{r.entrati}</b>ENTRATI</span>
-                <span><b className={`block font-display text-[24px] font-black ${r.daRitirare ? 'text-attesa' : 'text-osso'}`}>{euro(r.daRitirare)}</b>DA RITIRARE</span>
+                <span><b className="block font-display text-[24px] font-black text-osso">{euro(r.incassatoOnline)}</b>ONLINE</span>
               </div>
               <Resa valore={r.resa} />
-              <span className="font-mono text-[10px] text-osso-3">ULTIMA ATTIVITÀ: {r.ultimaAttivita ? quandoRelativo(r.ultimaAttivita) : 'NESSUNA'}{r.consegnato ? ` · CONSEGNATI ${euro(r.consegnato)}` : ''}</span>
+              <span className="font-mono text-[10px] text-osso-3">ULTIMA ATTIVITÀ: {r.ultimaAttivita ? quandoRelativo(r.ultimaAttivita) : 'NESSUNA'}</span>
             </Link>
-            <ConfermaConsegna prId={r.pr.id} prNome={r.pr.nomeDisplay} eventoId={p.evento?.id ?? null} serata={nomeSerata} importo={r.daRitirare} compatto />
             </div>
           ))}
         </div>
@@ -78,7 +74,7 @@ export default async function AttivitaPr({ searchParams }: Props) {
             <thead>
               <tr>
                 <th>#</th><th>PR</th><th className="mm-num">In lista</th><th className="mm-num">24h</th><th className="mm-num">Entrati</th>
-                <th style={{ width: '18%' }}>Resa</th><th className="mm-num">Pagati al PR</th><th className="mm-num">Da ritirare</th><th className="mm-num">Consegnato</th><th className="mm-num">Annullati</th><th>Ultima attività</th><th />
+                <th style={{ width: '18%' }}>Resa</th><th className="mm-num">Pagato online</th><th className="mm-num">Annullati</th><th>Ultima attività</th>
               </tr>
             </thead>
             <tbody>
@@ -94,19 +90,16 @@ export default async function AttivitaPr({ searchParams }: Props) {
                   <td className="mm-num text-arancio">+{r.nuovi24h}</td>
                   <td className="mm-num">{r.entrati}</td>
                   <td><Resa valore={r.resa} /></td>
-                  <td className="mm-num">{r.pagatiAlPr}</td>
-                  <td className={`mm-num ${r.daRitirare ? 'text-attesa' : ''}`}>{euro(r.daRitirare)}</td>
-                  <td className="mm-num text-ok">{euro(r.consegnato)}</td>
+                  <td className="mm-num">{euro(r.incassatoOnline)}</td>
                   <td className="mm-num">{r.annullati}</td>
                   <td className="whitespace-nowrap font-mono text-[11px] text-osso-2">{r.ultimaAttivita ? quandoRelativo(r.ultimaAttivita) : '—'}</td>
-                  <td><ConfermaConsegna prId={r.pr.id} prNome={r.pr.nomeDisplay} eventoId={p.evento?.id ?? null} serata={nomeSerata} importo={r.daRitirare} compatto /></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <p className="m-0 text-[13px] leading-5 text-osso-3">
-          &quot;Da ritirare&quot;: soldi che i clienti hanno già dato al PR prima della serata (il PR li ha segnati come pagati). Quando il PR te li dà, tocca &quot;Ricevuti&quot;: resta registrato chi li ha presi e quando.
+          La prevendita si paga solo online: i soldi non passano dai PR. Contano solo le prevendite pagate.
           {p.admin ? ' Per sospendere o aggiungere un PR vai su Admin → PR.' : ''}
         </p>
       </section>

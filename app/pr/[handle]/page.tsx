@@ -5,7 +5,7 @@ import { sessioneCorrente } from '@/lib/sessione';
 import { eventiPubblici, prValido } from '@/lib/dati/pubblico';
 import { serateDelPr, totaliPr } from '@/lib/dati/area-pr';
 import { tavoliDelPr } from '@/lib/dati/tavoli';
-import { modoPagamentoTavoli } from '@/lib/pagamenti';
+import { modoPagamentoOnline } from '@/lib/pagamenti';
 import { linkPagamento, quandoScade } from '@/lib/tavolo-email';
 import { AzioniPrenotazione } from '@/components/tavoli-azioni';
 import { chipLista, isAttiva } from '@/lib/regole';
@@ -92,7 +92,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
   const GIORNI = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
   const tavoli = serata ? await tavoliDelPr(s, serata.evento.id) : null;
   // I tavoli si pagano con Stripe: finché il pagamento online non è attivo non si prenotano.
-  const tavoliOnline = modoPagamentoTavoli() !== null;
+  const tavoliOnline = modoPagamentoOnline() !== null;
   const appena = nuovoTavolo ? tavoli?.mie.find((v) => v.prenotazione.id === nuovoTavolo && v.prenotazione.stato === 'in_attesa') : undefined;
 
   return (
@@ -127,7 +127,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
               <div className="flex flex-col gap-[6px] px-5 pb-4 pt-5">
                 <span className="font-mono text-[11px] leading-[14px] text-arancio">✦ {serata === serate[0] ? 'PROSSIMA' : 'SERATA'} · {giornoSett(serata.evento.data)} {dataPunti(serata.evento.data)} · {numeroEvento(serata.evento.numero)}</span>
                 <span className="font-display text-[40px] font-black uppercase leading-[.9]">{serata.evento.nome}</span>
-                <span className="font-mono text-[11px] leading-4 text-osso-2">{luogoTesto(serata.evento).toUpperCase()} · {serata.evento.prezzoLista ? `LISTA ${euro(serata.evento.prezzoLista)} ALLA PORTA` : 'INGRESSO LIBERO'}</span>
+                <span className="font-mono text-[11px] leading-4 text-osso-2">{luogoTesto(serata.evento).toUpperCase()} · {serata.evento.tipoIngresso !== 'libero' && serata.evento.prezzoLista ? `PREVENDITA ${euro(serata.evento.prezzoLista)} ONLINE · ${serata.evento.cassaAttiva ? 'CASSA ALLA PORTA' : 'SOLO PREVENDITA'}` : 'INGRESSO LIBERO'}</span>
               </div>
               <div className="grid grid-cols-3 border-t border-linea">
                 <Stat valore={String(inLista)} etichetta="In lista" />
@@ -167,20 +167,8 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
                 <h2 className="m-0 font-display text-[36px] font-black uppercase leading-[.9]">La tua lista</h2>
                 <span className="font-mono text-[11px] text-osso-2">{inLista} NOMI</span>
               </div>
-              <ListaPr righe={serata.mie.map((i) => ({
-                id: i.id, nome: `${i.nome} ${i.cognome}`, quando: quandoRelativo(i.createdAt), stato: i.stato,
-                daPagare: i.stato === 'in_lista' && i.importo > 0, pagatoAlPr: i.stato === 'pagato' && i.metodoPagamento === 'pr' && !i.consegnaId,
-              }))} />
-              <span className="text-[13px] leading-5 text-osso-3">&quot;Ha pagato&quot; se ti ha già dato i soldi: alla porta risulterà pagato.</span>
-              {(serata.soldi.daConsegnare > 0 || serata.soldi.consegnato > 0) && (
-                <div className="flex items-center justify-between gap-4 border border-linea bg-notte-2 px-4 py-3">
-                  <span className="flex flex-col gap-1">
-                    <span className="text-[11px] font-semibold tracking-[.12em] text-osso-2">DA CONSEGNARE ALLA CREW</span>
-                    <span className={`font-display text-[32px] font-black leading-none ${serata.soldi.daConsegnare ? 'text-attesa' : ''}`}>{euro(serata.soldi.daConsegnare)}</span>
-                  </span>
-                  <span className="text-right font-mono text-[11px] leading-4 text-ok">GIÀ CONSEGNATI<br />{euro(serata.soldi.consegnato)}</span>
-                </div>
-              )}
+              <ListaPr righe={serata.mie.map((i) => ({ id: i.id, nome: `${i.nome} ${i.cognome}`, quando: quandoRelativo(i.createdAt), stato: i.stato }))} />
+              <span className="text-[13px] leading-5 text-osso-3">Qui c&apos;è solo chi ha già pagato la prevendita online: i soldi non passano da te.</span>
             </section>
           )}
 
