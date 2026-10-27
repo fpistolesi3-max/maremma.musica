@@ -49,7 +49,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
       <input type="hidden" name="azione" ref={azione} defaultValue="" />
 
         {stato.errore && <p role="alert" className="m-0 mt-6 border border-stop-testo px-4 py-3 text-[14px] text-stop-testo">{stato.errore}</p>}
-        <Sezione n="01" titolo="La serata" aperta={!v.id} forza={conErrore('nome', 'giorno', 'apertura', 'chiusura')}>
+        <Sezione n="01" titolo="Dati" aperta={!v.id} forza={conErrore('nome', 'giorno', 'apertura', 'chiusura')}>
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
             <Campo nome="nome" etichetta="Titolo" v={v.nome} errore={c.nome} />
             <Campo nome="numero" etichetta="Numero" v={v.numero} aiuto="MM/0xx, in automatico" inputMode="numeric" />
@@ -65,9 +65,6 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
           </div>
           <Area nome="lineup" etichetta="Line-up" v={v.lineup} aiuto="Un artista per riga · puoi aggiungerla dopo" righe={3} />
           <Area nome="descrizione" etichetta="Descrizione" v={v.descrizione} righe={3} />
-        </Sezione>
-
-        <Sezione n="02" titolo="Dove">
           <div className="grid gap-4 md:grid-cols-2">
             <Campo nome="location" etichetta="Location" v={v.location} aiuto="Nome del posto" />
             <Campo nome="comune" etichetta="Comune" v={v.comune} />
@@ -80,7 +77,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
           <Area nome="infoArrivo" etichetta="Come arrivare" v={v.infoArrivo} aiuto="Parcheggio, navetta" righe={2} />
         </Sezione>
 
-        <Sezione n="03" titolo="Ingresso" forza={conErrore('tipoIngresso', 'prezzoLista', 'prezzoCassa', 'etaMinima')}>
+        <Sezione n="02" titolo="Prevendite" nota="TIPO, PREZZO ED ETÀ MINIMA" forza={conErrore('tipoIngresso', 'prezzoLista', 'etaMinima')}>
           <div className="flex flex-col gap-2">
             <span className="mm-campo__etichetta" id="tipo-ingresso">Tipo di ingresso</span>
             <div role="radiogroup" aria-labelledby="tipo-ingresso" className="grid border border-linea-forte sm:grid-cols-2">
@@ -95,13 +92,9 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
             {tipo === 'lista' && <Campo nome="prezzoLista" etichetta="Prezzo prevendita (€)" v={v.prezzoLista} inputMode="decimal" errore={c.prezzoLista} aiuto="Il primo lotto nasce con questo prezzo" />}
             <Campo nome="etaMinima" etichetta="Età minima" v={v.etaMinima} inputMode="numeric" errore={c.etaMinima} />
           </div>
-          <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
-            <label className="flex items-center gap-[10px] text-[15px]">
-              <input type="checkbox" name="inCopertina" checked={copertina} onChange={(e) => setCopertina(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />
-              In copertina nella home
-            </label>
-            <span className="mm-campo__aiuto">Se nessuna serata è in copertina, si mostra la prossima data.</span>
-          </div>
+        </Sezione>
+
+        <Sezione n="03" titolo="Porta" nota="CASSA E INGRESSO SENZA TELEFONO" forza={conErrore('prezzoCassa')}>
           <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
             <label className="flex items-center gap-[10px] text-[15px]">
               <input type="checkbox" name="senzaTelefono" checked={senzaTel} onChange={(e) => setSenzaTel(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />
@@ -129,7 +122,17 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
           </div>
         </Sezione>
 
-        <Sezione n="04" titolo="PR">
+        <Sezione n="04" titolo="Copertina" nota="LA LOCANDINA SI CARICA IN FONDO ALLA PAGINA">
+          <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
+            <label className="flex items-center gap-[10px] text-[15px]">
+              <input type="checkbox" name="inCopertina" checked={copertina} onChange={(e) => setCopertina(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />
+              In copertina nella home
+            </label>
+            <span className="mm-campo__aiuto">Se nessuna serata è in copertina, si mostra la prossima data.</span>
+          </div>
+        </Sezione>
+
+        <Sezione n="05" titolo="PR">
           <label className="flex items-center gap-[10px] text-[15px]"><input type="checkbox" checked={tutti} onChange={(e) => setTutti(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />Tutti i PR attivi</label>
           {!tutti && (
             <div className="grid gap-3 md:grid-cols-2">
@@ -145,7 +148,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
         </Sezione>
 
         {!v.id && copiaTavoliDa.length > 0 && (
-          <Sezione n="05" titolo="Tavoli">
+          <Sezione n="06" titolo="Tavoli">
             <div className="mm-campo">
               <label className="mm-campo__etichetta" htmlFor="f-copiaTavoliDa">Riprendi tavoli e piantina da</label>
               <select id="f-copiaTavoliDa" name="copiaTavoliDa" defaultValue="" className="mm-campo__input">
