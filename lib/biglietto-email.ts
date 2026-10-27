@@ -11,6 +11,18 @@ export function linkBiglietto(origine: string, id: string, email: string) {
   return `${origine}/biglietto/${id}?email=${encodeURIComponent(email)}`;
 }
 
+/** Apre una pagina di pagamento nuova per la prevendita in attesa. */
+export function linkPagaBiglietto(origine: string, id: string, email: string) {
+  return `${origine}/biglietto/${id}/paga?email=${encodeURIComponent(email)}`;
+}
+
+/** Cosa sapere sull'ingresso per chi non ha la prevendita: c'è la cassa alla porta o no. */
+export function testoCassa(e: Pick<Biglietto['evento'], 'cassaAttiva' | 'prezzoCassa' | 'prezzoLista' | 'tipoIngresso'>) {
+  if (e.tipoIngresso === 'libero') return null;
+  if (!e.cassaAttiva) return 'Ingresso solo in prevendita: alla porta non si vendono ingressi.';
+  return `Prezzo in cassa per chi non ha la prevendita: ${euro(e.prezzoCassa ?? e.prezzoLista)}.`;
+}
+
 /** QR come PNG: moduli vinile su fondo osso (il DS: un QR chiaro su scuro non tutti i lettori lo leggono). */
 export function qrPng(token: string, larghezza = 480) {
   return QRCode.toDataURL(token, { errorCorrectionLevel: 'M', margin: 2, width: larghezza, color: { dark: '#050505ff', light: '#e1d7c9ff' } });
@@ -19,7 +31,8 @@ export function qrPng(token: string, larghezza = 480) {
 export async function inviaBiglietto(b: Biglietto, origine: string) {
   const { iscrizione: i, evento: e } = b;
   const link = linkBiglietto(origine, i.id, i.email);
-  const alPorta = i.importo > 0 ? `${euro(i.importo)} alla porta` : 'Ingresso libero';
+  const alPorta = i.importo > 0 ? `${euro(i.importo)} pagati online` : 'Ingresso libero';
+  const cassa = testoCassa(e);
   const corpo = `
 <p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ci vediamo sotto cassa, ${escapeHtml(i.nome)}. Alla porta mostra questo QR con un documento.</p>
 <div style="background:#050505;border:1px solid #2a303b;border-radius:2px;padding:24px;margin:0 0 24px;">
@@ -36,10 +49,11 @@ export async function inviaBiglietto(b: Biglietto, origine: string) {
   </p>
 </div>
 ${bottoneEmail(link, 'Apri il biglietto →')}
-<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0;">Se il QR non si legge, alla porta basta dettare il codice ${mostraCodice(i.codice)}.</p>`;
+<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0 0 12px;">Se il QR non si legge, alla porta basta dettare il codice ${mostraCodice(i.codice)}.</p>
+${cassa ? `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0;">${escapeHtml(cassa)} Gli amici prendono il loro QR dallo stesso link.</p>` : ''}`;
   await inviaEmail({
     a: i.email,
-    oggetto: `Sei in lista · ${e.nome} ${dataPunti(e.data)}`,
+    oggetto: `${i.importo > 0 ? 'Prevendita pagata' : 'Sei in lista'} · ${e.nome} ${dataPunti(e.data)}`,
     html: guscioEmail('Sei in lista.', corpo),
     immagini: [{ cid: 'qr', dataUrl: await qrPng(i.tokenQr) }],
   });
@@ -60,4 +74,16 @@ export async function inviaRecupero(email: string, biglietti: Biglietto[], origi
     oggetto: 'I tuoi QR di Maremma Musica',
     html: guscioEmail('I tuoi QR', `<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Ecco i link ai tuoi biglietti e tavoli per le prossime serate:</p>${righe}`),
   });
+}
+
+/** Agli admin: una prevendita è stata pagata quando non valeva più (lotto pieno, serata iniziata, doppione) e va rimborsata. */
+export async function inviaRimborsoDovuto(b: Biglietto, destinatari: string[], origine: string) {
+  const { iscrizione: i, evento: e } = b;
+  const corpo = `
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${escapeHtml(`${i.nome} ${i.cognome}`)} ha pagato online ${euro(i.importo)} per la prevendita di ${escapeHtml(e.nome)} quando non valeva più (tempo scaduto e posti finiti, serata iniziata o già un altro QR). <strong>Va rimborsato</strong>: lo trovi tra le iscrizioni della serata.</p>
+<p style="font:400 14px/22px Arial,sans-serif;margin:0 0 24px;color:#e1d7c9;">${escapeHtml(i.email)} · Lista ${escapeHtml(b.lista)}</p>
+${bottoneEmail(`${origine}/admin/iscrizioni?evento=${e.id}&stato=da_rimborsare`, 'Apri le iscrizioni →')}`;
+  for (const a of destinatari) {
+    await inviaEmail({ a, oggetto: `Da rimborsare: prevendita · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Da rimborsare.', corpo) });
+  }
 }

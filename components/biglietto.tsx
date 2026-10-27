@@ -5,7 +5,7 @@ import { luogoTesto } from '@/lib/luogo';
 import { ChipIscrizione } from './ui';
 import { QrBiglietto } from './client';
 
-/** Il biglietto (Ticket del DS): evento, strappo, QR, codice, titolare, piede con quanto pagare alla porta. */
+/** Il biglietto (Ticket del DS): evento, strappo, QR, codice, titolare, piede con lo stato del pagamento. */
 export function BigliettoQr({ b }: { b: Biglietto }) {
   const { iscrizione: i, evento: e } = b;
   const annullato = i.stato === 'annullato' || i.stato === 'rimborsato';
@@ -29,7 +29,7 @@ export function BigliettoQr({ b }: { b: Biglietto }) {
       <div className="mm-biglietto__porta">
         <ChipIscrizione stato={i.stato} testo={i.stato === 'entrato' && i.oraCheckIn ? `Entrato ${ora(i.oraCheckIn)}` : undefined} />
         <span className="mm-biglietto__prezzo uppercase">
-          {annullato ? 'Non valido' : i.stato === 'in_lista' && i.importo > 0 ? `${euro(i.importo)} alla porta` : i.importo > 0 ? 'Pagato' : 'Ingresso libero'}
+          {annullato ? 'Non valido' : i.importo > 0 ? `${euro(i.importo)} pagati` : 'Ingresso libero'}
         </span>
       </div>
     </article>

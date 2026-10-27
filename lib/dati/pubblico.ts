@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { leggi, modifica, segreto } from './archivio';
 import type { Archivio, Evento, Iscrizione, Lotto, Pr } from './tipi';
 import { creaCodice, creaTokenQr } from '../qr-token';
-import { eventoPassato, giaIscritto, isAttiva, statoLista, type StatoLista, etaSufficiente } from '../regole';
+import { chiaveCognome, eventoPassato, giaIscritto, isAttiva, iscrizioneScaduta, scadenzaPagamentoOnline, statoLista, tienePosto, type StatoLista, etaSufficiente } from '../regole';
+import { modoPagamentoOnline } from '../pagamenti';
 
 // Dati per le pagine pubbliche e per la prevendita. Nessuna sessione richiesta:
 // qui si espone solo ciò che un visitatore può vedere.
@@ -16,7 +17,8 @@ export interface EventoPubblico {
 
 export function usatiPerLotto(d: Readonly<Archivio>, eventoId: string) {
   const usati: Record<string, number> = {};
-  for (const i of d.iscrizioni) if (i.eventoId === eventoId && i.lottoId && isAttiva(i)) usati[i.lottoId] = (usati[i.lottoId] ?? 0) + 1;
+  // Contano anche le prevendite in attesa di pagamento, finché sono nel termine: il posto è tenuto per loro.
+  for (const i of d.iscrizioni) if (i.eventoId === eventoId && i.lottoId && tienePosto(i)) usati[i.lottoId] = (usati[i.lottoId] ?? 0) + 1;
   return usati;
 }
 
@@ -51,6 +53,9 @@ export async function prValido(handle: string | null | undefined, evento?: Event
 
 export { luogoVisibile as locationVisibile } from '../luogo';
 
+/** La prevendita a pagamento si vende solo se il pagamento online è attivo (sul sito vero: con la chiave di Stripe). */
+export const prevenditaOnlineAttiva = () => modoPagamentoOnline() !== null;
+
 export type EsitoIscrizione =
   | { ok: true; iscrizione: Iscrizione }
   | { ok: false; campo?: string; errore: string; esistente?: string };
@@ -61,9 +66,6 @@ export async function creaIscrizione(input: {
   const d0 = await leggi();
   const evento = d0.eventi.find((x) => x.slug === input.slug && x.pubblicato);
   if (!evento) return { ok: false, errore: 'Questa serata non esiste più.' };
-  if (evento.tipoIngresso === 'prevendita_online') {
-    return { ok: false, errore: 'La prevendita online non è ancora attiva.' };
-  }
   if (!etaSufficiente(input.dataNascita, evento)) {
     return { ok: false, campo: 'nascita', errore: `Serata ${evento.etaMinima}+: con questa data non puoi entrare.` };
   }
@@ -76,20 +78,33 @@ export async function creaIscrizione(input: {
     if (doppio) {
       return { ok: false, campo: 'cognome', errore: 'Risulti già in lista per questa serata: un solo QR a persona.', esistente: doppio.email };
     }
+    const adesso = new Date();
+    // Ci ha già provato e non ha ancora pagato: riprende la stessa iscrizione (e lo stesso posto) invece di farne un'altra.
+    const k = chiaveCognome(input.cognome);
+    const sospesa = d.iscrizioni.find((i) => i.eventoId === evento.id && i.stato === 'in_attesa' && !iscrizioneScaduta(i, adesso)
+      && i.dataNascita === input.dataNascita && chiaveCognome(i.cognome) === k);
+    if (sospesa) {
+      if (sospesa.email === input.email.trim().toLowerCase()) return { ok: true, iscrizione: sospesa };
+      return { ok: false, campo: 'email', errore: 'C’è già una prevendita in attesa di pagamento per te con un’altra email: completala da lì o riprova tra mezz’ora.' };
+    }
     const lotti = d.lotti.filter((l) => l.eventoId === evento.id);
     const stato = statoLista(evento, lotti, usatiPerLotto(d, evento.id), { daPr: Boolean(pr) });
     if (stato.tipo === 'piena') return { ok: false, errore: 'Lista piena: i posti sono finiti.' };
     if (stato.tipo === 'dal') return { ok: false, errore: 'La lista non è ancora aperta.' };
     if (stato.tipo !== 'aperta' && stato.tipo !== 'libero') return { ok: false, errore: 'La lista per questa serata è chiusa.' };
+    const daPagare = stato.prezzo > 0;
+    if (daPagare && !prevenditaOnlineAttiva()) return { ok: false, errore: 'La prevendita online apre a breve: riprova nei prossimi giorni.' };
 
     const id = randomUUID();
-    const adesso = new Date();
     const iscrizione: Iscrizione = {
       id, eventoId: evento.id, lottoId: stato.lotto?.id ?? null, prId: pr?.id ?? null,
       nome: input.nome.trim(), cognome: input.cognome.trim(), dataNascita: input.dataNascita,
       email: input.email.trim().toLowerCase(),
       tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),
-      stato: 'in_lista', metodoPagamento: null, importo: stato.prezzo, pagatoAt: null,
+      // A pagamento: il posto è tenuto finché il cliente paga online; gratis: vale subito.
+      stato: daPagare ? 'in_attesa' : 'in_lista', metodoPagamento: null, importo: stato.prezzo, pagatoAt: null,
+      scade: daPagare ? scadenzaPagamentoOnline(adesso, evento) : null,
+      pagamentoOnline: daPagare ? { sessione: null, pagamento: null, daRimborsare: false } : null,
       oraCheckIn: null, porta: null, consensoPrivacyAt: adesso.toISOString(), consensoMarketing: input.marketing,
       annullatoAt: null, createdAt: adesso.toISOString(),
       canale: input.canale || 'diretto', consegnaId: null, origine: 'lista', rifCassa: null,
@@ -106,16 +121,20 @@ export interface Biglietto {
   prHandle: string | null;
 }
 
-/** Il biglietto si vede solo con id + email giusti. */
+export function bigliettoDi(d: Readonly<Archivio>, i: Iscrizione): Biglietto | null {
+  const evento = d.eventi.find((e) => e.id === i.eventoId);
+  if (!evento) return null;
+  const pr = i.prId ? d.pr.find((p) => p.id === i.prId) : null;
+  return { iscrizione: i, evento, lista: pr?.nomeDisplay ?? 'Maremma Musica', prHandle: pr?.handle ?? null };
+}
+
+/** Il biglietto si vede solo con id + email giusti. Il QR la pagina lo mostra solo se l'iscrizione vale (pagata o gratis). */
 export async function bigliettoPubblico(id: string, email: string | null | undefined): Promise<Biglietto | null> {
   if (!email) return null;
   const d = await leggi();
   const i = d.iscrizioni.find((x) => x.id === id);
   if (!i || i.email !== email.trim().toLowerCase()) return null;
-  const evento = d.eventi.find((e) => e.id === i.eventoId);
-  if (!evento) return null;
-  const pr = i.prId ? d.pr.find((p) => p.id === i.prId) : null;
-  return { iscrizione: i, evento, lista: pr?.nomeDisplay ?? 'Maremma Musica', prHandle: pr?.handle ?? null };
+  return bigliettoDi(d, i);
 }
 
 export async function bigliettiPerEmail(email: string): Promise<Biglietto[]> {

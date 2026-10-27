@@ -4,8 +4,13 @@
 export type Ruolo = 'admin' | 'staff' | 'pr';
 export type TipoIngresso = 'libero' | 'lista' | 'prevendita_online';
 export type StatoPr = 'attivo' | 'sospeso';
-export type StatoIscrizione = 'in_lista' | 'pagato' | 'entrato' | 'annullato' | 'rimborsato';
-export type MetodoPagamento = 'porta_contanti' | 'porta_pos' | 'pr';
+/**
+ * in_attesa = prevendita appena chiesta: il posto è tenuto finché il cliente paga online (entro `scade`), poi scaduta.
+ * pagato = prevendita pagata online, QR valido. in_lista = serata gratis (lotto a 0 € o ingresso libero), QR valido.
+ */
+export type StatoIscrizione = 'in_attesa' | 'scaduta' | 'in_lista' | 'pagato' | 'entrato' | 'annullato' | 'rimborsato';
+/** online = prevendita pagata sul sito; porta_* = ingresso in cassa pagato alla porta. */
+export type MetodoPagamento = 'online' | 'porta_contanti' | 'porta_pos';
 
 export interface Evento {
   id: string;
@@ -28,7 +33,8 @@ export interface Evento {
   locandinaUrl: string | null;
   piantinaUrl: string | null;     // foto o disegno della sala, sfondo della mappa dei tavoli
   prezzoLista: number;
-  prezzoCassa: number | null;     // ingresso pagato in cassa senza lista; null = come la lista
+  cassaAttiva: boolean;           // false = ingresso solo in prevendita: alla porta niente cassa
+  prezzoCassa: number | null;     // ingresso pagato in cassa senza prevendita; null = come la lista
   etaMinima: number;
   pubblicato: boolean;
   prAbilitati: string[] | null;   // null = tutti i PR attivi
@@ -140,6 +146,8 @@ export interface Iscrizione {
   metodoPagamento: MetodoPagamento | null;
   importo: number;                // prezzo del lotto al momento dell'iscrizione
   pagatoAt: string | null;
+  scade: string | null;           // in attesa: termine per pagare online
+  pagamentoOnline: PagamentoOnline | null; // prevendita pagata (o da pagare) sul sito; null per gratis e cassa
   oraCheckIn: string | null;
   porta: string | null;
   consensoPrivacyAt: string;
@@ -147,12 +155,12 @@ export interface Iscrizione {
   annullatoAt: string | null;
   createdAt: string;
   canale: string;                 // da dove è arrivato: instagram, facebook, tiktok, whatsapp, google, diretto…
-  consegnaId: string | null;      // soldi incassati dal PR già consegnati alla crew
+  consegnaId: string | null;      // solo storico: soldi incassati dal PR e consegnati, prima che tutto passasse dal sito
   origine: 'lista' | 'cassa';     // cassa = registrato alla porta dallo staff, entra subito, senza QR
   rifCassa: string | null;        // id creato dal telefono della porta: evita doppioni se la sincronizzazione si ripete
 }
 
-/** Il PR consegna alla crew i soldi che i suoi clienti gli hanno dato prima della serata. */
+/** Solo storico: il PR consegnava alla crew i soldi dei clienti. Ora la prevendita si paga solo online. */
 export interface Consegna {
   id: string;
   prId: string;

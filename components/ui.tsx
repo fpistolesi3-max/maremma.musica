@@ -53,6 +53,8 @@ export function CampoLista({ nome, ufficiale, nota }: { nome: string; ufficiale:
 }
 
 const CHIP_ISCRIZIONE: Record<StatoIscrizione, { classe: string; testo: string }> = {
+  in_attesa: { classe: 'mm-chip mm-chip--incassare', testo: 'Non pagato' },
+  scaduta: { classe: 'mm-chip mm-chip--annullato', testo: 'Scaduta' },
   in_lista: { classe: 'mm-chip mm-chip--lista', testo: 'In lista' },
   pagato: { classe: 'mm-chip mm-chip--pagato', testo: 'Pagato' },
   entrato: { classe: 'mm-chip mm-chip--entrato', testo: 'Entrato' },

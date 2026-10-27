@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { eventoPerSlug, prValido } from '@/lib/dati/pubblico';
+import { eventoPerSlug, prValido, prevenditaOnlineAttiva } from '@/lib/dati/pubblico';
 import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
 import { chipLista } from '@/lib/regole';
 import { luogoTesto } from '@/lib/luogo';
@@ -23,8 +23,11 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
   const pr = (await prValido(handleDaUrl, e)) ?? (await prValido(handleCookie, e));
   const ep = pr ? (await eventoPerSlug(slug, true))! : base;
 
-  const aperta = ep.stato.tipo === 'aperta' || ep.stato.tipo === 'libero';
-  const totaleEtichetta = ep.stato.tipo === 'aperta' ? 'Alla porta' : 'Ingresso';
+  // A pagamento si vende solo con il pagamento online attivo (sul sito vero serve la chiave di Stripe).
+  const inArrivo = ep.stato.tipo === 'aperta' && !prevenditaOnlineAttiva();
+  const aperta = (ep.stato.tipo === 'aperta' && !inArrivo) || ep.stato.tipo === 'libero';
+  const aPagamento = ep.stato.tipo === 'aperta';
+  const totaleEtichetta = aPagamento ? 'Paghi ora online' : 'Ingresso';
   const totaleValore = ep.stato.tipo === 'aperta' ? euro(ep.stato.prezzo) : 'Libero';
   const dataBreve = `${giornoSett(e.data)} ${giorno2(e.data)} ${meseCorto(e.data).toUpperCase()}`;
 
@@ -61,16 +64,18 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
 
           <div className="border-t border-linea bg-notte-2 px-4 pb-8 pt-6 md:border-t md:px-8 md:pb-8">
             {aperta ? (
-              <ModuloPrevendita slug={e.slug} prHandle={pr?.handle ?? null} totaleEtichetta={totaleEtichetta} totaleValore={totaleValore} etaMinima={e.etaMinima}>
+              <ModuloPrevendita slug={e.slug} prHandle={pr?.handle ?? null} totaleEtichetta={totaleEtichetta} totaleValore={totaleValore} etaMinima={e.etaMinima}
+                aPagamento={aPagamento} soloPrevendita={!e.cassaAttiva}>
                 {pr
                   ? <CampoLista nome={pr.nomeDisplay} ufficiale={false} nota={`Sei entrato dal link di ${pr.nomeDisplay}: resti nella sua lista.`} />
                   : <CampoLista nome="Maremma Musica" ufficiale />}
               </ModuloPrevendita>
             ) : (
               <div className="flex flex-col gap-5">
-                <span className={chipLista(ep.stato).classe + ' self-start'}>{chipLista(ep.stato).testo}</span>
+                <span className={(inArrivo ? 'mm-chip mm-chip--pagato' : chipLista(ep.stato).classe) + ' self-start'}>{inArrivo ? 'Prevendita in arrivo' : chipLista(ep.stato).testo}</span>
                 <p className="m-0 text-[17px] leading-[26px]">
-                  {ep.stato.tipo === 'dal' ? `La lista apre il ${dataPunti(ep.stato.dal)}. Torna qui quel giorno.`
+                  {inArrivo ? 'La prevendita online apre a breve: torna qui nei prossimi giorni.'
+                    : ep.stato.tipo === 'dal' ? `La lista apre il ${dataPunti(ep.stato.dal)}. Torna qui quel giorno.`
                     : ep.stato.tipo === 'piena' ? 'I posti in lista sono finiti. Tieni d’occhio Instagram: a volte se ne liberano.'
                       : 'La lista per questa serata è chiusa.'}
                 </p>

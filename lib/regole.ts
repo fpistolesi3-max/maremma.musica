@@ -11,8 +11,19 @@ export type StatoLista =
   | { tipo: 'chiusa' }
   | { tipo: 'passata' };
 
+/** Iscrizioni con un QR valido: pagate online, gratis o già entrate. Quelle in attesa di pagamento non valgono ancora. */
 export const ATTIVE: Iscrizione['stato'][] = ['in_lista', 'pagato', 'entrato'];
 export const isAttiva = (i: Pick<Iscrizione, 'stato'>) => ATTIVE.includes(i.stato);
+
+/** In attesa di pagamento col termine passato: il posto è tornato libero (anche se nessuno l'ha ancora segnata "scaduta"). */
+export function iscrizioneScaduta(i: Pick<Iscrizione, 'stato' | 'scade'>, adesso = new Date()) {
+  return i.stato === 'in_attesa' && (!i.scade || new Date(i.scade).getTime() <= adesso.getTime());
+}
+
+/** Occupa un posto del lotto: valida, oppure in attesa di pagamento e ancora nel termine. */
+export function tienePosto(i: Pick<Iscrizione, 'stato' | 'scade'>, adesso = new Date()) {
+  return isAttiva(i) || (i.stato === 'in_attesa' && !iscrizioneScaduta(i, adesso));
+}
 
 export function eventoPassato(e: Pick<Evento, 'data' | 'dataFine'>, adesso = new Date()) {
   const fine = e.dataFine ? new Date(e.dataFine) : new Date(new Date(e.data).getTime() + 8 * 3_600_000);
@@ -106,6 +117,22 @@ export const ORE_MINIME_PROMEMORIA_PR = 3;
 export function scadenzaPagamentoOnline(richiesta: Date, evento: Pick<Evento, 'data'>, conLink = false) {
   const durata = conLink ? ORE_PAGAMENTO_ONLINE_PR * 3_600_000 : MINUTI_PAGAMENTO_ONLINE * 60_000;
   return new Date(Math.min(richiesta.getTime() + durata, new Date(evento.data).getTime())).toISOString();
+}
+
+/**
+ * Pagamento online di una prevendita arrivato (anche in ritardo, dopo il termine). Vale se l'iscrizione aspettava
+ * ancora il pagamento (o è scaduta da poco), la serata non è iniziata, nel lotto c'è ancora posto e la stessa persona
+ * non ha già un altro QR valido. Altrimenti i soldi vanno restituiti.
+ */
+export function pagamentoIscrizioneValido(o: {
+  iscrizione: Pick<Iscrizione, 'stato'>; evento: Pick<Evento, 'data'>; lotto: Pick<Lotto, 'quantita'> | null;
+  altriNelLotto: number; doppione: boolean; adesso?: Date;
+}) {
+  const adesso = o.adesso ?? new Date();
+  if (o.iscrizione.stato !== 'in_attesa' && o.iscrizione.stato !== 'scaduta') return false;
+  if (new Date(o.evento.data).getTime() <= adesso.getTime()) return false;
+  if (o.lotto?.quantita != null && o.altriNelLotto >= o.lotto.quantita) return false;
+  return !o.doppione;
 }
 
 /** Le richieste dei tavoli si chiudono all'apertura: dopo, il termine per pagare sarebbe già passato. */

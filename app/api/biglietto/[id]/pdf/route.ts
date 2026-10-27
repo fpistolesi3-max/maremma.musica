@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { bigliettoPubblico } from '@/lib/dati/pubblico';
+import { isAttiva } from '@/lib/regole';
 import { qrPng } from '@/lib/biglietto-email';
 import { euro, giornoSett, dataPunti, nascita, numeroEvento, orari, parti } from '@/lib/formato';
 import { mostraCodice } from '@/lib/qr-token';
@@ -18,7 +19,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   const email = new URL(req.url).searchParams.get('email');
   const b = await bigliettoPubblico(id, email);
-  if (!b) return new Response('Biglietto non trovato', { status: 404 });
+  // Il QR c'è solo per le iscrizioni valide: una prevendita non ancora pagata non ha biglietto.
+  if (!b || (!isAttiva(b.iscrizione) && !b.iscrizione.metodoPagamento)) return new Response('Biglietto non trovato', { status: 404 });
   const { iscrizione: i, evento: e } = b;
 
   const pdf = await PDFDocument.create();
@@ -69,7 +71,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   p.drawText(pulito(b.lista).slice(0, 22), { x: 150, y, size: 10, font: reg, color: OSSO });
 
   const piede = i.stato === 'annullato' || i.stato === 'rimborsato' ? 'NON VALIDO'
-    : i.stato === 'in_lista' && i.importo > 0 ? `${euro(i.importo)} ALLA PORTA` : i.importo > 0 ? 'PAGATO' : 'INGRESSO LIBERO';
+    : i.importo > 0 ? `${euro(i.importo)} PAGATI ONLINE` : 'INGRESSO LIBERO';
   p.drawLine({ start: { x: 16, y: 58 }, end: { x: W - 16, y: 58 }, thickness: 0.8, color: LINEA });
   p.drawText(pulito(piede), { x: 30, y: 32, size: 14, font: bold, color: ARANCIO });
 

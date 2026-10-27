@@ -45,12 +45,23 @@ function normalizza(d: Archivio): Archivio {
     i.consegnaId ??= null;
     i.origine ??= 'lista';
     i.rifCassa ??= null;
+    i.scade ??= null;
+    i.pagamentoOnline ??= null;
+    // Prima che la prevendita passasse dal sito: chi era in lista senza aver pagato, o aveva pagato al PR, diventa
+    // pagato con un pagamento di prova (sono solo dati di esempio e di prova: 26.10.2026).
+    const vecchiaDaPagare = i.origine === 'lista' && i.importo > 0 && i.stato === 'in_lista';
+    if (vecchiaDaPagare || (i.metodoPagamento as string) === 'pr') {
+      if (vecchiaDaPagare) i.stato = 'pagato';
+      i.metodoPagamento = 'online';
+      i.pagatoAt ??= i.createdAt;
+      i.pagamentoOnline = { sessione: null, pagamento: `prova_import_${i.id}`, daRimborsare: false };
+    }
   }
   for (const p of d.prenotazioni) {
     p.ingressi ??= []; p.promemoriaAt ??= null;
     p.metodoPagamento ??= null; p.pagatoDa ??= null; p.chiusaDa ??= null; p.avvisoChiusuraAt ??= null; p.pagamentoOnline ??= null;
   }
-  for (const e of d.eventi) { e.prezzoCassa ??= null; e.piantinaUrl ??= null; }
+  for (const e of d.eventi) { e.prezzoCassa ??= null; e.cassaAttiva ??= true; e.piantinaUrl ??= null; }
   for (const t of d.tavoli) { t.x ??= null; t.y ??= null; t.prAbilitati ??= null; }
   return d;
 }

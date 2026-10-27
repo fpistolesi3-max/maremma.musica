@@ -6,7 +6,7 @@ import { COOKIE_PR } from '@/lib/costanti';
 import { sessioneCorrente } from '@/lib/sessione';
 import { tavoliPubblici } from '@/lib/dati/tavoli';
 import { MINUTI_PAGAMENTO_ONLINE, scadenzaPagamentoOnline } from '@/lib/regole';
-import { modoPagamentoTavoli } from '@/lib/pagamenti';
+import { modoPagamentoOnline } from '@/lib/pagamenti';
 import { quandoScade } from '@/lib/tavolo-email';
 import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
@@ -37,7 +37,7 @@ export default async function PaginaTavoli({ params, searchParams }: Props) {
   const x = await tavoliPubblici(slug, handle, Boolean(comePr));
   if (!x) notFound();
   const e = x.evento;
-  const online = modoPagamentoTavoli() !== null;
+  const online = modoPagamentoOnline() !== null;
 
   return (
     <div className="mm-grana flex min-h-dvh flex-col">

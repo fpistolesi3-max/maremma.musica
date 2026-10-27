@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { firmaStripeValida } from '@/lib/pagamenti';
 import { registraPagamento } from '@/lib/pagamento-tavolo';
+import { registraPagamentoIscrizione } from '@/lib/pagamento-prevendita';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +23,13 @@ export async function POST(req: Request) {
   const evento = JSON.parse(corpo) as EventoStripe;
   const s = evento.data.object;
   const pagata = (evento.type === 'checkout.session.completed' || evento.type === 'checkout.session.async_payment_succeeded') && s.payment_status === 'paid';
-  const prenotazione = s.metadata?.prenotazione ?? s.client_reference_id;
-  if (pagata && prenotazione && s.payment_intent) {
-    await registraPagamento(prenotazione, s.payment_intent, process.env.SITO_URL || new URL(req.url).origin);
+  // Nei metadati c'è cosa si è pagato: una prevendita in lista (iscrizione) o un tavolo (prenotazione).
+  const origine = process.env.SITO_URL || new URL(req.url).origin;
+  const iscrizione = s.metadata?.iscrizione;
+  const prenotazione = iscrizione ? null : s.metadata?.prenotazione ?? s.client_reference_id;
+  if (pagata && s.payment_intent) {
+    if (iscrizione) await registraPagamentoIscrizione(iscrizione, s.payment_intent, origine);
+    else if (prenotazione) await registraPagamento(prenotazione, s.payment_intent, origine);
   }
   return NextResponse.json({ ricevuto: true });
 }

@@ -1,4 +1,5 @@
 import { bigliettoPubblico } from '@/lib/dati/pubblico';
+import { isAttiva } from '@/lib/regole';
 import { luogoTesto } from '@/lib/luogo';
 import { origineRichiesta } from '@/lib/sessione';
 import { linkBiglietto } from '@/lib/biglietto-email';
@@ -13,7 +14,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   const email = new URL(req.url).searchParams.get('email');
   const b = await bigliettoPubblico(id, email);
-  if (!b) return new Response('Biglietto non trovato', { status: 404 });
+  // Il QR c'è solo per le iscrizioni valide: una prevendita non ancora pagata non ha biglietto.
+  if (!b || (!isAttiva(b.iscrizione) && !b.iscrizione.metodoPagamento)) return new Response('Biglietto non trovato', { status: 404 });
   const e = b.evento;
   const fine = e.dataFine ?? new Date(new Date(e.data).getTime() + 6 * 3_600_000).toISOString();
   const testo = [

@@ -10,12 +10,14 @@ interface Props {
   totaleEtichetta: string;
   totaleValore: string;
   etaMinima: number;
+  aPagamento: boolean;    // false = serata gratis: il QR arriva subito
+  soloPrevendita: boolean; // la serata non ha la cassa alla porta
   children: React.ReactNode; // campo Lista, già pronto dal server
 }
 
 const INIZIALE: StatoModulo = { errori: {}, valori: {} };
 
-export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore, etaMinima, children }: Props) {
+export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore, etaMinima, aPagamento, soloPrevendita, children }: Props) {
   const [stato, invia, inCorso] = useActionState(iscriviti, INIZIALE);
   const e = stato.errori;
   const v = stato.valori;
@@ -82,9 +84,12 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
 
       <div className="mm-prevendita__totale mt-1"><span>{totaleEtichetta}</span><strong>{totaleValore}</strong></div>
       <button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }} disabled={inCorso}>
-        {inCorso ? 'Un attimo…' : <>Mettiti in lista <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
+        {inCorso ? 'Un attimo…' : <>{aPagamento ? `Paga ${totaleValore}` : 'Mettiti in lista'} <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
       </button>
-      <span className="text-center font-mono text-[11px] leading-4 text-osso-2">PAGHI ALLA PORTA · IL QR ARRIVA SUBITO</span>
+      <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
+        {aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · IL QR ARRIVA DOPO IL PAGAMENTO' : 'IL QR ARRIVA SUBITO'}
+        {soloPrevendita && <><br />INGRESSO SOLO IN PREVENDITA: ALLA PORTA NON SI PAGA</>}
+      </span>
     </form>
   );
 }
