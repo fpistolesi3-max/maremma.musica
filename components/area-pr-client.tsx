@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
-import { segnaPagato } from '@/app/azioni/area';
+import { useMemo, useState } from 'react';
 import { copiaTesto } from './client';
 import type { StatoIscrizione } from '@/lib/dati/tipi';
 
 const CHIP: Record<StatoIscrizione, [string, string]> = {
+  in_attesa: ['mm-chip mm-chip--incassare', 'Non pagato'],
+  scaduta: ['mm-chip mm-chip--annullato', 'Scaduta'],
   in_lista: ['mm-chip mm-chip--lista', 'In lista'],
   pagato: ['mm-chip mm-chip--pagato', 'Pagato'],
   entrato: ['mm-chip mm-chip--entrato', 'Entrato'],
@@ -13,14 +14,12 @@ const CHIP: Record<StatoIscrizione, [string, string]> = {
   rimborsato: ['mm-chip mm-chip--annullato', 'Rimborsato'],
 };
 
-export interface RigaListaPr { id: string; nome: string; quando: string; stato: StatoIscrizione; daPagare: boolean; pagatoAlPr: boolean }
+export interface RigaListaPr { id: string; nome: string; quando: string; stato: StatoIscrizione }
 
-/** La lista personale del PR: ricerca, stato e conferma dei pagamenti ricevuti. */
+/** La lista personale del PR: ricerca e stato (pagato online, entrato). I soldi non passano dal PR. */
 export function ListaPr({ righe }: { righe: RigaListaPr[] }) {
   const [q, setQ] = useState('');
   const [tutti, setTutti] = useState(false);
-  const [errore, setErrore] = useState<string | null>(null);
-  const [inCorso, avvia] = useTransition();
   const filtrate = useMemo(() => {
     const n = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     return righe.filter((r) => n(r.nome).includes(n(q)));
@@ -33,7 +32,6 @@ export function ListaPr({ righe }: { righe: RigaListaPr[] }) {
         <label className="sr-only" htmlFor="pr-cerca">Cerca nella lista</label>
         <input className="mm-campo__input" id="pr-cerca" placeholder="Cerca un nome" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
-      {errore && <p role="alert" className="m-0 text-[14px] text-stop-testo">{errore}</p>}
       <div className="flex flex-col">
         {visibili.map((r, i) => (
           <div key={r.id} className={`flex items-center gap-3 border-t border-linea py-[14px] ${i === visibili.length - 1 ? 'border-b' : ''}`}>
@@ -41,13 +39,6 @@ export function ListaPr({ righe }: { righe: RigaListaPr[] }) {
               <span className="text-[16px] font-medium leading-5">{r.nome}</span>
               <span className="font-mono text-[11px] leading-[14px] text-osso-3">{r.quando}</span>
             </div>
-            {(r.daPagare || r.pagatoAlPr) && (
-              <button type="button" disabled={inCorso}
-                className={`mm-btn ${r.pagatoAlPr ? 'mm-btn--muto' : 'mm-btn--linea'}`} style={{ minHeight: 36, padding: '0 10px', fontSize: 12 }}
-                onClick={() => avvia(async () => { const res = await segnaPagato(r.id, !r.pagatoAlPr); setErrore(res.errore ?? null); })}>
-                {r.pagatoAlPr ? 'Annulla' : 'Ha pagato'}
-              </button>
-            )}
             <span className={CHIP[r.stato][0]}>{CHIP[r.stato][1]}</span>
           </div>
         ))}

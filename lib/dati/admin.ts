@@ -4,7 +4,7 @@ import { leggi, modifica } from './archivio';
 import type { Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
-import { eventoPassato, isAttiva, prenotazioneAttiva, prenotazioneScaduta, EMAIL_RE, HANDLE_RE } from '../regole';
+import { eventoPassato, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, EMAIL_RE, HANDLE_RE } from '../regole';
 import { nascita, ora as oraDi, dataCompleta } from '../formato';
 import { usatiPerLotto } from './pubblico';
 import { applicaScadenze } from './tavoli';
@@ -68,8 +68,12 @@ export async function serataLive(s: Sessione, eventoId: string) {
   const cassa = iscr.filter((i) => i.origine === 'cassa' && isAttiva(i));
   const attive = iscr.filter((i) => isAttiva(i) && i.origine !== 'cassa');   // "in lista": senza la cassa
   const entrati = iscr.filter((i) => i.stato === 'entrato');
-  const incassato = [...attive, ...cassa].filter((i) => i.metodoPagamento).reduce((t, i) => t + i.importo, 0);
-  const incassatoPorta = [...attive, ...cassa].filter((i) => i.metodoPagamento?.startsWith('porta')).reduce((t, i) => t + i.importo, 0);
+  // Soldi: la prevendita si incassa online, alla porta solo l'ingresso in cassa (contanti o POS).
+  const somma = (xs: Iscrizione[]) => xs.reduce((t, i) => t + i.importo, 0);
+  const online = attive.filter((i) => i.metodoPagamento === 'online');
+  const daRimborsare = iscr.filter((i) => i.pagamentoOnline?.daRimborsare);
+  const incassatoOnline = somma(online);
+  const incassatoCassa = somma(cassa);
 
   // Ingressi ogni mezz'ora, dall'apertura alla chiusura (o 6 ore).
   const inizio = new Date(evento.data).getTime();
@@ -86,13 +90,13 @@ export async function serataLive(s: Sessione, eventoId: string) {
   const prenotazioni = d.prenotazioni.filter((p) => p.eventoId === eventoId && prenotazioneAttiva(p) && !prenotazioneScaduta(p));
   const pagate = prenotazioni.filter((p) => p.stato === 'confermata');
   const attese = prenotazioni.filter((p) => p.stato === 'in_attesa');
-  const somma = (ps: typeof prenotazioni) => ps.reduce((t, p) => t + p.spesaMinima, 0);
+  const sommaTavoli = (ps: typeof prenotazioni) => ps.reduce((t, p) => t + p.spesaMinima, 0);
   const listeTavoli = [...new Set(prenotazioni.map((p) => p.prId))].map((prId) => {
     const sue = prenotazioni.filter((p) => p.prId === prId);
     const suePagate = sue.filter((p) => p.stato === 'confermata');
     return {
       prId, nome: (prId ? d.pr.find((p) => p.id === prId)?.nomeDisplay : null) ?? 'Maremma Musica',
-      pagati: suePagate.length, incassato: somma(suePagate), inAttesa: sue.length - suePagate.length, atteso: somma(sue) - somma(suePagate),
+      pagati: suePagate.length, incassato: sommaTavoli(suePagate), inAttesa: sue.length - suePagate.length, atteso: sommaTavoli(sue) - sommaTavoli(suePagate),
     };
   }).sort((a, b) => b.incassato - a.incassato || b.atteso - a.atteso);
 
@@ -102,17 +106,24 @@ export async function serataLive(s: Sessione, eventoId: string) {
     inLista: attive.length,
     entrati: entrati.length,
     entratiDaLista: entrati.filter((i) => i.origine !== 'cassa').length,
-    cassa: { ingressi: cassa.length, incassato: cassa.reduce((t, i) => t + i.importo, 0) },
+    cassa: {
+      attiva: evento.cassaAttiva, ingressi: cassa.length, incassato: incassatoCassa,
+      contanti: somma(cassa.filter((i) => i.metodoPagamento === 'porta_contanti')), pos: somma(cassa.filter((i) => i.metodoPagamento === 'porta_pos')),
+    },
+    prevendita: {
+      pagate: online.length, incassato: incassatoOnline,
+      inAttesa: iscr.filter((i) => tienePosto(i) && i.stato === 'in_attesa').length,
+      daRimborsare: { n: daRimborsare.length, importo: somma(daRimborsare) },
+    },
     tavoli: {
       totale: tavoliSerata.length,
       liberi: tavoliSerata.filter((t) => t.stato === 'libero').length,
-      pagati: pagate.length, incassato: somma(pagate), persone: pagate.reduce((t, p) => t + p.persone, 0),
+      pagati: pagate.length, incassato: sommaTavoli(pagate), persone: pagate.reduce((t, p) => t + p.persone, 0),
       entrati: pagate.reduce((t, p) => t + p.ingressi.length, 0),
-      inAttesa: attese.length, atteso: somma(attese),
+      inAttesa: attese.length, atteso: sommaTavoli(attese),
       perLista: listeTavoli,
     },
-    incassato,
-    incassatoPorta,
+    incassato: incassatoOnline + incassatoCassa,
     fuori: attive.filter((i) => i.stato !== 'entrato').length,
     perMezzora,
     classifica: calcolaClassifica(d, eventoId, { admin: true }),
@@ -133,7 +144,8 @@ export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; 
   const q = filtro.q ? norm(filtro.q) : '';
   return d.iscrizioni
     .filter((i) => !filtro.eventoId || i.eventoId === filtro.eventoId)
-    .filter((i) => !filtro.stato || (filtro.stato === 'cassa' ? i.origine === 'cassa' : i.stato === filtro.stato))
+    .filter((i) => !filtro.stato || (filtro.stato === 'cassa' ? i.origine === 'cassa'
+      : filtro.stato === 'da_rimborsare' ? Boolean(i.pagamentoOnline?.daRimborsare) : i.stato === filtro.stato))
     .filter((i) => !q || norm(`${i.nome} ${i.cognome} ${i.email} ${i.codice}`).includes(q))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((i) => ({
@@ -151,10 +163,12 @@ export async function cambiaStatoIscrizione(s: Sessione, id: string, azione: 'an
     const adesso = new Date().toISOString();
     if (azione === 'annulla' && isAttiva(i)) {
       i.stato = 'annullato'; i.annullatoAt = adesso;
-    } else if (azione === 'rimborsa' && (i.metodoPagamento || i.stato === 'pagato' || i.stato === 'entrato')) {
-      // Rimborso manuale (niente pagamenti online): i soldi si restituiscono a mano, qui si registra.
+    } else if (azione === 'rimborsa' && i.metodoPagamento && (isAttiva(i) || i.stato === 'annullato')) {
+      // Online: i soldi sono già stati restituiti su Stripe (azioneIscrizione). Cassa: si restituiscono a mano, qui si registra.
       i.stato = 'rimborsato'; i.annullatoAt = adesso;
-    } else if (azione === 'ripristina' && (i.stato === 'annullato' || i.stato === 'rimborsato')) {
+    } else if (azione === 'ripristina' && i.stato === 'annullato') {
+      // Una prevendita lasciata senza pagare non torna valida: sarebbe un QR regalato.
+      if (i.pagamentoOnline && !i.metodoPagamento) throw new Error('Questa prevendita non è mai stata pagata: non si può riattivare');
       const doppio = d.iscrizioni.find((x) => x.id !== i.id && x.eventoId === i.eventoId && isAttiva(x)
         && x.dataNascita === i.dataNascita && x.cognome.toLowerCase() === i.cognome.toLowerCase());
       if (doppio) throw new Error('Esiste già un QR attivo per questa persona');
@@ -395,7 +409,8 @@ export async function csvEvento(s: Sessione, eventoId: string) {
   const d = await leggi();
   const evento = d.eventi.find((e) => e.id === eventoId);
   if (!evento) return null;
-  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Lotto', 'Importo', 'Stato', 'Pagamento', 'Iscritto il', 'Entrato alle', 'Porta', 'Newsletter'];
+  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Lotto', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Newsletter'];
+  const PAGAMENTO = { online: 'online', porta_contanti: 'porta contanti', porta_pos: 'porta POS' } as const;
   const righe = d.iscrizioni
     .filter((i) => i.eventoId === eventoId)
     .sort((a, b) => a.cognome.localeCompare(b.cognome))
@@ -403,7 +418,8 @@ export async function csvEvento(s: Sessione, eventoId: string) {
       i.codice, i.origine === 'cassa' ? 'cassa' : 'lista', i.nome, i.cognome, nascita(i.dataNascita), i.email,
       i.origine === 'cassa' ? 'Cassa' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica',
       i.lottoId ? d.lotti.find((l) => l.id === i.lottoId)?.nome : '',
-      i.importo.toFixed(2).replace('.', ','), i.stato, i.metodoPagamento ?? '',
+      i.importo.toFixed(2).replace('.', ','), i.stato, i.metodoPagamento ? PAGAMENTO[i.metodoPagamento] : '',
+      i.pagatoAt ? `${dataCompleta(i.pagatoAt)} ${oraDi(i.pagatoAt)}` : '', i.pagamentoOnline?.daRimborsare ? 'sì' : '',
       `${dataCompleta(i.createdAt)} ${oraDi(i.createdAt)}`, i.oraCheckIn ? oraDi(i.oraCheckIn) : '', i.porta ?? '',
       i.consensoMarketing ? 'sì' : 'no',
     ].map(cella).join(';'));

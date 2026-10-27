@@ -12,7 +12,7 @@ export async function apriPagamento(v: PrenotazioneVista, origine: string): Prom
   const { prenotazione: p, evento: e, tavolo: t } = v;
   const ritorno = linkTavolo(origine, p.id, p.email);
   const c = await creaCheckout({
-    prenotazioneId: p.id, email: p.email, importo: p.spesaMinima, scade: new Date(p.scade),
+    rif: { tipo: 'prenotazione', id: p.id }, email: p.email, importo: p.spesaMinima, scade: new Date(p.scade),
     descrizione: `Tavolo ${t.nome} · ${e.nome} ${dataPunti(e.data)} · spesa minima`,
     successo: `${ritorno}&pagato=1`, annullato: `${ritorno}&annullato=1`,
   });

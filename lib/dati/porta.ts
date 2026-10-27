@@ -6,7 +6,7 @@ import { leggiTokenQr, verificaTokenQr } from '../qr-token';
 import { decidiIngresso, trovaVoce, type DatiCassa, type EsitoPorta, type OpzioniIngresso, type VocePorta } from '../porta-logica';
 import { randomUUID } from 'node:crypto';
 import { creaCodice, creaTokenQr } from '../qr-token';
-import { etaSufficiente, giaIscritto } from '../regole';
+import { etaSufficiente, giaIscritto, iscrizioneScaduta } from '../regole';
 import { eventoPassato, prenotazioneAttiva, prenotazioneScaduta } from '../regole';
 
 // Porta: staff e admin. Lo staff vede le iscrizioni ma dei PR solo il nome della lista
@@ -40,8 +40,9 @@ function voceTavolo(d: Readonly<Archivio>, p: PrenotazioneTavolo): VocePorta {
 }
 
 function vociEvento(d: Readonly<Archivio>, eventoId: string): VocePorta[] {
+  // Le prevendite scadute senza pagare non sono mai state in lista: alla porta non servono.
   return [
-    ...d.iscrizioni.filter((i) => i.eventoId === eventoId).map((i) => voce(d, i)),
+    ...d.iscrizioni.filter((i) => i.eventoId === eventoId && i.stato !== 'scaduta' && !iscrizioneScaduta(i)).map((i) => voce(d, i)),
     ...d.prenotazioni.filter((p) => p.eventoId === eventoId).map((p) => voceTavolo(d, p)),
   ];
 }
@@ -56,6 +57,7 @@ export async function eventiPorta(s: Sessione) {
     .map((e) => ({
       id: e.id, nome: e.nome, data: e.data, numero: e.numero, etaMinima: e.etaMinima,
       prezzoCassa: e.tipoIngresso === 'libero' ? 0 : e.prezzoCassa ?? e.prezzoLista,
+      cassa: e.cassaAttiva,
     }));
 }
 
@@ -63,6 +65,12 @@ export async function elencoPorta(s: Sessione, eventoId: string): Promise<VocePo
   soloStaff(s);
   const d = await leggi();
   return vociEvento(d, eventoId);
+}
+
+/** La serata ha la cassa alla porta? Arriva al telefono a ogni sincronizzazione: l'admin la può cambiare durante la serata. */
+export async function cassaAttivaPorta(s: Sessione, eventoId: string): Promise<boolean> {
+  soloStaff(s);
+  return (await leggi()).eventi.find((e) => e.id === eventoId)?.cassaAttiva ?? false;
 }
 
 /** `rif`: id del movimento creato dal telefono. Serve ai tavoli, dove lo stesso QR passa più volte. */
@@ -94,9 +102,6 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
     const { esito, aggiornata } = decidiIngresso(v, { ...o, ora });
     if (aggiornata) {
       const i = elenco.find((x) => x.id === v.id)!;
-      if (esito.esito === 'entrato' && esito.incassato > 0) {
-        i.metodoPagamento = o.metodo; i.pagatoAt = ora;
-      }
       i.stato = 'entrato'; i.oraCheckIn = ora; i.porta = o.porta;
     }
     return esito;
@@ -108,7 +113,7 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
  * e data di nascita (età minima e doppioni), niente email e niente QR: entra subito.
  * `rif` è l'id creato dal telefono: se la sincronizzazione si ripete non si crea un doppione.
  */
-export async function registraCassa(s: Sessione, eventoId: string, rif: string, dati: DatiCassa, o: Omit<OpzioniIngresso, 'incassa'>): Promise<EsitoPorta> {
+export async function registraCassa(s: Sessione, eventoId: string, rif: string, dati: DatiCassa, o: OpzioniIngresso): Promise<EsitoPorta> {
   soloStaff(s);
   const chiave = await segreto();
   const ora = new Date(Math.min(new Date(o.ora).getTime() || Date.now(), Date.now())).toISOString();
@@ -117,6 +122,8 @@ export async function registraCassa(s: Sessione, eventoId: string, rif: string, 
     if (gia) return { esito: 'entrato', voce: voce(d, gia), incassato: gia.importo, ora: gia.oraCheckIn ?? ora, primaPagato: false };
     const evento = d.eventi.find((e) => e.id === eventoId);
     if (!evento) return { esito: 'non_valido', motivo: 'Serata non trovata' };
+    // Con la cassa spenta il telefono non mostra il pulsante; un ingresso arrivato lo stesso (fatto offline, prima che il
+    // telefono sapesse dello spegnimento) si registra comunque: la persona ha pagato ed è dentro.
     const nome = dati.nome.trim().slice(0, 80);
     const cognome = dati.cognome.trim().slice(0, 80);
     if (!nome || !cognome || !/^\d{4}-\d{2}-\d{2}$/.test(dati.dataNascita)) return { esito: 'non_valido', motivo: 'Dati incompleti' };
@@ -129,7 +136,7 @@ export async function registraCassa(s: Sessione, eventoId: string, rif: string, 
       id, eventoId, lottoId: null, prId: null, nome, cognome, dataNascita: dati.dataNascita, email: '',
       tokenQr: creaTokenQr(chiave, id, eventoId), codice: creaCodice(chiave, id), // interni: nessun QR viene mostrato
       stato: 'entrato' as const, metodoPagamento: importo > 0 ? o.metodo : null, importo,
-      pagatoAt: importo > 0 ? ora : null, oraCheckIn: ora, porta: o.porta,
+      pagatoAt: importo > 0 ? ora : null, scade: null, pagamentoOnline: null, oraCheckIn: ora, porta: o.porta,
       consensoPrivacyAt: ora, consensoMarketing: false, annullatoAt: null, createdAt: ora,
       canale: 'cassa', consegnaId: null, origine: 'cassa' as const, rifCassa: rif,
     };

@@ -8,6 +8,8 @@ import { inviaBiglietto, inviaRecupero, linkBiglietto } from '@/lib/biglietto-em
 import { componiData, EMAIL_RE } from '@/lib/regole';
 import { origineRichiesta } from '@/lib/sessione';
 import { prenotazioniPerEmail } from '@/lib/dati/tavoli';
+import { lasciaPosto } from '@/lib/dati/prevendita';
+import { apriPagamentoIscrizione } from '@/lib/pagamento-prevendita';
 
 export interface StatoModulo {
   errori: Partial<Record<'nome' | 'cognome' | 'nascita' | 'email' | 'privacy' | 'generale', string>>;
@@ -49,13 +51,25 @@ export async function iscriviti(_prima: StatoModulo, f: FormData): Promise<Stato
 
   const origine = await origineRichiesta();
   const b = await bigliettoPubblico(esito.iscrizione.id, esito.iscrizione.email);
+  const biglietto = linkBiglietto('', esito.iscrizione.id, esito.iscrizione.email);
+  // A pagamento: il posto è tenuto e si va subito alla pagina di pagamento; il QR arriva dopo.
+  if (b && b.iscrizione.stato === 'in_attesa') {
+    let url: string;
+    try {
+      url = await apriPagamentoIscrizione(b, origine);
+    } catch (e) {
+      console.error('[prevendita] pagina di pagamento non aperta', e);
+      redirect(`${biglietto}&errore=pagamento`);
+    }
+    redirect(url);
+  }
   try {
     if (b) await inviaBiglietto(b, origine);
   } catch (e) {
     // L'iscrizione c'è comunque: il QR è a schermo e recuperabile. Non blocchiamo la persona.
     console.error('[prevendita] invio email non riuscito', e);
   }
-  redirect(`${linkBiglietto('', esito.iscrizione.id, esito.iscrizione.email)}&nuovo=1`);
+  redirect(`${biglietto}&nuovo=1`);
 }
 
 export interface StatoRecupero { inviata: boolean; errore?: string; email?: string }
@@ -68,4 +82,12 @@ export async function recuperaQr(_prima: StatoRecupero, f: FormData): Promise<St
   const tavoli = await prenotazioniPerEmail(email);
   if (biglietti.length || tavoli.length) await inviaRecupero(email, biglietti, await origineRichiesta(), tavoli);
   return { inviata: true, email };
+}
+
+/** Il cliente lascia il posto prima di pagare: torna libero per gli altri. */
+export async function lasciaPostoAzione(f: FormData) {
+  const id = testo(f, 'id');
+  const email = testo(f, 'email');
+  await lasciaPosto(id, email);
+  redirect(linkBiglietto('', id, email));
 }

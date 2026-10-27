@@ -14,7 +14,7 @@ function evento(p: Partial<Evento> & Pick<Evento, 'slug' | 'nome' | 'data'>): Ev
   return {
     id: randomUUID(), numero: null, dataFine: null, location: null, comune: null, lat: null, lng: null,
     locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, dressCode: null,
-    lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 0, prezzoCassa: null, etaMinima: 18, pubblicato: true,
+    lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 0, cassaAttiva: true, prezzoCassa: null, etaMinima: 18, pubblicato: true,
     prAbilitati: null, createdAt: ora(), updatedAt: ora(), ...p,
   };
 }
@@ -33,8 +33,8 @@ export function datiIniziali(segreto: string): Archivio {
     descrizione: 'La notte più lunga dell’anno, sotto cassa e in maschera. In palio 500 € per la maschera migliore.',
     infoArrivo: null,                            // TODO: cliente — parcheggio, navetta
     locandinaUrl: '/img/locandine/halloween-party-31-10-26.jpg',
-    prezzoLista: 10,                             // TODO: cliente — prezzo in lista alla porta
-    prezzoCassa: 15,                             // TODO: cliente — prezzo per chi entra in cassa senza lista
+    prezzoLista: 10,                             // TODO: cliente — prezzo della prevendita online
+    prezzoCassa: 15,                             // TODO: cliente — prezzo per chi entra in cassa senza prevendita
     etaMinima: 18,                               // TODO: cliente — età minima
   });
   const solchi = evento({ // ESEMPIO dai mockup
@@ -80,38 +80,40 @@ export function datiIniziali(segreto: string): Archivio {
     { id: randomUUID(), email: 'zarro@maremmamusica.test', ruolo: 'pr', prId: zarro.id, createdAt: ora() },
   ];
 
-  // Persone in lista di esempio, per vedere classifica e scanner al lavoro.
-  // [nome, cognome, nascita, PR, ore fa, pagato al PR, canale di arrivo]
-  const esempi: [string, string, string, Pr | null, number, boolean, string][] = [
-    ['Giulia', 'Bianchi', '2001-05-14', zarro, 2, false, 'whatsapp'],
-    ['Tommaso', 'Pucci', '1999-02-03', zarro, 5, true, 'instagram'],
-    ['Sara', 'Gori', '2003-11-21', zarro, 9, false, 'whatsapp'],
-    ['Irene', 'Nesi', '2000-07-08', zarro, 30, false, 'instagram'],
-    ['Elena', 'Conti', '1998-04-17', bomber, 3, false, 'instagram'],
-    ['Andrea', 'Cecchi', '2002-09-30', bomber, 7, true, 'whatsapp'],
-    ['Pietro', 'Salvadori', '1997-12-12', bomber, 20, false, 'diretto'],
-    ['Luca', 'Neri', '2001-01-25', bomber, 44, false, 'whatsapp'],
-    ['Noemi', 'Galli', '2004-03-02', butteressa, 11, false, 'instagram'],
-    ['Marco', 'Verdi', '1999-08-21', testPr, 1, false, 'whatsapp'],
+  // Prevendite di esempio, per vedere classifica e scanner al lavoro.
+  // [nome, cognome, nascita, PR, ore fa, canale di arrivo]
+  const esempi: [string, string, string, Pr | null, number, string][] = [
+    ['Giulia', 'Bianchi', '2001-05-14', zarro, 2, 'whatsapp'],
+    ['Tommaso', 'Pucci', '1999-02-03', zarro, 5, 'instagram'],
+    ['Sara', 'Gori', '2003-11-21', zarro, 9, 'whatsapp'],
+    ['Irene', 'Nesi', '2000-07-08', zarro, 30, 'instagram'],
+    ['Elena', 'Conti', '1998-04-17', bomber, 3, 'instagram'],
+    ['Andrea', 'Cecchi', '2002-09-30', bomber, 7, 'whatsapp'],
+    ['Pietro', 'Salvadori', '1997-12-12', bomber, 20, 'diretto'],
+    ['Luca', 'Neri', '2001-01-25', bomber, 44, 'whatsapp'],
+    ['Noemi', 'Galli', '2004-03-02', butteressa, 11, 'instagram'],
+    ['Marco', 'Verdi', '1999-08-21', testPr, 1, 'whatsapp'],
     // Senza PR: arrivati dai social della crew o dal sito
-    ['Davide', 'Rossi', '1996-06-19', null, 4, false, 'instagram'],
-    ['Marta', 'Lenzi', '2000-10-10', null, 26, false, 'instagram'],
-    ['Chiara', 'Fabbri', '2002-02-17', null, 6, false, 'instagram'],
-    ['Niccolò', 'Bartoli', '1998-11-03', null, 12, false, 'tiktok'],
-    ['Alice', 'Mori', '2001-08-29', null, 15, false, 'facebook'],
-    ['Federico', 'Landi', '1997-05-06', null, 33, false, 'locandina'],
-    ['Veronica', 'Pieri', '2003-01-12', null, 50, false, 'diretto'],
+    ['Davide', 'Rossi', '1996-06-19', null, 4, 'instagram'],
+    ['Marta', 'Lenzi', '2000-10-10', null, 26, 'instagram'],
+    ['Chiara', 'Fabbri', '2002-02-17', null, 6, 'instagram'],
+    ['Niccolò', 'Bartoli', '1998-11-03', null, 12, 'tiktok'],
+    ['Alice', 'Mori', '2001-08-29', null, 15, 'facebook'],
+    ['Federico', 'Landi', '1997-05-06', null, 33, 'locandina'],
+    ['Veronica', 'Pieri', '2003-01-12', null, 50, 'diretto'],
   ];
   const lottoHalloween = lotti[0];
-  const iscrizioni: Iscrizione[] = esempi.map(([nome, cognome, dataNascita, p, oreFa, pagato, canale]) => {
+  // Esempi: tutte prevendite pagate online (pagamento di prova).
+  const iscrizioni: Iscrizione[] = esempi.map(([nome, cognome, dataNascita, p, oreFa, canale]) => {
     const id = randomUUID();
     const creata = new Date(Date.now() - oreFa * 3_600_000);
     return {
       id, eventoId: halloween.id, lottoId: lottoHalloween.id, prId: p?.id ?? null,
       nome, cognome, dataNascita, email: `${nome}.${cognome}@esempio.it`.toLowerCase(),
       tokenQr: creaTokenQr(segreto, id, halloween.id, creata), codice: creaCodice(segreto, id),
-      stato: pagato ? 'pagato' : 'in_lista', metodoPagamento: pagato ? 'pr' : null,
-      importo: lottoHalloween.prezzo, pagatoAt: pagato ? creata.toISOString() : null,
+      stato: 'pagato', metodoPagamento: 'online',
+      importo: lottoHalloween.prezzo, pagatoAt: creata.toISOString(),
+      scade: null, pagamentoOnline: { sessione: null, pagamento: `prova_esempio_${id}`, daRimborsare: false },
       oraCheckIn: null, porta: null, consensoPrivacyAt: creata.toISOString(), consensoMarketing: false,
       annullatoAt: null, createdAt: creata.toISOString(),
       canale, consegnaId: null, origine: 'lista', rifCassa: null,

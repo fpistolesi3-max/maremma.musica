@@ -10,7 +10,7 @@ import {
   prenotazionePubblica, type DatiPrenotazione,
 } from '@/lib/dati/tavoli';
 import { inviaChiusuraTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
-import { modoPagamentoTavoli, rimborsa } from '@/lib/pagamenti';
+import { modoPagamentoOnline, rimborsa } from '@/lib/pagamenti';
 import { apriPagamento } from '@/lib/pagamento-tavolo';
 
 export interface StatoTavoloModulo {
@@ -43,7 +43,7 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   // L'admin che compila il modulo inserisce un tavolo venduto a voce: il cliente paga dal link che gli arriva.
   const adminSessione = s?.utente.ruolo === 'admin' ? s : null;
   // Le prevendite si pagano con Stripe: senza pagamento online attivo i tavoli non si prenotano dal sito.
-  const online = modoPagamentoTavoli() !== null;
+  const online = modoPagamentoOnline() !== null;
   if (!online) return { errori: { generale: 'La prenotazione online dei tavoli non è ancora attiva.' }, valori };
   const esito = prSessione ? await prPrenotaTavolo(s!, dati) : adminSessione ? await adminPrenotaTavolo(adminSessione, dati) : await prenotaTavolo(dati, handle);
   if (!esito.ok) return { errori: { [esito.campo ?? 'generale']: esito.errore }, valori };

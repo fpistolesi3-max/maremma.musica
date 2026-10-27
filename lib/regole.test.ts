@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR } from './regole';
+import { componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
 import { cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro } from './formato';
@@ -10,7 +10,7 @@ import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
 
 const evento = (p: Partial<Evento> = {}): Evento => ({
   id: 'e1', numero: 25, slug: 'halloween-party', nome: 'Halloween Party', data: '2026-10-31T22:00:00+01:00', dataFine: '2026-11-01T04:00:00+01:00',
-  location: null, comune: null, lat: null, lng: null, locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, prezzoCassa: null,
+  location: null, comune: null, lat: null, lng: null, locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, cassaAttiva: true, prezzoCassa: null,
   dressCode: null, lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 10, etaMinima: 18, pubblicato: true, prAbilitati: null,
   createdAt: '', updatedAt: '', ...p,
 });
@@ -65,16 +65,16 @@ test('lotti: primo aperto con posti, lotti futuri, lista piena, link PR', () => 
   assert.equal(statoLista(e, [], {}, { adesso: new Date('2026-11-02T00:00:00Z') }).tipo, 'passata');
 });
 
-test('porta: incassa, entra, secondo passaggio già entrato, annullato non valido', () => {
-  const v: VocePorta = { id: 'x', token: 'MM1.a.b.c', codice: 'ABCD1234', nome: 'Giulia', cognome: 'Bianchi', dataNascita: '2001-05-14', stato: 'in_lista', importo: 10, oraCheckIn: null, porta: null, lista: 'Zarro Pollicino', canale: 'instagram', origine: 'lista' };
-  const o = { incassa: false, metodo: 'porta_contanti' as const, porta: 'P1', ora: '2026-10-31T23:41:00Z' };
-  assert.equal(decidiIngresso(v, o).esito.esito, 'da_incassare');
-  const { esito, aggiornata } = decidiIngresso(v, { ...o, incassa: true });
-  assert.equal(esito.esito, 'entrato');
-  assert.equal(esito.esito === 'entrato' && esito.incassato, 10);
+test('porta: chi è in lista ha già pagato online, non si incassa; non pagato non entra', () => {
+  const v: VocePorta = { id: 'x', token: 'MM1.a.b.c', codice: 'ABCD1234', nome: 'Giulia', cognome: 'Bianchi', dataNascita: '2001-05-14', stato: 'pagato', importo: 10, oraCheckIn: null, porta: null, lista: 'Zarro Pollicino', canale: 'instagram', origine: 'lista' };
+  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: '2026-10-31T23:41:00Z' };
+  const { esito, aggiornata } = decidiIngresso(v, o);
+  assert.equal(esito.esito, 'entrato', 'pagato online: entra');
+  assert.equal(esito.esito === 'entrato' && esito.incassato, 0, 'alla porta non si incassa niente');
   assert.equal(decidiIngresso(aggiornata!, o).esito.esito, 'gia_entrato');
-  assert.equal(decidiIngresso({ ...v, stato: 'pagato' }, o).esito.esito, 'entrato', 'pagato al PR: entra senza incassare');
-  assert.equal(decidiIngresso({ ...v, importo: 0 }, o).esito.esito, 'entrato', 'ingresso libero');
+  assert.equal(decidiIngresso({ ...v, stato: 'in_lista', importo: 0 }, o).esito.esito, 'entrato', 'serata gratis');
+  assert.equal(decidiIngresso({ ...v, stato: 'in_attesa' }, o).esito.esito, 'non_pagato', 'prevendita chiesta e non pagata');
+  assert.equal(decidiIngresso({ ...v, stato: 'scaduta' }, o).esito.esito, 'non_valido');
   assert.equal(decidiIngresso({ ...v, stato: 'annullato' }, o).esito.esito, 'annullato');
   assert.equal(trovaVoce([v], 'abcd-1234')?.id, 'x', 'codice dettato a voce, con trattino e minuscole');
   assert.equal(trovaVoce([v], 'MM1.a.b.c')?.id, 'x');
@@ -117,4 +117,35 @@ test('tavoli: termine per pagare entro l’apertura, richieste chiuse a serata i
   // Dall'apertura in poi non si chiede più: il termine sarebbe già passato
   assert.equal(richiesteTavoliAperte(e, new Date(apertura)), false);
   assert.equal(richiesteTavoliAperte(e, new Date(apertura + 3_600_000)), false);
+});
+
+test('prevendita: il posto resta fermo solo nel termine per pagare', () => {
+  const adesso = new Date('2026-10-20T12:00:00+02:00');
+  const scade = scadenzaPagamentoOnline(adesso, evento());
+  assert.equal(new Date(scade).getTime(), adesso.getTime() + MINUTI_PAGAMENTO_ONLINE * 60_000);
+  const attesa = { stato: 'in_attesa' as const, scade };
+  assert.equal(tienePosto(attesa, adesso), true, 'in attesa nel termine: tiene il posto del lotto');
+  assert.equal(iscrizioneScaduta(attesa, adesso), false);
+  const dopo = new Date(new Date(scade).getTime() + 1);
+  assert.equal(tienePosto(attesa, dopo), false, 'termine passato: il posto torna libero');
+  assert.equal(iscrizioneScaduta(attesa, dopo), true);
+  assert.equal(tienePosto({ stato: 'pagato', scade: null }, dopo), true);
+  assert.equal(tienePosto({ stato: 'scaduta', scade }, adesso), false);
+  // Il controllo doppioni guarda solo i QR validi: chi ha chiesto senza pagare non blocca la cassa né un nuovo tentativo.
+  const i = { id: 'a', eventoId: 'e1', cognome: 'Bianchi', dataNascita: '2001-05-14', stato: 'in_attesa' } as Iscrizione;
+  assert.equal(giaIscritto([i], 'e1', 'Bianchi', '2001-05-14'), undefined);
+});
+
+test('prevendita: pagamento in ritardo vale solo se c’è ancora posto, altrimenti si rimborsa', () => {
+  const e = evento();
+  const prima = new Date('2026-10-20T12:00:00+02:00');
+  const base = { iscrizione: { stato: 'in_attesa' as const }, evento: e, lotto: lotto({ quantita: 100 }), altriNelLotto: 10, doppione: false, adesso: prima };
+  assert.equal(pagamentoIscrizioneValido(base), true);
+  assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'scaduta' } }), true, 'scaduta da poco ma con posto: vale');
+  assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'scaduta' }, altriNelLotto: 100 }), false, 'posti finiti nel frattempo');
+  assert.equal(pagamentoIscrizioneValido({ ...base, lotto: lotto({ quantita: null }), altriNelLotto: 9999 }), true, 'lotto senza limite');
+  assert.equal(pagamentoIscrizioneValido({ ...base, adesso: new Date(e.data) }), false, 'serata iniziata');
+  assert.equal(pagamentoIscrizioneValido({ ...base, doppione: true }), false, 'ha già un altro QR valido');
+  assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'annullato' } }), false, 'ha lasciato il posto');
+  assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'pagato' } }), false, 'pagata due volte');
 });

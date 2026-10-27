@@ -9,7 +9,7 @@ export interface ValoriSerata {
   id: string | null; numero: string; nome: string; slug: string; giorno: string; apertura: string; chiusura: string;
   lineup: string; highlight: string; dressCode: string; descrizione: string;
   location: string; comune: string; lat: string; lng: string; locationSegreta: boolean; infoArrivo: string;
-  tipoIngresso: 'libero' | 'lista'; prezzoLista: string; prezzoCassa: string; etaMinima: string;
+  tipoIngresso: 'libero' | 'lista'; prezzoLista: string; cassaAttiva: boolean; prezzoCassa: string; etaMinima: string;
   locandinaUrl: string; pubblicato: boolean; prAbilitati: string[] | null;
 }
 
@@ -26,6 +26,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
 }) {
   const [stato, invia, inCorso] = useActionState(salvaSerata, {} as EsitoAzione);
   const [tipo, setTipo] = useState(v.tipoIngresso);
+  const [cassa, setCassa] = useState(v.cassaAttiva);
   const [tutti, setTutti] = useState(v.prAbilitati === null);
   const [anteprima, setAnteprima] = useState(v.locandinaUrl);
   const c = stato.campi ?? {};
@@ -80,21 +81,33 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
         <Sezione n="03" titolo="Ingresso" forza={conErrore('tipoIngresso', 'prezzoLista', 'prezzoCassa', 'etaMinima')}>
           <div className="flex flex-col gap-2">
             <span className="mm-campo__etichetta" id="tipo-ingresso">Tipo di ingresso</span>
-            <div role="radiogroup" aria-labelledby="tipo-ingresso" className="grid border border-linea-forte sm:grid-cols-3">
-              {([['libero', 'Libero'], ['lista', 'Lista · paga alla porta']] as const).map(([k, t]) => (
+            <div role="radiogroup" aria-labelledby="tipo-ingresso" className="grid border border-linea-forte sm:grid-cols-2">
+              {([['libero', 'Libero'], ['lista', 'Prevendita online']] as const).map(([k, t]) => (
                 <button key={k} type="button" role="radio" aria-checked={tipo === k} onClick={() => setTipo(k)}
                   className={`min-h-[52px] border-0 border-r border-linea-forte px-2 text-[13px] font-semibold uppercase tracking-bottone ${tipo === k ? 'bg-osso text-notte' : 'bg-transparent text-osso'}`}>{t}</button>
               ))}
-              {/* Opzione C, fase successiva: resta visibile ma spenta */}
-              <button type="button" role="radio" aria-checked="false" disabled className="flex min-h-[52px] cursor-not-allowed flex-col items-center justify-center gap-1 border-0 bg-transparent px-2 text-[13px] font-semibold uppercase tracking-bottone text-osso-3">
-                Prevendita online<span className="font-mono text-[10px] normal-case tracking-normal">in arrivo</span>
-              </button>
             </div>
+            {tipo === 'lista' && <span className="mm-campo__aiuto">Si paga solo sul sito (carta, Apple Pay, Google Pay). Il QR arriva dopo il pagamento.</span>}
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
-            {tipo === 'lista' && <Campo nome="prezzoLista" etichetta="Prezzo lista (€)" v={v.prezzoLista} inputMode="decimal" errore={c.prezzoLista} aiuto="Il primo lotto nasce con questo prezzo" />}
-            {tipo === 'lista' && <Campo nome="prezzoCassa" etichetta="Prezzo in cassa (€)" v={v.prezzoCassa} inputMode="decimal" errore={c.prezzoCassa} aiuto="Chi entra senza lista. Vuoto = come la lista" />}
+            {tipo === 'lista' && <Campo nome="prezzoLista" etichetta="Prezzo prevendita (€)" v={v.prezzoLista} inputMode="decimal" errore={c.prezzoLista} aiuto="Il primo lotto nasce con questo prezzo" />}
             <Campo nome="etaMinima" etichetta="Età minima" v={v.etaMinima} inputMode="numeric" errore={c.etaMinima} />
+          </div>
+          <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
+            <label className="flex items-center gap-[10px] text-[15px]">
+              <input type="checkbox" name="cassaAttiva" checked={cassa} onChange={(e) => setCassa(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />
+              Ingresso in cassa alla porta
+            </label>
+            <span className="mm-campo__aiuto">
+              {cassa ? 'Chi non ha la prevendita entra pagando alla porta, anche in contanti.' : 'Spento: ingresso solo in prevendita. Alla porta non si vendono ingressi; lo dicono la pagina della serata e le email.'}
+            </span>
+            {cassa && tipo === 'lista' && (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Campo nome="prezzoCassa" etichetta="Prezzo in cassa (€)" v={v.prezzoCassa} inputMode="decimal" errore={c.prezzoCassa} aiuto="Vuoto = come la prevendita" />
+              </div>
+            )}
+            {/* Spenta la cassa il prezzo resta salvato: se la si riaccende torna com'era. */}
+            {!cassa && tipo === 'lista' && <input type="hidden" name="prezzoCassa" value={v.prezzoCassa} />}
           </div>
         </Sezione>
 

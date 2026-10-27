@@ -3,12 +3,14 @@ import { applicaScadenze, chiuseDaAvvisare, emailDelPr, promemoriaRichiestePr } 
 import { inviaChiusuraTavolo, inviaPromemoriaRichiestaPr, inviaScadutaAlPr } from '@/lib/tavolo-email';
 import { verificaSospesi } from '@/lib/pagamento-tavolo';
 import { modalitaProva } from '@/lib/prova';
+import { verificaSospesiIscrizioni } from '@/lib/pagamento-prevendita';
+import { applicaScadenzeIscrizioni } from '@/lib/dati/prevendita';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/cron/tavoli — una volta al giorno (vercel.json): chiede a Stripe l'esito dei pagamenti online rimasti in
- * sospeso (se il webhook non li ha portati), fa decadere le prenotazioni non pagate e, per le richieste inserite
+ * sospeso, di tavoli e prevendite (se il webhook non li ha portati), segna scadute le prevendite non pagate, fa decadere le prenotazioni non pagate e, per le richieste inserite
  * dal PR (o dalla crew) e non ancora pagate, manda il promemoria al cliente e l'avviso al PR;
  * a chi l'ha persa per il termine passato manda l'avviso che il tavolo è tornato libero.
  * Vercel chiama con "Authorization: Bearer <CRON_SECRET>"; senza il segreto giusto non parte (in sviluppo sì).
@@ -21,7 +23,9 @@ export async function GET(req: Request) {
   const origine = process.env.SITO_URL || new URL(req.url).origin;
   // Prima i pagamenti online senza esito: un tavolo pagato non deve tornare libero perché il webhook non è arrivato.
   const pagamenti = await verificaSospesi(origine);
+  const prevendite = await verificaSospesiIscrizioni(origine);
   await applicaScadenze();
+  await applicaScadenzeIscrizioni();
   let inviati = 0;
   // Richieste inserite dal PR (o dalla crew) non ancora pagate: promemoria al cliente e avviso al PR.
   for (const { vista, emailPr } of await promemoriaRichiestePr()) {
@@ -37,5 +41,5 @@ export async function GET(req: Request) {
       if (emailPr) await inviaScadutaAlPr(v, emailPr, origine);
     } catch (e) { console.error('[tavoli] avviso di chiusura non inviato', e); }
   }
-  return NextResponse.json({ ok: true, pagamenti, promemoria: inviati, decadute: avvisati }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ ok: true, pagamenti, prevendite, promemoria: inviati, decadute: avvisati }, { headers: { 'Cache-Control': 'no-store' } });
 }

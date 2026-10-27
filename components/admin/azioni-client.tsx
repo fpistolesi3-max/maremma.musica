@@ -5,8 +5,13 @@ import {
   azioneIscrizione, creaPrAzione, creaStaffAzione, rimuoviStaffAzione, statoPrAzione, type EsitoAzione,
 } from '@/app/azioni/admin';
 
-/** Pulsanti annulla / rimborsa / ripristina, con conferma. */
-export function AzioniIscrizione({ id, stato, pagato }: { id: string; stato: string; pagato: boolean }) {
+/**
+ * Pulsanti annulla / rimborsa / ripristina, con conferma. `online`: pagata sul sito, il rimborso passa da Stripe;
+ * `daRimborsare`: pagamento arrivato quando non valeva più; `maiPagata`: prevendita chiesta e mai pagata (niente da fare).
+ */
+export function AzioniIscrizione({ id, stato, pagato, online, daRimborsare, maiPagata }: {
+  id: string; stato: string; pagato: boolean; online: boolean; daRimborsare: boolean; maiPagata: boolean;
+}) {
   const [inCorso, avvia] = useTransition();
   const [errore, setErrore] = useState<string | null>(null);
   const fai = (azione: 'annulla' | 'rimborsa' | 'ripristina', domanda: string) => {
@@ -14,11 +19,15 @@ export function AzioniIscrizione({ id, stato, pagato }: { id: string; stato: str
     avvia(async () => { const r = await azioneIscrizione(id, azione); setErrore(r.errore ?? null); });
   };
   const attiva = ['in_lista', 'pagato', 'entrato'].includes(stato);
+  const domandaRimborso = online
+    ? 'Restituire i soldi? Il rimborso parte subito sulla carta del cliente e il QR smette di funzionare.'
+    : 'Segnare come rimborsata? Restituisci i soldi a mano: qui si registra soltanto.';
   return (
     <span className="flex flex-wrap justify-end gap-1">
-      {attiva && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('annulla', 'Annullare questa iscrizione? Il QR smette di funzionare.')}>Annulla</button>}
-      {attiva && pagato && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('rimborsa', 'Segnare come rimborsata? Restituisci i soldi a mano: qui si registra soltanto.')}>Rimborsa</button>}
-      {!attiva && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('ripristina', 'Riattivare il QR?')}>Ripristina</button>}
+      {daRimborsare && <button type="button" disabled={inCorso} className="mm-btn mm-btn--linea" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('rimborsa', 'Restituire i soldi di questo pagamento arrivato quando non valeva più?')}>Rimborsa</button>}
+      {attiva && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('annulla', online ? 'Annullare senza restituire i soldi? Il QR smette di funzionare. Per restituirli usa Rimborsa.' : 'Annullare questa iscrizione? Il QR smette di funzionare.')}>Annulla</button>}
+      {!daRimborsare && (attiva || stato === 'annullato') && pagato && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('rimborsa', domandaRimborso)}>Rimborsa</button>}
+      {stato === 'annullato' && !maiPagata && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('ripristina', 'Riattivare il QR?')}>Ripristina</button>}
       {errore && <span className="text-[12px] text-stop-testo">{errore}</span>}
     </span>
   );
