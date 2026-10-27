@@ -9,7 +9,7 @@ export interface ValoriSerata {
   id: string | null; numero: string; nome: string; slug: string; giorno: string; apertura: string; chiusura: string;
   lineup: string; highlight: string; dressCode: string; descrizione: string;
   location: string; comune: string; lat: string; lng: string; locationSegreta: boolean; infoArrivo: string;
-  tipoIngresso: 'libero' | 'lista'; prezzoLista: string; cassaAttiva: boolean; senzaTelefono: boolean; prezzoCassa: string; etaMinima: string;
+  tipoIngresso: 'libero' | 'lista'; prezzoLista: string; cassaAttiva: boolean; senzaTelefono: boolean; inCopertina: boolean; prezzoCassa: string; etaMinima: string;
   locandinaUrl: string; pubblicato: boolean; prAbilitati: string[] | null;
 }
 
@@ -28,6 +28,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
   const [tipo, setTipo] = useState(v.tipoIngresso);
   const [cassa, setCassa] = useState(v.cassaAttiva);
   const [senzaTel, setSenzaTel] = useState(v.senzaTelefono);
+  const [copertina, setCopertina] = useState(v.inCopertina);
   const [tutti, setTutti] = useState(v.prAbilitati === null);
   const [anteprima, setAnteprima] = useState(v.locandinaUrl);
   const c = stato.campi ?? {};
@@ -93,6 +94,13 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
           <div className="grid gap-4 sm:grid-cols-3">
             {tipo === 'lista' && <Campo nome="prezzoLista" etichetta="Prezzo prevendita (€)" v={v.prezzoLista} inputMode="decimal" errore={c.prezzoLista} aiuto="Il primo lotto nasce con questo prezzo" />}
             <Campo nome="etaMinima" etichetta="Età minima" v={v.etaMinima} inputMode="numeric" errore={c.etaMinima} />
+          </div>
+          <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
+            <label className="flex items-center gap-[10px] text-[15px]">
+              <input type="checkbox" name="inCopertina" checked={copertina} onChange={(e) => setCopertina(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />
+              In copertina nella home
+            </label>
+            <span className="mm-campo__aiuto">Se nessuna serata è in copertina, si mostra la prossima data.</span>
           </div>
           <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
             <label className="flex items-center gap-[10px] text-[15px]">

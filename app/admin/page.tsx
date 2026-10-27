@@ -28,6 +28,7 @@ export default async function AdminSerate() {
                   <td className="whitespace-nowrap font-mono text-[12px]">{giornoSett(e.data)} {dataPunti(e.data)}.{String(parti(e.data).anno).slice(2)}<div className="text-osso-2">{orari(e.data, e.dataFine)}</div></td>
                   <td>
                     <span className={`mm-chip ${passata ? 'mm-chip--libero' : e.pubblicato ? 'mm-chip--entrato' : 'mm-chip--incassare'}`}>{passata ? 'Passata' : e.pubblicato ? 'Pubblicata' : 'Bozza'}</span>
+                    {e.inCopertina && <span className="mm-chip mm-chip--libero ml-2">Copertina</span>}
                   </td>
                   <td className="mm-num">{inLista}</td>
                   <td className="mm-num">{entrati}</td>

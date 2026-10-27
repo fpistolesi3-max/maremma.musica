@@ -49,7 +49,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         lineup: e.lineup.join('\n'), highlight: e.highlight ?? '', dressCode: e.dressCode ?? '', descrizione: e.descrizione ?? '',
         location: e.location ?? '', comune: e.comune ?? '', lat: e.lat == null ? '' : String(e.lat), lng: e.lng == null ? '' : String(e.lng),
         locationSegreta: e.locationSegreta, infoArrivo: e.infoArrivo ?? '',
-        tipoIngresso: e.tipoIngresso === 'libero' ? 'libero' : 'lista', prezzoLista: String(e.prezzoLista), cassaAttiva: e.cassaAttiva, senzaTelefono: e.senzaTelefono, prezzoCassa: e.prezzoCassa == null ? '' : String(e.prezzoCassa), etaMinima: String(e.etaMinima),
+        tipoIngresso: e.tipoIngresso === 'libero' ? 'libero' : 'lista', prezzoLista: String(e.prezzoLista), cassaAttiva: e.cassaAttiva, senzaTelefono: e.senzaTelefono, inCopertina: e.inCopertina === true, prezzoCassa: e.prezzoCassa == null ? '' : String(e.prezzoCassa), etaMinima: String(e.etaMinima),
         locandinaUrl: e.locandinaUrl ?? '', pubblicato: e.pubblicato, prAbilitati: e.prAbilitati,
       }}>
         <Sezione id="lotti" n="05" titolo="Tipi di prevendita" nota={`${x.lotti.length} ${x.lotti.length === 1 ? 'TIPO' : 'TIPI'}`}>

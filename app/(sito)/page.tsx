@@ -13,8 +13,7 @@ import { PulsanteMorph } from '@/components/pulsante-morph';
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const { prossimi, passati } = await eventiPubblici();
-  const [primo] = prossimi;
+  const { prossimi, passati, copertina: primo } = await eventiPubblici();
 
   return (
     <>
@@ -25,7 +24,7 @@ export default async function Home() {
           <div className="contenitore flex flex-col gap-6 pb-10 pt-6 md:min-h-[calc(100dvh-96px)] md:flex-row md:gap-10 md:pb-16 md:pt-[72px]">
             <div className="relative z-[2] flex flex-col gap-6 md:w-[58%] md:flex-none md:gap-7">
               <div className="flex items-center gap-3 font-mono text-[11px] leading-none tracking-[.06em] md:gap-4 md:text-[12px]">
-                <span className="text-arancio">✦ PROSSIMA DATA</span>
+                <span className="text-arancio">✦ {primo.evento.id === prossimi[0]?.evento.id ? 'PROSSIMA DATA' : 'IN COPERTINA'}</span>
                 <span className="h-px w-7 bg-linea-forte md:w-10" />
                 <span className="text-osso-2">{numeroEvento(primo.evento.numero)}</span>
               </div>
