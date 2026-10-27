@@ -241,6 +241,7 @@
 .mm-nastro a, .mm-nastro span { font-family: var(--font-display); font-weight: 900; text-transform: uppercase; letter-spacing: .01em; color: var(--notte); text-decoration: none; }
 .mm-nastro a:hover { color: var(--arancio); }
 .mm-nastro i { font-style: normal; color: var(--arancio); }
+.mm-mini-disco { display: inline-block; width: .8em; height: .8em; flex: none; border-radius: 50%; background: radial-gradient(circle, var(--arancio) 0 22%, var(--notte) 23% 26%, #16191f 27% 100%); box-shadow: 0 0 0 1px #262b35; }
 @keyframes mm-scorri { to { transform: translateX(-50%); } }
 
 .mm-foto {

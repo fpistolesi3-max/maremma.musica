@@ -4,6 +4,7 @@ import type { EventoPubblico } from '@/lib/dati/pubblico';
 import { chipLista, type StatoLista } from '@/lib/regole';
 import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
 import { Freccia, LocandinaInArrivo } from './ui';
+import { BinarioCinetico } from './binario-cinetico';
 
 // Pezzi della lista date e della pagina evento, dai mockup Home / Evento.
 
@@ -103,7 +104,7 @@ export function Nastro({ eventi }: { eventi: Evento[] }) {
         className="mm-nastro absolute -left-10 top-7 flex h-12 w-[calc(100%+80px)] -rotate-3 items-center md:-left-[60px] md:top-11 md:h-16 md:w-[calc(100%+120px)] md:-rotate-2"
       >
         {/* due giri identici: l'animazione scorre di metà e riparte senza stacco */}
-        <div className="mm-nastro__binario">{[giro('a', false), giro('b', true)]}</div>
+        <BinarioCinetico>{[giro('a', false), giro('b', true)]}</BinarioCinetico>
       </nav>
     </div>
   );
