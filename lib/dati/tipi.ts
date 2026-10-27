@@ -170,7 +170,15 @@ export interface Iscrizione {
   canale: string;                 // da dove è arrivato: instagram, facebook, tiktok, whatsapp, google, diretto…
   consegnaId: string | null;      // solo storico: soldi incassati dal PR e consegnati, prima che tutto passasse dal sito
   origine: 'lista' | 'cassa';     // cassa = registrato alla porta dallo staff, entra subito, senza QR
-  rifCassa: string | null;        // id creato dal telefono della porta: evita doppioni se la sincronizzazione si ripete
+  rifCassa: string | null;
+  /**
+   * Dopo `GIORNI_ANONIMIZZAZIONE` giorni dalla serata nome, cognome, email e data di nascita si cancellano (restano come stringa
+   * vuota; nel database relazionale diventano null). La riga resta per le analisi: età alla serata, tipo di prevendita, importo,
+   * PR o sito, data d'acquisto, ingresso. Il consenso marketing non si tocca.
+   */
+  anonimizzata?: boolean;
+  etaAllaSerata?: number | null;  // calcolata prima di cancellare la data di nascita
+  anonimizzataAt?: string | null;        // id creato dal telefono della porta: evita doppioni se la sincronizzazione si ripete
 }
 
 /** Solo storico: il PR consegnava alla crew i soldi dei clienti. Ora la prevendita si paga solo online. */

@@ -192,7 +192,7 @@ export async function cambiaStatoIscrizione(s: Sessione, id: string, azione: 'an
  * Cambio di nominativo (es. un amico subentra): solo l'admin, solo per chi non è ancora entrato. Controlla età e doppioni
  * come l'acquisto. Il biglietto resta lo stesso (stesso QR, stesso pagamento): cambia chi lo usa.
  */
-export async function cambiaNominativo(s: Sessione, id: string, dati: { nome: string; cognome: string; dataNascita: string }) {
+export async function cambiaNominativo(s: Sessione, id: string, dati: { nome: string; cognome: string; dataNascita: string; email?: string | null }) {
   soloAdmin(s);
   await modifica((d) => {
     const i = d.iscrizioni.find((x) => x.id === id);
@@ -204,7 +204,11 @@ export async function cambiaNominativo(s: Sessione, id: string, dati: { nome: st
     const evento = d.eventi.find((e) => e.id === i.eventoId);
     if (evento && !etaSufficiente(dati.dataNascita, evento)) throw new Error(`Serata ${evento.etaMinima}+: con questa data non può entrare`);
     if (giaIscritto(d.iscrizioni.filter((x) => x.id !== i.id), i.eventoId, cognome, dati.dataNascita)) throw new Error('C’è già una prevendita con questo nome e questa data di nascita');
+    // L'email è facoltativa: se c'è, il biglietto (link e recupero) passa a quella; vuota = resta com'era.
+    const email = dati.email?.trim().toLowerCase();
+    if (email && !EMAIL_RE.test(email)) throw new Error('L’email non sembra giusta');
     i.nome = nome; i.cognome = cognome; i.dataNascita = dati.dataNascita;
+    if (email && i.origine !== 'cassa') i.email = email;
   });
 }
 
@@ -439,7 +443,7 @@ export async function csvEvento(s: Sessione, eventoId: string) {
   const d = await leggi();
   const evento = d.eventi.find((e) => e.id === eventoId);
   if (!evento) return null;
-  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Tipo di prevendita', 'Categoria', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Rifiutato alla porta', 'Newsletter'];
+  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Tipo di prevendita', 'Categoria', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Rifiutato alla porta', 'Newsletter', 'Età alla serata'];
   const PAGAMENTO = { online: 'online', porta_contanti: 'porta contanti', porta_pos: 'porta POS' } as const;
   const righe = d.iscrizioni
     .filter((i) => i.eventoId === eventoId)
@@ -452,7 +456,7 @@ export async function csvEvento(s: Sessione, eventoId: string) {
       i.pagatoAt ? `${dataCompleta(i.pagatoAt)} ${oraDi(i.pagatoAt)}` : '', i.pagamentoOnline?.daRimborsare ? 'sì' : '',
       `${dataCompleta(i.createdAt)} ${oraDi(i.createdAt)}`, i.oraCheckIn ? oraDi(i.oraCheckIn) : '', i.porta ?? '',
       i.rifiutoIngresso ? `${oraDi(i.rifiutoIngresso.ora)} · ${i.rifiutoIngresso.porta} · ${i.rifiutoIngresso.da}` : '',
-      i.consensoMarketing ? 'sì' : 'no',
+      i.consensoMarketing ? 'sì' : 'no', i.etaAllaSerata != null ? String(i.etaAllaSerata) : '',
     ].map(cella).join(';'));
   // BOM + punto e virgola: si apre bene nell'Excel italiano.
   return { nome: `${evento.slug}-iscrizioni.csv`, testo: '﻿' + [intestazione.join(';'), ...righe].join('\r\n') };
