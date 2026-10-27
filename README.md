@@ -58,8 +58,8 @@ Ogni serata ha più tipi di prevendita (i "lotti": Early bird, Donne, Standard�
 nome, prezzo, posti, **categoria**, uscita e chiusura. **Il cliente non sceglie**: il sito vende il primo tipo aperto e con posti, nell'ordine
 dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina serata ("Esce tra 3 giorni", "Esaurito").
 - **Uscita**: subito, N giorni prima della serata (segue la data se la serata si sposta) o data fissa. **Chiusura**: alla serata, N ore prima o data fissa.
-  Un tipo può uscire solo quando finiscono i posti del precedente ("Esce solo quando finiscono i posti del tipo prima").
-- **Categoria** (es. *Donne*): chiunque può comprarla, ma è riservata. Il modulo lo dice e, se l'admin lo vuole, chiede la casella "Dichiaro di rientrare nella categoria".
+  I tipi si avvicendano di norma per date decise dall'admin (es. il primo fino al 30/10, il successivo dal 31/10) anche se i posti non sono finiti; "Esce solo quando finiscono i posti del tipo prima" è un'opzione facoltativa.
+- **Categoria** (es. *Donne*): chiunque può comprarla, ma è riservata. Il modulo lo dice con il rinvio ai termini e condizioni (dove vanno spiegate le regole) e, se l'admin lo vuole (spenta di default), chiede la casella "Dichiaro di rientrare nella categoria".
   Alla porta la scheda mostra la categoria in grande, anche offline, e non torna da sola allo scanner finché lo staff non tocca *Prossimo*. L'ingresso è già registrato alla scansione: se non rientra, l'admin riporta l'iscrizione indietro da *Iscrizioni*.
 - **PR**: ogni tipo si vende da tutti i link PR, solo da alcuni PR o solo dal sito.
 - **Modelli rapidi** (un prezzo · Early bird + Standard · Early bird + Donne + Standard) e **copia da un'altra serata** (le uscite relative seguono la nuova data; quelle a data fissa vanno controllate). Si possono sostituire i tipi solo se nessuno si è ancora iscritto.

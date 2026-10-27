@@ -51,7 +51,7 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
         <div className="flex flex-col gap-1 border border-linea-forte px-4 py-3">
           <span className="font-mono text-[11px] tracking-[.04em] text-osso-2">PREVENDITA</span>
           <strong className="font-display text-[22px] font-extrabold uppercase leading-none">{tipo.nome}</strong>
-          {tipo.categoria && <p className="m-0 text-[14px] leading-5">Riservata: <strong>{tipo.categoria}</strong>. Alla porta si controlla il documento: chi non rientra nella categoria non entra.</p>}
+          {tipo.categoria && <p className="m-0 text-[14px] leading-5">Riservata: <strong>{tipo.categoria}</strong>. Alla porta si controlla il documento. Vedi i <Link href="/condizioni" target="_blank" className="underline decoration-arancio underline-offset-[3px]">termini e condizioni</Link>.</p>}
           {tipo.prossimo && <span className="font-mono text-[11px] leading-4 text-osso-2">POI: {tipo.prossimo.toUpperCase()}</span>}
         </div>
       )}
