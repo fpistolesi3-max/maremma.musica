@@ -22,9 +22,9 @@ export function usatiPerLotto(d: Readonly<Archivio>, eventoId: string) {
   return usati;
 }
 
-function conStato(d: Readonly<Archivio>, e: Evento, daPr = false): EventoPubblico {
+function conStato(d: Readonly<Archivio>, e: Evento, daPr = false, prId: string | null = null): EventoPubblico {
   const lotti = d.lotti.filter((l) => l.eventoId === e.id).sort((a, b) => a.ordine - b.ordine);
-  return { evento: e, lotti, stato: statoLista(e, lotti, usatiPerLotto(d, e.id), { daPr }) };
+  return { evento: e, lotti, stato: statoLista(e, lotti, usatiPerLotto(d, e.id), { daPr, prId }) };
 }
 
 export async function eventiPubblici() {
@@ -35,10 +35,10 @@ export async function eventiPubblici() {
   return { prossimi, passati };
 }
 
-export async function eventoPerSlug(slug: string, daPr = false): Promise<EventoPubblico | null> {
+export async function eventoPerSlug(slug: string, daPr = false, prId: string | null = null): Promise<EventoPubblico | null> {
   const d = await leggi();
   const e = d.eventi.find((x) => x.slug === slug && x.pubblicato);
-  return e ? conStato(d, e, daPr) : null;
+  return e ? conStato(d, e, daPr, prId) : null;
 }
 
 /** Il PR vale solo se attivo e abilitato per quella serata. */
@@ -61,7 +61,7 @@ export type EsitoIscrizione =
   | { ok: false; campo?: string; errore: string; esistente?: string };
 
 export async function creaIscrizione(input: {
-  slug: string; handlePr: string | null; nome: string; cognome: string; dataNascita: string; email: string; marketing: boolean; canale?: string | null;
+  slug: string; handlePr: string | null; nome: string; cognome: string; dataNascita: string; email: string; marketing: boolean; canale?: string | null; confermaCategoria?: boolean;
 }): Promise<EsitoIscrizione> {
   const d0 = await leggi();
   const evento = d0.eventi.find((x) => x.slug === input.slug && x.pubblicato);
@@ -88,16 +88,19 @@ export async function creaIscrizione(input: {
       return { ok: false, campo: 'email', errore: 'C’è già una prevendita in attesa di pagamento per te con un’altra email: completala da lì o riprova tra mezz’ora.' };
     }
     const lotti = d.lotti.filter((l) => l.eventoId === evento.id);
-    const stato = statoLista(evento, lotti, usatiPerLotto(d, evento.id), { daPr: Boolean(pr) });
+    const stato = statoLista(evento, lotti, usatiPerLotto(d, evento.id), { daPr: Boolean(pr), prId: pr?.id });
     if (stato.tipo === 'piena') return { ok: false, errore: 'Lista piena: i posti sono finiti.' };
     if (stato.tipo === 'dal') return { ok: false, errore: 'La lista non è ancora aperta.' };
     if (stato.tipo !== 'aperta' && stato.tipo !== 'libero') return { ok: false, errore: 'La lista per questa serata è chiusa.' };
+    if (stato.lotto?.categoria && stato.lotto.confermaCategoria && !input.confermaCategoria) {
+      return { ok: false, campo: 'categoria', errore: `Questa prevendita è riservata: ${stato.lotto.categoria}. Conferma di rientrare nella categoria.` };
+    }
     const daPagare = stato.prezzo > 0;
     if (daPagare && !prevenditaOnlineAttiva()) return { ok: false, errore: 'La prevendita online apre a breve: riprova nei prossimi giorni.' };
 
     const id = randomUUID();
     const iscrizione: Iscrizione = {
-      id, eventoId: evento.id, lottoId: stato.lotto?.id ?? null, prId: pr?.id ?? null,
+      id, eventoId: evento.id, lottoId: stato.lotto?.id ?? null, categoria: stato.lotto?.categoria ?? null, prId: pr?.id ?? null,
       nome: input.nome.trim(), cognome: input.cognome.trim(), dataNascita: input.dataNascita,
       email: input.email.trim().toLowerCase(),
       tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),

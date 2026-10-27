@@ -133,7 +133,7 @@ export async function registraCassa(s: Sessione, eventoId: string, rif: string, 
     const importo = Math.max(0, Math.round((Number(dati.importo) || 0) * 100) / 100);
     const id = randomUUID();
     const i = {
-      id, eventoId, lottoId: null, prId: null, nome, cognome, dataNascita: dati.dataNascita, email: '',
+      id, eventoId, lottoId: null, categoria: null, prId: null, nome, cognome, dataNascita: dati.dataNascita, email: '',
       tokenQr: creaTokenQr(chiave, id, eventoId), codice: creaCodice(chiave, id), // interni: nessun QR viene mostrato
       stato: 'entrato' as const, metodoPagamento: importo > 0 ? o.metodo : null, importo,
       pagatoAt: importo > 0 ? ora : null, scade: null, pagamentoOnline: null, oraCheckIn: ora, porta: o.porta,

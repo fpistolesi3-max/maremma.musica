@@ -35,7 +35,7 @@ export function BottoneLista({ ep, className = '', style }: { ep: EventoPubblico
       </Link>
     );
   }
-  const motivo = { dal: `Lista dal ${ep.stato.tipo === 'dal' ? dataPunti(ep.stato.dal) : ''}`, piena: 'Lista piena', chiusa: 'Lista chiusa', passata: 'Serata passata' }[ep.stato.tipo as 'dal' | 'piena' | 'chiusa' | 'passata'];
+  const motivo = { dal: ep.stato.tipo === 'dal' && ep.stato.dal ? `Lista dal ${dataPunti(ep.stato.dal)}` : 'Lista chiusa', piena: 'Lista piena', chiusa: 'Lista chiusa', passata: 'Serata passata' }[ep.stato.tipo as 'dal' | 'piena' | 'chiusa' | 'passata'];
   return (
     <button type="button" disabled className={`mm-btn mm-btn--primario ${className}`} style={style}>{motivo}</button>
   );

@@ -52,6 +52,13 @@ export interface Lotto {
   dataFine: string | null;
   visibileDaPr: boolean;
   ordine: number;
+  // Tipo di prevendita: categoria (Donne, Early bird…), uscita/chiusura relative alla serata, vincoli.
+  categoria: string | null;       // controllata alla porta; null = ingresso normale
+  confermaCategoria: boolean;     // il cliente dichiara di rientrare nella categoria (casella nel modulo)
+  uscitaGiorniPrima: number | null; // esce N giorni prima della serata (vale al posto di dataInizio)
+  fineOrePrima: number | null;    // si chiude N ore prima della serata (vale al posto di dataFine)
+  dopoPrecedente: boolean;        // esce solo quando i posti del tipo precedente sono finiti
+  prAbilitati: string[] | null;   // dai link di quali PR si vende; null = tutti (se visibileDaPr)
 }
 
 export type StatoTavolo = 'libero' | 'riservato' | 'confermato' | 'non_in_vendita';
@@ -135,6 +142,7 @@ export interface Iscrizione {
   id: string;
   eventoId: string;
   lottoId: string | null;
+  categoria: string | null;       // categoria del tipo di prevendita all'iscrizione (si controlla alla porta)
   prId: string | null;            // null = Lista Maremma Musica
   nome: string;
   cognome: string;

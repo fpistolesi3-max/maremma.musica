@@ -6,7 +6,7 @@ import { anniCompiuti, dataIso, dataPunti, euro } from './formato';
 export type StatoLista =
   | { tipo: 'aperta'; lotto: Lotto | null; prezzo: number }
   | { tipo: 'libero'; lotto: Lotto | null; prezzo: 0 }
-  | { tipo: 'dal'; dal: string }            // apre più avanti
+  | { tipo: 'dal'; dal: string | null; lotto?: Lotto } // apre più avanti (dal = null: quando finisce il tipo precedente)
   | { tipo: 'piena' }
   | { tipo: 'chiusa' }
   | { tipo: 'passata' };
@@ -30,17 +30,59 @@ export function eventoPassato(e: Pick<Evento, 'data' | 'dataFine'>, adesso = new
   return fine.getTime() < adesso.getTime();
 }
 
+const GIORNO = 86_400_000;
+const ORA = 3_600_000;
+
+/** Finestra di vendita di un tipo: uscita/chiusura relative alla serata hanno la precedenza sulle date fisse. */
+export function finestraLotto(l: Pick<Lotto, 'dataInizio' | 'dataFine' | 'uscitaGiorniPrima' | 'fineOrePrima'>, evento: Pick<Evento, 'data'>) {
+  const apertura = new Date(evento.data).getTime();
+  const inizio = l.uscitaGiorniPrima != null ? new Date(apertura - l.uscitaGiorniPrima * GIORNO) : l.dataInizio ? new Date(l.dataInizio) : null;
+  const fine = l.fineOrePrima != null ? new Date(apertura - l.fineOrePrima * ORA) : l.dataFine ? new Date(l.dataFine) : null;
+  return { inizio, fine };
+}
+
+/** Il tipo è venduto dal link di questo PR? (daPr senza prId: solo il controllo "visibile dai PR".) */
+export function vendutoDaPr(l: Pick<Lotto, 'visibileDaPr' | 'prAbilitati'>, prId?: string | null) {
+  return l.visibileDaPr && (!l.prAbilitati || !prId || l.prAbilitati.includes(prId));
+}
+
+export type StatoTipo = 'in_vendita' | 'presto' | 'dopo_precedente' | 'esaurito' | 'chiuso';
+export interface TipoVista { lotto: Lotto; stato: StatoTipo; dal: Date | null; usati: number }
+
 /**
- * Quale lotto si prende adesso? Il primo (per ordine) già aperto, non scaduto e con posti.
- * Da link PR si saltano i lotti non visibili ai PR.
+ * Stato di ogni tipo di prevendita adesso, in ordine. Un tipo con "dopo il precedente" esce solo quando i posti
+ * del tipo prima di lui sono finiti (e, se ha anche una data di uscita, quando quella è arrivata).
+ */
+export function tipiVista(
+  evento: Evento, lotti: Lotto[], usati: Record<string, number>, opzioni: { adesso?: Date; daPr?: boolean; prId?: string | null } = {},
+): TipoVista[] {
+  const adesso = opzioni.adesso ?? new Date();
+  const tutti = lotti.filter((l) => l.eventoId === evento.id).sort((a, b) => a.ordine - b.ordine);
+  const finito = (l: Lotto) => l.quantita != null && (usati[l.id] ?? 0) >= l.quantita;
+  return tutti
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => !opzioni.daPr || vendutoDaPr(l, opzioni.prId))
+    .map(({ l, i }): TipoVista => {
+      const { inizio, fine } = finestraLotto(l, evento);
+      const base = { lotto: l, dal: inizio, usati: usati[l.id] ?? 0 };
+      if (finito(l)) return { ...base, stato: 'esaurito' };
+      if (fine && fine < adesso) return { ...base, stato: 'chiuso' };
+      if (inizio && inizio > adesso) return { ...base, stato: 'presto' };
+      if (l.dopoPrecedente && i > 0 && !finito(tutti[i - 1])) return { ...base, stato: 'dopo_precedente' };
+      return { ...base, stato: 'in_vendita' };
+    });
+}
+
+/**
+ * Quale tipo si prende adesso? Il primo (per ordine) già aperto, non scaduto e con posti: il cliente non sceglie.
+ * Da link PR si saltano i tipi non venduti dai PR (o non da questo PR).
  */
 export function statoLista(
-  evento: Evento, lotti: Lotto[], usati: Record<string, number>, opzioni: { adesso?: Date; daPr?: boolean } = {},
+  evento: Evento, lotti: Lotto[], usati: Record<string, number>, opzioni: { adesso?: Date; daPr?: boolean; prId?: string | null } = {},
 ): StatoLista {
   const adesso = opzioni.adesso ?? new Date();
   if (eventoPassato(evento, adesso)) return { tipo: 'passata' };
   const dellEvento = lotti.filter((l) => l.eventoId === evento.id);
-  const suoi = dellEvento.filter((l) => !opzioni.daPr || l.visibileDaPr).sort((a, b) => a.ordine - b.ordine);
 
   // Nessun lotto definito: vale il prezzo lista dell'evento, senza limite di posti.
   if (dellEvento.length === 0) {
@@ -50,19 +92,20 @@ export function statoLista(
       : { tipo: 'aperta', lotto: null, prezzo: evento.prezzoLista };
   }
 
-  let futuro: string | null = null;
-  let pieno = false;
-  for (const l of suoi) {
-    if (l.dataInizio && new Date(l.dataInizio) > adesso) { futuro ??= l.dataInizio; continue; }
-    if (l.dataFine && new Date(l.dataFine) < adesso) continue;
-    if (l.quantita != null && (usati[l.id] ?? 0) >= l.quantita) { pieno = true; continue; }
+  const suoi = tipiVista(evento, dellEvento, usati, { adesso, daPr: opzioni.daPr, prId: opzioni.prId });
+  const aperto = suoi.find((t) => t.stato === 'in_vendita');
+  if (aperto) {
+    const l = aperto.lotto;
     return evento.tipoIngresso === 'libero' || l.prezzo === 0
       ? { tipo: 'libero', lotto: l, prezzo: 0 }
       : { tipo: 'aperta', lotto: l, prezzo: l.prezzo };
   }
-  if (suoi.length === 0) return { tipo: 'chiusa' }; // nessun lotto vendibile da link PR
-  if (futuro) return { tipo: 'dal', dal: futuro };
-  return pieno ? { tipo: 'piena' } : { tipo: 'chiusa' };
+  if (suoi.length === 0) return { tipo: 'chiusa' }; // nessun tipo vendibile da link PR
+  const prossimo = suoi.filter((t) => t.stato === 'presto').sort((a, b) => a.dal!.getTime() - b.dal!.getTime())[0];
+  if (prossimo) return { tipo: 'dal', dal: prossimo.dal!.toISOString(), lotto: prossimo.lotto };
+  const attesa = suoi.find((t) => t.stato === 'dopo_precedente');
+  if (attesa) return { tipo: 'dal', dal: null, lotto: attesa.lotto };
+  return suoi.some((t) => t.stato === 'esaurito') ? { tipo: 'piena' } : { tipo: 'chiusa' };
 }
 
 /** Testo e classe del chip evento, sempre con la parola (mai solo colore). */
@@ -70,7 +113,7 @@ export function chipLista(s: StatoLista, breve = false): { testo: string; classe
   switch (s.tipo) {
     case 'aperta': return { testo: breve ? `Lista · ${euro(s.prezzo)}` : 'Lista aperta', classe: 'mm-chip mm-chip--lista' };
     case 'libero': return { testo: 'Ingresso libero', classe: 'mm-chip mm-chip--libero' };
-    case 'dal': return { testo: `Lista dal ${dataPunti(s.dal)}`, classe: 'mm-chip mm-chip--pagato' };
+    case 'dal': return { testo: s.dal ? `Lista dal ${dataPunti(s.dal)}` : 'Lista chiusa', classe: 'mm-chip mm-chip--pagato' };
     case 'piena': return { testo: 'Lista piena', classe: 'mm-chip mm-chip--esaurito' };
     case 'chiusa': return { testo: 'Lista chiusa', classe: 'mm-chip mm-chip--pagato' };
     case 'passata': return { testo: 'Serata passata', classe: 'mm-chip mm-chip--libero' };

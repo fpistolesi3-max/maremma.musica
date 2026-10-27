@@ -12,12 +12,13 @@ interface Props {
   etaMinima: number;
   aPagamento: boolean;    // false = serata gratis: il QR arriva subito
   soloPrevendita: boolean; // la serata non ha la cassa alla porta
+  tipo?: { nome: string; categoria: string | null; conferma: boolean; prossimo: string | null } | null; // tipo di prevendita in vendita adesso
   children: React.ReactNode; // campo Lista, già pronto dal server
 }
 
 const INIZIALE: StatoModulo = { errori: {}, valori: {} };
 
-export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore, etaMinima, aPagamento, soloPrevendita, children }: Props) {
+export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore, etaMinima, aPagamento, soloPrevendita, tipo, children }: Props) {
   const [stato, invia, inCorso] = useActionState(iscriviti, INIZIALE);
   const e = stato.errori;
   const v = stato.valori;
@@ -46,6 +47,15 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
       {prHandle && <input type="hidden" name="pr" value={prHandle} />}
       {children}
 
+      {tipo && (
+        <div className="flex flex-col gap-1 border border-linea-forte px-4 py-3">
+          <span className="font-mono text-[11px] tracking-[.04em] text-osso-2">PREVENDITA</span>
+          <strong className="font-display text-[22px] font-extrabold uppercase leading-none">{tipo.nome}</strong>
+          {tipo.categoria && <p className="m-0 text-[14px] leading-5">Riservata: <strong>{tipo.categoria}</strong>. Alla porta si controlla il documento: chi non rientra nella categoria non entra.</p>}
+          {tipo.prossimo && <span className="font-mono text-[11px] leading-4 text-osso-2">POI: {tipo.prossimo.toUpperCase()}</span>}
+        </div>
+      )}
+
       {e.generale && <p role="alert" className="m-0 border border-stop-testo px-4 py-3 text-[14px] leading-5 text-stop-testo">{e.generale}</p>}
 
       <div className="mm-campi-2">
@@ -71,6 +81,15 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
         aiuto="Ti mandiamo lì il QR, così non lo perdi." />
 
       <div className="flex flex-col gap-[14px]">
+        {tipo?.categoria && tipo.conferma && (
+          <>
+            <label className="mm-prevendita__legale" htmlFor="p-categoria">
+              <input type="checkbox" id="p-categoria" name="confermaCategoria" required defaultChecked={v.confermaCategoria === '1'} aria-invalid={Boolean(e.categoria)} />
+              <span>Dichiaro di rientrare nella categoria «{tipo.categoria}».</span>
+            </label>
+            {e.categoria && <span className="-mt-2 text-[14px] leading-5 text-stop-testo">{e.categoria}</span>}
+          </>
+        )}
         <label className="mm-prevendita__legale" htmlFor="p-privacy">
           <input type="checkbox" id="p-privacy" name="privacy" required defaultChecked={v.privacy === '1'} aria-invalid={Boolean(e.privacy)} aria-describedby={e.privacy ? 'p-privacy-err' : undefined} />
           <span>Ho letto l&apos;<Link href="/privacy" target="_blank">informativa privacy</Link> e i <Link href="/condizioni" target="_blank">termini della lista</Link>.</span>
