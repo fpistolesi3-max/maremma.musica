@@ -4,6 +4,7 @@ import { chipLista } from '@/lib/regole';
 import { giorno2, giornoSettLungo, meseCorto, numeroEvento, orari, dataPunti } from '@/lib/formato';
 import { ConCifraArancio, Locandina, Nastro, RigaEvento, luogo } from '@/components/evento';
 import { Disco, Freccia } from '@/components/ui';
+import { Rivela } from '@/components/rivela';
 import { CopertinaViva } from '@/components/copertina-viva';
 import { TitoloDecodifica } from '@/components/titolo-decodifica';
 
@@ -82,7 +83,7 @@ export default async function Home() {
           </span>
         </div>
         <div className="flex flex-col">
-          {prossimi.map((ep, i) => <RigaEvento key={ep.evento.id} ep={ep} ultima={i === prossimi.length - 1} />)}
+          {prossimi.map((ep, i) => <Rivela key={ep.evento.id} indice={i}><RigaEvento ep={ep} ultima={i === prossimi.length - 1} /></Rivela>)}
           {prossimi.length === 0 && <p className="border-y border-linea py-6 text-osso-2">Nessuna data in calendario, per ora.</p>}
         </div>
       </section>

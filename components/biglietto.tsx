@@ -6,7 +6,7 @@ import { ChipIscrizione } from './ui';
 import { QrBiglietto } from './client';
 
 /** Il biglietto (Ticket del DS): evento, strappo, QR, codice, titolare, piede con lo stato del pagamento. */
-export function BigliettoQr({ b }: { b: Biglietto }) {
+export function BigliettoQr({ b, appenaPagato = false }: { b: Biglietto; appenaPagato?: boolean }) {
   const { iscrizione: i, evento: e } = b;
   const annullato = i.stato === 'annullato' || i.stato === 'rimborsato';
   return (
@@ -18,7 +18,7 @@ export function BigliettoQr({ b }: { b: Biglietto }) {
       </div>
       <div className="mm-biglietto__strappo" aria-hidden="true" />
       <div className="mm-biglietto__qr" style={annullato ? { opacity: 0.25 } : undefined}>
-        <QrBiglietto valore={i.tokenQr} etichetta={`Codice QR di ${i.nome} ${i.cognome}`} />
+        <QrBiglietto valore={i.tokenQr} etichetta={`Codice QR di ${i.nome} ${i.cognome}`} stampa={appenaPagato} />
       </div>
       <div className="mm-biglietto__codice" aria-label={`Codice ${mostraCodice(i.codice).split('').join(' ')}`}>{mostraCodice(i.codice)}</div>
       <dl className="mm-biglietto__dati">
