@@ -133,7 +133,7 @@ export function giaIscritto(
   iscrizioni: Iscrizione[], eventoId: string, cognome: string, dataNascita: string,
 ) {
   const k = chiaveCognome(cognome);
-  return iscrizioni.find((i) => i.eventoId === eventoId && isAttiva(i) && i.dataNascita === dataNascita && chiaveCognome(i.cognome) === k);
+  return iscrizioni.find((i) => i.eventoId === eventoId && isAttiva(i) && !i.anonimizzata && i.dataNascita === dataNascita && chiaveCognome(i.cognome) === k);
 }
 
 /** Valida giorno/mese/anno come data reale (niente 31 febbraio). */

@@ -75,10 +75,11 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
     clearTimeout(ritorno.current);
     setSchermo({ tipo: 'esito', esito });
     // Dopo un ingresso riuscito (o un "Non rientra") torna da solo allo scanner (mockup: 2 secondi).
+    // Nelle serate senza telefono "scanner" è la ricerca per cognome, che riparte vuota per il prossimo.
     if (esito.esito === 'entrato' || esito.esito === 'rifiutato') {
-      ritorno.current = setTimeout(() => setSchermo({ tipo: 'scanner' }), 2000);
+      ritorno.current = setTimeout(() => { if (senzaTelefono) setQ(''); setSchermo({ tipo: 'scanner' }); }, 2000);
     }
-  }, []);
+  }, [senzaTelefono]);
 
   /** `confermato`: lo staff ha toccato "Fai entrare" dopo aver controllato la categoria. */
   const entra = useCallback((v: VocePorta, confermato = false) => {
@@ -292,7 +293,7 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
           onCassa={() => setSchermo({ tipo: 'cassa' })}
           onFaiEntrare={() => { if (schermo.esito.esito === 'da_confermare') entra(schermo.esito.voce, true); }}
           onNonRientra={() => { if (schermo.esito.esito === 'da_confermare') rifiuta(schermo.esito.voce); }}
-          onChiudi={() => { clearTimeout(ritorno.current); setSchermo({ tipo: 'scanner' }); }} />
+          onChiudi={() => { clearTimeout(ritorno.current); if (senzaTelefono) setQ(''); setSchermo({ tipo: 'scanner' }); }} />
       )}
     </div>
   );
@@ -345,7 +346,7 @@ function Esito({ esito, cassa, senzaTelefono, online, salvatoAlle, onRiprova, on
         <div className="flex flex-none flex-col gap-3 px-4 pb-7">
           <div className="h-[3px] bg-[rgba(5,5,5,.18)]"><div className="h-full bg-vinile" style={{ animation: 'mm-barra 2s linear forwards' }} /></div>
           <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onChiudi}>Prossimo</button>
-          <span className="text-center font-mono text-[11px] font-medium leading-[14px]">TORNO ALLO SCANNER TRA 2 S</span>
+          <span className="text-center font-mono text-[11px] font-medium leading-[14px]">{senzaTelefono ? 'TORNO ALLA RICERCA TRA 2 S' : 'TORNO ALLO SCANNER TRA 2 S'}</span>
         </div>
       </>
     );

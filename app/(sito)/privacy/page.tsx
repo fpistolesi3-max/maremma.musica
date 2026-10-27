@@ -23,7 +23,7 @@ export default function Privacy() {
       <h2>Chi li vede</h2>
       <p>La crew di Maremma Musica, lo staff della porta la sera dell&apos;evento e il PR della lista da cui ti sei iscritto (solo nome, stato dell&apos;iscrizione e orario). Gli altri PR vedono solo numeri totali, mai i tuoi dati. Il servizio di email e l&apos;hosting del sito trattano i dati per nostro conto.</p>
       <h2>Per quanto</h2>
-      <p>I dati della lista restano 24 mesi dalla serata, poi li cancelliamo o li rendiamo anonimi. Il consenso alle email vale finché non lo revochi.</p>
+      <p>Nome, cognome, data di nascita ed email della lista li cancelliamo 30 giorni dopo la serata. Restano solo dati anonimi, come l’età alla serata e il tipo di prevendita, per le statistiche. Il consenso alle email vale finché non lo revochi.</p>
       <h2>I tuoi diritti</h2>
       <p>Puoi chiedere accesso, correzione, cancellazione, limitazione e portabilità dei tuoi dati, o opporti al trattamento, scrivendo a maremmamusica@gmail.com. Puoi anche rivolgerti al Garante per la protezione dei dati personali.</p>
     </PaginaLegale>
