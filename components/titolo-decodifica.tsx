@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const GLIFI = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&/<>+*';
 
@@ -12,9 +12,18 @@ const GLIFI = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&/<>+*';
 export function TitoloDecodifica({ testo, className = '', as: Tag = 'span', ritardo = 0 }: { testo: string; className?: string; as?: 'span' | 'h1'; ritardo?: number }) {
   const radice = useRef<HTMLElement>(null);
 
+  // le larghezze si misurano solo a font caricati: con il font di ripiego restavano bloccate troppo larghe (lettere sopra la locandina)
+  const [fontPronti, setFontPronti] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    document.fonts.ready.then(() => { if (vivo) setFontPronti(true); });
+    return () => { vivo = false; };
+  }, []);
+
   useEffect(() => {
     const el = radice.current;
-    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!fontPronti || !el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const lettere = Array.from(el.querySelectorAll<HTMLElement>('[data-l]'));
     const vere = lettere.map((l) => l.textContent ?? '');
     // blocco la larghezza di ogni lettera: i glifi diversi non fanno saltare il testo
@@ -77,7 +86,7 @@ export function TitoloDecodifica({ testo, className = '', as: Tag = 'span', rita
       window.removeEventListener('scroll', misura);
       lettere.forEach((l, i) => { l.textContent = vere[i]; l.style.color = ''; l.style.width = ''; });
     };
-  }, [testo, ritardo]);
+  }, [testo, ritardo, fontPronti]);
 
   const parole = testo.split(' ');
   return (
