@@ -4,6 +4,7 @@ import { chipLista } from '@/lib/regole';
 import { giorno2, giornoSettLungo, meseCorto, numeroEvento, orari, dataPunti } from '@/lib/formato';
 import { ConCifraArancio, Locandina, Nastro, RigaEvento, luogo } from '@/components/evento';
 import { Disco, Freccia } from '@/components/ui';
+import { Caricamento } from '@/components/caricamento';
 import { Rivela } from '@/components/rivela';
 import { CopertinaViva } from '@/components/copertina-viva';
 import { TitoloDecodifica } from '@/components/titolo-decodifica';
@@ -16,6 +17,7 @@ export default async function Home() {
 
   return (
     <>
+      <Caricamento />
       {/* HERO: il prossimo evento a tutto schermo */}
       {primo ? (
         <section className="mm-curve overflow-hidden bg-[position:-700px_-160px] md:bg-[position:380px_-120px]">
