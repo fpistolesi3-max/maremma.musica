@@ -113,7 +113,7 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
           </label>
           {e.privacy && <span className="-mt-2 text-[14px] leading-5 text-stop-testo">{e.privacy}</span>}
 
-          <button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }} disabled={inCorso || !sel}>
+          <button type="submit" className="mm-btn mm-btn--clip mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }} disabled={inCorso || !sel}>
             {inCorso ? 'Un attimo…' : <>{perCliente ? 'Manda il link per pagare' : 'Continua al pagamento'} <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
           </button>
           <span className="text-center font-mono text-[11px] leading-4 text-osso-2">

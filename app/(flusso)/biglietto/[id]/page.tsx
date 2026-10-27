@@ -132,7 +132,7 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
                 {i.nome}, il tuo posto per {b.evento.nome} è tenuto fino alle <strong>{ora(i.scade ?? new Date().toISOString())}</strong>. Paga online <strong>{euro(i.importo)}</strong> e ti arriva subito il QR.
               </p>
               {errore && <p role="alert" className="m-0 border border-stop-testo px-4 py-3 text-[14px] leading-5 text-stop-testo">Non siamo riusciti ad aprire il pagamento. Riprova tra poco.</p>}
-              <a href={linkPagaBiglietto('', i.id, i.email)} className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }}>
+              <a href={linkPagaBiglietto('', i.id, i.email)} className="mm-btn mm-btn--clip mm-btn--primario mm-btn--pieno" style={{ minHeight: 56 }}>
                 Paga {euro(i.importo)} <span className="mm-btn__freccia" aria-hidden="true">→</span>
               </a>
               <span className="text-center font-mono text-[11px] leading-4 text-osso-2">CARTA · APPLE PAY · GOOGLE PAY · SE NON PAGHI IN TEMPO IL POSTO TORNA LIBERO</span>

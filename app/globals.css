@@ -64,6 +64,26 @@
 .mm-btn--muto:hover { color: var(--osso); text-decoration: underline; text-decoration-color: var(--arancio); text-underline-offset: 6px; }
 .mm-btn--pieno { width: 100%; }
 .mm-btn:disabled, .mm-btn[aria-disabled="true"] { background: var(--notte-3); color: var(--osso-3); border-color: transparent; filter: none; cursor: not-allowed; }
+/* Effetto "forma che cambia": un riempimento osso sale da sotto con un velo di rimbalzo, il raggio si allarga e il testo si scurisce.
+   Solo sui pulsanti d'azione pubblici (mm-btn--clip); mai su porta e admin. Nessun movimento di layout: tutto sta in un pseudo-elemento ritagliato. */
+.mm-btn--clip { position: relative; isolation: isolate; overflow: hidden; transition: border-radius 320ms cubic-bezier(.34,1.4,.64,1), color 200ms ease-out, transform var(--durata-secca); }
+.mm-btn--clip::before {
+  content: ""; position: absolute; inset: -1px; z-index: -1; pointer-events: none; background: var(--osso);
+  clip-path: inset(100% 0 0 0 round 0); transition: clip-path 320ms cubic-bezier(.34,1.3,.64,1);
+}
+.mm-btn--clip.mm-btn--linea::before { background: var(--arancio); }
+.mm-btn--clip.mm-btn--linea:hover { background: none; color: var(--osso); }
+.mm-btn--clip:not(:disabled):not([aria-disabled="true"]):active::before { clip-path: inset(0 round 0); transition-duration: 90ms; }
+.mm-btn--clip:not(:disabled):not([aria-disabled="true"]):active { color: var(--notte); }
+@media (hover: hover) {
+  .mm-btn--clip:not(:disabled):not([aria-disabled="true"]):hover { border-radius: 10px; color: var(--notte); filter: none; }
+  .mm-btn--clip:not(:disabled):not([aria-disabled="true"]):hover::before { clip-path: inset(0 round 0); }
+}
+.mm-btn--clip:focus-visible { outline-offset: 3px; }
+.mm-btn--clip:focus-visible:not(:disabled) { color: var(--notte); }
+.mm-btn--clip:focus-visible:not(:disabled)::before { clip-path: inset(0 round 0); }
+.mm-btn--clip:disabled::before, .mm-btn--clip[aria-disabled="true"]::before { display: none; }
+@media (prefers-reduced-motion: reduce) { .mm-btn--clip, .mm-btn--clip::before { transition: none; } }
 .mm-btn__freccia { font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; }
 
 /* ---------- TextField ---------- */

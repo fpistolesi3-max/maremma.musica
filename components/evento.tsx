@@ -31,14 +31,14 @@ export function PuoIscriversi(s: StatoLista) {
 export function BottoneLista({ ep, className = '', style }: { ep: EventoPubblico; className?: string; style?: React.CSSProperties }) {
   if (PuoIscriversi(ep.stato)) {
     return (
-      <Link href={`/e/${ep.evento.slug}/prevendita`} className={`mm-btn mm-btn--primario ${className}`} style={style}>
+      <Link href={`/e/${ep.evento.slug}/prevendita`} className={`mm-btn mm-btn--clip mm-btn--primario ${className}`} style={style}>
         Mettiti in lista <Freccia />
       </Link>
     );
   }
   const motivo = { dal: ep.stato.tipo === 'dal' && ep.stato.dal ? `Lista dal ${dataPunti(ep.stato.dal)}` : 'Lista chiusa', piena: 'Lista piena', chiusa: 'Lista chiusa', passata: 'Serata passata' }[ep.stato.tipo as 'dal' | 'piena' | 'chiusa' | 'passata'];
   return (
-    <button type="button" disabled className={`mm-btn mm-btn--primario ${className}`} style={style}>{motivo}</button>
+    <button type="button" disabled className={`mm-btn mm-btn--clip mm-btn--primario ${className}`} style={style}>{motivo}</button>
   );
 }
 
