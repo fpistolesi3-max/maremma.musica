@@ -100,6 +100,7 @@ export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAz
     // Ingresso in cassa alla porta per chi non ha la prevendita: si accende e spegne per serata.
     cassaAttiva: f.get('cassaAttiva') === 'on',
     senzaTelefono: f.get('senzaTelefono') === 'on',
+    inCopertina: f.get('inCopertina') === 'on',
     pubblicato: t(f, 'azione') === 'pubblica' ? true : t(f, 'azione') === 'bozza' ? false : f.get('pubblicato') === '1',
     prAbilitati: tuttiPr ? null : prScelti,
   };

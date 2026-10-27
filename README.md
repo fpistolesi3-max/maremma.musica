@@ -53,6 +53,10 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
   iniziata, altrimenti è "da rimborsare" (email agli admin, filtro nelle Iscrizioni). Il rimborso lo fa solo l'admin
   ("Rimborsa" restituisce i soldi su Stripe); il cliente non annulla da solo. Lotti a 0 € e serate libere: QR subito.
 
+### Serata in copertina
+
+*Modifica serata → In copertina nella home* (campo `inCopertina` dell'evento) sceglie quale serata la home mostra a tutto schermo. Una sola alla volta: spuntandola si toglie dalle altre (`salvaEvento`, solo admin); nella lista serate dell'admin porta il segno "Copertina". Se nessuna è scelta, o la scelta è in bozza o già passata, si mostra la prossima data; con due scelte per errore vince la più vicina (`sceltaCopertina` in `lib/regole.ts`). "Prossime date" e il nastro restano in ordine di data e includono anche la serata in copertina. Supabase: `supabase/migrations/20261027000000_serata_in_copertina.sql` (colonna `eventi.in_copertina`; RLS invariata).
+
 ### Serate senza telefono (ingresso con documento)
 Per le serate dove il telefono non si porta: *Modifica serata → Ingresso senza telefono (con documento)* (campo `senzaTelefono` dell'evento). La prevendita si compra online come sempre (Stripe, nome, cognome e data di nascita obbligatori, un biglietto per persona).
 - **Cliente**: il modulo, la pagina della serata, il biglietto e l'email dicono "serata senza telefono, porta un documento"; l'email non ha né QR né codice.

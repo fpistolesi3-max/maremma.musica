@@ -219,6 +219,10 @@ export async function salvaEvento(s: Sessione, id: string | null, dati: DatiEven
   return modifica((d) => {
     if (d.eventi.some((e) => e.slug === dati.slug && e.id !== id)) throw new Error(`L'indirizzo /e/${dati.slug} è già usato da un'altra serata`);
     const adesso = new Date().toISOString();
+    const inCopertina = dati.inCopertina === true;
+    // Una sola serata alla volta in copertina: spuntandola, si toglie dalle altre.
+    if (inCopertina) for (const e of d.eventi) if (e.id !== id && e.inCopertina) { e.inCopertina = false; e.updatedAt = adesso; }
+    dati = { ...dati, inCopertina };
     if (id) {
       const e = d.eventi.find((x) => x.id === id);
       if (!e) throw new Error('Serata non trovata');

@@ -34,6 +34,7 @@ export interface Evento {
   piantinaUrl: string | null;     // foto o disegno della sala, sfondo della mappa dei tavoli
   prezzoLista: number;
   cassaAttiva: boolean;           // false = ingresso solo in prevendita: alla porta niente cassa
+  inCopertina?: boolean;          // serata scelta dall'admin per la copertina della home; una sola alla volta
   senzaTelefono: boolean;         // serata dove il telefono non entra: alla porta si controlla il documento, non il QR
   prezzoCassa: number | null;     // ingresso pagato in cassa senza prevendita; null = come la lista
   etaMinima: number;

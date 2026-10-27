@@ -30,6 +30,15 @@ export function eventoPassato(e: Pick<Evento, 'data' | 'dataFine'>, adesso = new
   return fine.getTime() < adesso.getTime();
 }
 
+/**
+ * La serata in copertina nella home: quella scelta dall'admin se è pubblicata e non passata,
+ * altrimenti la prossima data. Se per errore le scelte sono due, vince la più vicina.
+ */
+export function sceltaCopertina<T extends Pick<Evento, 'data' | 'dataFine' | 'pubblicato' | 'inCopertina'>>(eventi: readonly T[], adesso = new Date()): T | null {
+  const prossimi = eventi.filter((e) => e.pubblicato && !eventoPassato(e, adesso)).sort((a, b) => a.data.localeCompare(b.data));
+  return prossimi.find((e) => e.inCopertina) ?? prossimi[0] ?? null;
+}
+
 const GIORNO = 86_400_000;
 const ORA = 3_600_000;
 

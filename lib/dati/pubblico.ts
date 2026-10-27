@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { leggi, modifica, segreto } from './archivio';
 import type { Archivio, Evento, Iscrizione, Lotto, Pr } from './tipi';
 import { creaCodice, creaTokenQr } from '../qr-token';
-import { chiaveCognome, eventoPassato, giaIscritto, isAttiva, iscrizioneScaduta, scadenzaPagamentoOnline, statoLista, tienePosto, type StatoLista, etaSufficiente } from '../regole';
+import { chiaveCognome, eventoPassato, sceltaCopertina, giaIscritto, isAttiva, iscrizioneScaduta, scadenzaPagamentoOnline, statoLista, tienePosto, type StatoLista, etaSufficiente } from '../regole';
 import { modoPagamentoOnline } from '../pagamenti';
 
 // Dati per le pagine pubbliche e per la prevendita. Nessuna sessione richiesta:
@@ -32,7 +32,9 @@ export async function eventiPubblici() {
   const pubblicati = d.eventi.filter((e) => e.pubblicato);
   const prossimi = pubblicati.filter((e) => !eventoPassato(e)).sort((a, b) => a.data.localeCompare(b.data)).map((e) => conStato(d, e));
   const passati = pubblicati.filter((e) => eventoPassato(e)).sort((a, b) => b.data.localeCompare(a.data));
-  return { prossimi, passati };
+  const scelta = sceltaCopertina(pubblicati);
+  const copertina = prossimi.find((p) => p.evento.id === scelta?.id) ?? null;
+  return { prossimi, passati, copertina };
 }
 
 export async function eventoPerSlug(slug: string, daPr = false, prId: string | null = null): Promise<EventoPubblico | null> {
