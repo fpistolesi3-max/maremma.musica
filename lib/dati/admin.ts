@@ -1,7 +1,8 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { leggi, modifica } from './archivio';
-import type { Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } from './tipi';
+import type { Archivio, Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } from './tipi';
+import { tipiDelModello, type NomeModello } from '../tipi-modelli';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
 import { eventoPassato, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, EMAIL_RE, HANDLE_RE } from '../regole';
@@ -123,6 +124,15 @@ export async function serataLive(s: Sessione, eventoId: string) {
       inAttesa: attese.length, atteso: sommaTavoli(attese),
       perLista: listeTavoli,
     },
+    // Per tipo di prevendita: venduti (QR validi), posti, entrati e incasso.
+    perTipo: d.lotti.filter((l) => l.eventoId === eventoId).sort((a, b) => a.ordine - b.ordine).map((l) => {
+      const sue = attive.filter((i) => i.lottoId === l.id);
+      return { id: l.id, nome: l.nome, categoria: l.categoria, posti: l.quantita, venduti: sue.length, entrati: sue.filter((i) => i.stato === 'entrato').length, incassato: somma(sue.filter((i) => i.metodoPagamento === 'online')) };
+    }),
+    // Chi lo staff ha rifiutato alla porta (categoria non rispettata): l'iscrizione resta valida, l'admin decide se rimborsare.
+    rifiuti: iscr.filter((i) => i.rifiutoIngresso).sort((a, b) => b.rifiutoIngresso!.ora.localeCompare(a.rifiutoIngresso!.ora)).map((i) => ({
+      id: i.id, nome: `${i.nome} ${i.cognome}`, categoria: i.categoria, entrato: i.stato === 'entrato', ...i.rifiutoIngresso!,
+    })),
     incassato: incassatoOnline + incassatoCassa,
     fuori: attive.filter((i) => i.stato !== 'entrato').length,
     perMezzora,
@@ -196,7 +206,7 @@ export async function salvaEvento(s: Sessione, id: string | null, dati: DatiEven
     d.eventi.push(e);
     // Ogni serata a lista nasce con un lotto base: si modifica poi dalla pagina della serata.
     if (e.tipoIngresso !== 'libero') {
-      d.lotti.push({ id: randomUUID(), eventoId: e.id, nome: 'Lista', prezzo: e.prezzoLista, quantita: null, dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0 });
+      d.lotti.push({ id: randomUUID(), eventoId: e.id, nome: 'Lista', prezzo: e.prezzoLista, quantita: null, dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0, categoria: null, confermaCategoria: false, uscitaGiorniPrima: null, fineOrePrima: null, dopoPrecedente: false, prAbilitati: null });
     }
     return e;
   });
@@ -409,7 +419,7 @@ export async function csvEvento(s: Sessione, eventoId: string) {
   const d = await leggi();
   const evento = d.eventi.find((e) => e.id === eventoId);
   if (!evento) return null;
-  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Lotto', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Newsletter'];
+  const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Tipo di prevendita', 'Categoria', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Rifiutato alla porta', 'Newsletter'];
   const PAGAMENTO = { online: 'online', porta_contanti: 'porta contanti', porta_pos: 'porta POS' } as const;
   const righe = d.iscrizioni
     .filter((i) => i.eventoId === eventoId)
@@ -417,12 +427,57 @@ export async function csvEvento(s: Sessione, eventoId: string) {
     .map((i) => [
       i.codice, i.origine === 'cassa' ? 'cassa' : 'lista', i.nome, i.cognome, nascita(i.dataNascita), i.email,
       i.origine === 'cassa' ? 'Cassa' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica',
-      i.lottoId ? d.lotti.find((l) => l.id === i.lottoId)?.nome : '',
+      i.lottoId ? d.lotti.find((l) => l.id === i.lottoId)?.nome : '', i.categoria ?? '',
       i.importo.toFixed(2).replace('.', ','), i.stato, i.metodoPagamento ? PAGAMENTO[i.metodoPagamento] : '',
       i.pagatoAt ? `${dataCompleta(i.pagatoAt)} ${oraDi(i.pagatoAt)}` : '', i.pagamentoOnline?.daRimborsare ? 'sì' : '',
       `${dataCompleta(i.createdAt)} ${oraDi(i.createdAt)}`, i.oraCheckIn ? oraDi(i.oraCheckIn) : '', i.porta ?? '',
+      i.rifiutoIngresso ? `${oraDi(i.rifiutoIngresso.ora)} · ${i.rifiutoIngresso.porta} · ${i.rifiutoIngresso.da}` : '',
       i.consensoMarketing ? 'sì' : 'no',
     ].map(cella).join(';'));
   // BOM + punto e virgola: si apre bene nell'Excel italiano.
   return { nome: `${evento.slug}-iscrizioni.csv`, testo: '﻿' + [intestazione.join(';'), ...righe].join('\r\n') };
+}
+
+/** Serate (diverse da questa) che hanno tipi di prevendita da copiare. */
+export async function serateConTipi(s: Sessione, escludiId: string) {
+  soloAdmin(s);
+  const d = await leggi();
+  return d.eventi
+    .filter((e) => e.id !== escludiId && d.lotti.some((l) => l.eventoId === e.id))
+    .sort((a, b) => b.data.localeCompare(a.data))
+    .map((e) => ({ id: e.id, etichetta: `${e.nome} · ${e.data.slice(0, 10)}`, quanti: d.lotti.filter((l) => l.eventoId === e.id).length }));
+}
+
+/** I tipi esistenti si possono sostituire solo se nessuno ci si è ancora iscritto. */
+function sostituibili(d: Archivio, eventoId: string) {
+  const ids = new Set(d.lotti.filter((l) => l.eventoId === eventoId).map((l) => l.id));
+  if (d.iscrizioni.some((i) => i.lottoId && ids.has(i.lottoId))) {
+    throw new Error('Ci sono già iscritti su questa serata: modifica i tipi uno per uno, senza sostituirli tutti');
+  }
+  d.lotti = d.lotti.filter((l) => l.eventoId !== eventoId);
+}
+
+/** Sostituisce i tipi della serata con un modello rapido. */
+export async function applicaModelloTipi(s: Sessione, eventoId: string, modello: NomeModello) {
+  soloAdmin(s);
+  await modifica((d) => {
+    const e = d.eventi.find((x) => x.id === eventoId);
+    if (!e) throw new Error('Serata non trovata');
+    sostituibili(d, eventoId);
+    tipiDelModello(modello, e.prezzoLista).forEach((t, ordine) => d.lotti.push({ ...t, id: randomUUID(), eventoId, ordine }));
+  });
+}
+
+/** Copia i tipi da un'altra serata. Le uscite relative seguono la nuova data; quelle con data fissa vanno controllate. */
+export async function copiaTipi(s: Sessione, daEventoId: string, aEventoId: string): Promise<{ copiati: number; dateFisse: number }> {
+  soloAdmin(s);
+  if (daEventoId === aEventoId) throw new Error('Scegli un’altra serata');
+  return modifica((d) => {
+    if (!d.eventi.some((e) => e.id === aEventoId) || !d.eventi.some((e) => e.id === daEventoId)) throw new Error('Serata non trovata');
+    const da = d.lotti.filter((l) => l.eventoId === daEventoId).sort((a, b) => a.ordine - b.ordine);
+    if (da.length === 0) throw new Error('Quella serata non ha tipi di prevendita');
+    sostituibili(d, aEventoId);
+    da.forEach((l, ordine) => d.lotti.push({ ...l, id: randomUUID(), eventoId: aEventoId, ordine, prAbilitati: null }));
+    return { copiati: da.length, dateFisse: da.filter((l) => (l.dataInizio && l.uscitaGiorniPrima == null) || (l.dataFine && l.fineOrePrima == null)).length };
+  });
 }

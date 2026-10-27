@@ -88,6 +88,29 @@ test('porta: QR falsificato non valido, doppio passaggio bloccato, PR non può f
   await assert.rejects(m.porta.checkIn(pr, i.eventoId, i.tokenQr, o), /non_autorizzato/);
 });
 
+test('porta: categoria da confermare, "Non rientra" salvato, solo lo staff, si può comunque far entrare', async () => {
+  const staff = await sessione('porta@maremmamusica.test');
+  const pr = await sessione('test-pr@maremmamusica.test');
+  const d0 = await m.archivio.leggi();
+  const i = d0.iscrizioni.find((x) => x.stato === 'pagato' && x.origine === 'lista')!;
+  await m.archivio.modifica((d) => { d.iscrizioni.find((x) => x.id === i.id)!.categoria = 'Donne'; });
+  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+  assert.equal((await m.porta.checkIn(staff, i.eventoId, i.tokenQr, o)).esito, 'da_confermare', 'senza conferma non entra');
+  assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === i.id)!.stato, 'pagato');
+  await assert.rejects(m.porta.rifiutaIngresso(pr, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora }), /non_autorizzato/);
+  assert.equal((await m.porta.rifiutaIngresso(staff, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora })).esito, 'rifiutato');
+  const dopo = (await m.archivio.leggi()).iscrizioni.find((x) => x.id === i.id)!;
+  assert.equal(dopo.stato, 'pagato', 'l’iscrizione resta valida');
+  assert.equal(dopo.rifiutoIngresso?.porta, 'P1');
+  assert.equal(dopo.rifiutoIngresso?.da, staff.utente.email);
+  const voce = (await m.porta.elencoPorta(staff, i.eventoId)).find((v) => v.id === i.id)!;
+  assert.equal(voce.rifiuto?.porta, 'P1', 'il rifiuto arriva a tutte le porte');
+  const live = await m.admin.serataLive(await sessione('admin@maremmamusica.test'), i.eventoId);
+  assert.equal(live!.rifiuti.some((r) => r.id === i.id), true, 'l’admin lo vede nella serata');
+  assert.equal((await m.porta.checkIn(staff, i.eventoId, i.tokenQr, { ...o, confermato: true })).esito, 'entrato', 'ripassato: si può comunque far entrare');
+  assert.equal((await m.porta.rifiutaIngresso(staff, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora })).esito, 'gia_entrato', 'già entrato: nessun rifiuto');
+});
+
 test('attività PR: admin e staff sì (staff senza email dei PR), i PR no', async () => {
   const admin = await m.gestione.panoramicaPr(await sessione('admin@maremmamusica.test'), 'tutte');
   const staff = await m.gestione.panoramicaPr(await sessione('porta@maremmamusica.test'), 'tutte');

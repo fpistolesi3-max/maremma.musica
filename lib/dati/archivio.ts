@@ -61,6 +61,11 @@ function normalizza(d: Archivio): Archivio {
     p.ingressi ??= []; p.promemoriaAt ??= null;
     p.metodoPagamento ??= null; p.pagatoDa ??= null; p.chiusaDa ??= null; p.avvisoChiusuraAt ??= null; p.pagamentoOnline ??= null;
   }
+  for (const l of d.lotti) {
+    l.categoria ??= null; l.confermaCategoria ??= false; l.uscitaGiorniPrima ??= null; l.fineOrePrima ??= null;
+    l.dopoPrecedente ??= false; l.prAbilitati ??= null;
+  }
+  for (const i of d.iscrizioni) { i.categoria ??= null; i.rifiutoIngresso ??= null; }
   for (const e of d.eventi) { e.prezzoCassa ??= null; e.cassaAttiva ??= true; e.piantinaUrl ??= null; }
   for (const t of d.tavoli) { t.x ??= null; t.y ??= null; t.prAbilitati ??= null; }
   return d;

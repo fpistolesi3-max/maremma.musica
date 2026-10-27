@@ -8,6 +8,7 @@ import { creaCodice, creaTokenQr } from '../qr-token';
 // Halloween Party è la serata vera (dal piano d'azione e dalla locandina).
 // Le altre serate, i PR e le persone in lista sono ESEMPI dei mockup: da togliere prima del lancio.
 
+const TIPO_BASE = { categoria: null, confermaCategoria: false, uscitaGiorniPrima: null, fineOrePrima: null, dopoPrecedente: false, prAbilitati: null } as const;
 const ora = () => new Date().toISOString();
 
 function evento(p: Partial<Evento> & Pick<Evento, 'slug' | 'nome' | 'data'>): Evento {
@@ -57,11 +58,11 @@ export function datiIniziali(segreto: string): Archivio {
 
   const lotti: Lotto[] = [
     { id: randomUUID(), eventoId: halloween.id, nome: 'Lista', prezzo: 10, quantita: 400, // TODO: cliente — posti
-      dataInizio: null, dataFine: '2026-10-31T21:00:00+01:00', visibileDaPr: true, ordine: 0 },
+      dataInizio: null, dataFine: '2026-10-31T21:00:00+01:00', visibileDaPr: true, ordine: 0, ...TIPO_BASE },
     { id: randomUUID(), eventoId: solchi.id, nome: 'Lista', prezzo: 12, quantita: 400,
-      dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0 },
+      dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0, ...TIPO_BASE },
     { id: randomUUID(), eventoId: capodanno.id, nome: 'Lista', prezzo: 15, quantita: 600,
-      dataInizio: '2026-12-01T00:00:00+01:00', dataFine: null, visibileDaPr: true, ordine: 0 },
+      dataInizio: '2026-12-01T00:00:00+01:00', dataFine: null, visibileDaPr: true, ordine: 0, ...TIPO_BASE },
   ];
 
   const pr: Pr[] = [
@@ -108,7 +109,7 @@ export function datiIniziali(segreto: string): Archivio {
     const id = randomUUID();
     const creata = new Date(Date.now() - oreFa * 3_600_000);
     return {
-      id, eventoId: halloween.id, lottoId: lottoHalloween.id, prId: p?.id ?? null,
+      id, eventoId: halloween.id, lottoId: lottoHalloween.id, categoria: null, prId: p?.id ?? null,
       nome, cognome, dataNascita, email: `${nome}.${cognome}@esempio.it`.toLowerCase(),
       tokenQr: creaTokenQr(segreto, id, halloween.id, creata), codice: creaCodice(segreto, id),
       stato: 'pagato', metodoPagamento: 'online',
