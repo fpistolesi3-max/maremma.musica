@@ -30,11 +30,13 @@ function anni(ymd: string) {
   return o.getFullYear() - a - (o.getMonth() + 1 < m || (o.getMonth() + 1 === m && o.getDate() < g) ? 1 : 0);
 }
 
-export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: string; esci: () => Promise<void> }) {
+export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; email: string; admin: boolean; esci: () => Promise<void> }) {
   const st = usePorta();
   const [pronto, setPronto] = useState(false);
   const [schermo, setSchermo] = useState<Schermo>({ tipo: 'scanner' });
   const [torcia, setTorcia] = useState(false);
+  const [daInstallare, setDaInstallare] = useState(false);
+  useEffect(() => { setDaInstallare(!window.matchMedia('(display-mode: standalone)').matches); }, []);
   const [metodo, setMetodo] = useState<MetodoPagamento>('porta_contanti');
   const [codice, setCodice] = useState('');
   const [q, setQ] = useState('');
@@ -281,9 +283,11 @@ export function Porta({ eventi, email, esci }: { eventi: EventoPorta[]; email: s
             <span>STAFF: {email}</span>
           </div>
           <button type="button" className="mm-btn mm-btn--linea mm-btn--pieno" onClick={() => void st.sincronizza()}>Aggiorna ora</button>
-          <a href={`/gestione/pr${st.eventoId ? `?serata=${st.eventoId}` : ''}`} className="mm-btn mm-btn--linea mm-btn--pieno">Attività PR</a>
+          <a href={`/gestione/pr${st.eventoId ? `?serata=${st.eventoId}` : ''}`} className="mm-btn mm-btn--linea mm-btn--pieno">PR</a>
+          {admin && <a href="/admin" className="mm-btn mm-btn--linea mm-btn--pieno">Admin</a>}
           <button type="button" className="mm-btn mm-btn--primario mm-btn--pieno" onClick={() => setSchermo({ tipo: 'scanner' })}>Torna allo scanner</button>
           <form action={esci}><button type="submit" className="mm-btn mm-btn--muto" disabled={st.coda.length > 0}>{st.coda.length ? 'Esci (prima sincronizza)' : 'Esci'}</button></form>
+          {daInstallare && <p className="m-0 font-mono text-[12px] leading-5 text-osso-2">PER APRIRE LA PORTA CON UN TOCCO: MENU DEL BROWSER → AGGIUNGI A HOME. L’INDIRIZZO È /door.</p>}
         </div>
       )}
 

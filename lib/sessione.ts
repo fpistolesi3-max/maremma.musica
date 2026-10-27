@@ -43,10 +43,12 @@ export async function sessioneCorrente(): Promise<Sessione | null> {
   return { utente, pr };
 }
 
-/** Per le pagine protette: senza sessione del ruolo giusto rimanda all'accesso. */
+/** Per le pagine protette: senza sessione rimanda all'accesso, col ruolo sbagliato alla propria area. */
 export async function richiedi(ruoli: Ruolo[], dopo: string): Promise<Sessione> {
   const s = await sessioneCorrente();
-  if (!s || !ruoli.includes(s.utente.ruolo)) redirect(`/accedi?dopo=${encodeURIComponent(dopo)}`);
+  if (!s) redirect(`/accedi?dopo=${encodeURIComponent(dopo)}`);
+  // Dentro ma nell'area sbagliata (es. staff su /admin): torna alla propria, niente login.
+  if (!ruoli.includes(s.utente.ruolo)) redirect(destinazionePer(s.utente, s.pr));
   return s;
 }
 

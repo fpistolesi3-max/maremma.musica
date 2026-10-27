@@ -99,7 +99,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
     <div className="mm-grana flex min-h-dvh flex-col">
       <header className="flex h-16 flex-none items-center gap-[10px] border-b border-linea px-4 md:px-10">
         <Link href="/" aria-label="Sito Maremma Musica"><Monogramma /></Link>
-        <span className="flex-grow font-sans text-[11px] font-semibold leading-none tracking-logo">AREA PR</span>
+        <span className="flex-grow font-sans text-[11px] font-semibold leading-none tracking-logo">AREA RISERVATA · PR</span>
         <form action={esci}><button type="submit" className="mm-btn mm-btn--muto" style={{ minHeight: 40 }}>Esci</button></form>
         <span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-full border border-linea-forte bg-notte-3 font-display text-[16px] font-black">{iniziali}</span>
       </header>

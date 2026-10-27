@@ -1,16 +1,19 @@
 import { richiedi } from '@/lib/sessione';
 import { tuttiIPr } from '@/lib/dati/admin';
+import { Suspense } from 'react';
+import { NavGestione } from '@/components/gestione-nav';
 import { TestataAdmin } from '@/components/admin/ui';
 import { NuovoPr, StatoPr } from '@/components/admin/azioni-client';
 
-export const metadata = { title: 'PR' };
+export const metadata = { title: 'Account PR' };
 
 export default async function AdminPr() {
   const s = await richiedi(['admin'], '/admin/pr');
   const pr = await tuttiIPr(s);
   return (
     <>
-      <TestataAdmin briciole="PR" titolo="PR" sotto={`${pr.filter((p) => p.pr.stato === 'attivo').length} ATTIVI · CLASSIFICA COMPLESSIVA`} />
+      <Suspense><NavGestione admin /></Suspense>
+      <TestataAdmin briciole="PR / ACCOUNT" titolo="Account PR" sotto={`${pr.filter((p) => p.pr.stato === 'attivo').length} ATTIVI · CLASSIFICA COMPLESSIVA`} />
       <div className="flex flex-col gap-8 px-4 py-6 md:px-12">
         <NuovoPr />
         <div className="mm-scroll">

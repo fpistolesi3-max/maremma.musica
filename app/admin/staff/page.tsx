@@ -3,7 +3,7 @@ import { utentiStaff } from '@/lib/dati/admin';
 import { TestataAdmin } from '@/components/admin/ui';
 import { NuovoStaff, RimuoviStaff } from '@/components/admin/azioni-client';
 
-export const metadata = { title: 'Staff porta' };
+export const metadata = { title: 'Staff' };
 
 /** Chi può aprire lo scanner (/door) o l'admin. Nessuna password: si entra con il link via email. */
 export default async function AdminStaff() {
@@ -11,7 +11,7 @@ export default async function AdminStaff() {
   const utenti = await utentiStaff(s);
   return (
     <>
-      <TestataAdmin briciole="STAFF PORTA" titolo="Staff porta" sotto="LO STAFF APRE /DOOR DAL TELEFONO E ENTRA CON LA SUA EMAIL" />
+      <TestataAdmin briciole="STAFF" titolo="Staff" sotto="LO STAFF APRE /DOOR DAL TELEFONO E ENTRA CON LA SUA EMAIL" />
       <div className="flex flex-col gap-8 px-4 py-6 md:px-12">
         <NuovoStaff />
         <div className="mm-scroll">

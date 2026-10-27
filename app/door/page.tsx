@@ -16,7 +16,7 @@ export default async function PaginaPorta() {
   return (
     <>
       <RegistraServiceWorker />
-      <Porta eventi={eventi} email={s.utente.email} esci={esci} />
+      <Porta eventi={eventi} email={s.utente.email} admin={s.utente.ruolo === 'admin'} esci={esci} />
     </>
   );
 }
