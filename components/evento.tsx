@@ -92,7 +92,7 @@ export function Nastro({ eventi }: { eventi: Evento[] }) {
       {voci.map((e, n) => (
         <span key={`${e.id}-${n}`} className="contents">
           <Link href={`/e/${e.slug}`} tabIndex={nascosto || n >= eventi.length ? -1 : undefined} className="text-[24px] md:text-[34px]">{dataPunti(e.data)} {e.nome}</Link>
-          <i aria-hidden="true">✦</i>
+          {n % 2 ? <i aria-hidden="true">✦</i> : <b className="mm-mini-disco" aria-hidden="true" />}
         </span>
       ))}
     </div>
