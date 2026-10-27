@@ -2,14 +2,15 @@
 
 import { useActionState, useState, useTransition } from 'react';
 import {
-  azioneIscrizione, creaPrAzione, creaStaffAzione, rimuoviStaffAzione, statoPrAzione, type EsitoAzione,
+  azioneIscrizione, cambiaNominativoAzione, creaPrAzione, creaStaffAzione, rimuoviStaffAzione, statoPrAzione, type EsitoAzione,
 } from '@/app/azioni/admin';
 
 /**
  * Pulsanti annulla / rimborsa / ripristina, con conferma. `online`: pagata sul sito, il rimborso passa da Stripe;
  * `daRimborsare`: pagamento arrivato quando non valeva più; `maiPagata`: prevendita chiesta e mai pagata (niente da fare).
  */
-export function AzioniIscrizione({ id, stato, pagato, online, daRimborsare, maiPagata }: {
+export function AzioniIscrizione({ id, stato, pagato, online, daRimborsare, maiPagata, nominativo }: {
+  nominativo?: { nome: string; cognome: string; nascita: string } | null; // serate senza telefono: l'admin può cambiare chi entra
   id: string; stato: string; pagato: boolean; online: boolean; daRimborsare: boolean; maiPagata: boolean;
 }) {
   const [inCorso, avvia] = useTransition();
@@ -17,6 +18,13 @@ export function AzioniIscrizione({ id, stato, pagato, online, daRimborsare, maiP
   const fai = (azione: 'annulla' | 'rimborsa' | 'ripristina', domanda: string) => {
     if (!window.confirm(domanda)) return;
     avvia(async () => { const r = await azioneIscrizione(id, azione); setErrore(r.errore ?? null); });
+  };
+  const cambiaNome = () => {
+    if (!nominativo) return;
+    const nome = window.prompt('Nome di chi entra al posto suo', nominativo.nome); if (nome === null) return;
+    const cognome = window.prompt('Cognome', nominativo.cognome); if (cognome === null) return;
+    const nascita = window.prompt('Data di nascita (GG.MM.AAAA)', nominativo.nascita); if (nascita === null) return;
+    avvia(async () => { const r = await cambiaNominativoAzione(id, nome, cognome, nascita); setErrore(r.errore ?? null); });
   };
   const attiva = ['in_lista', 'pagato', 'entrato'].includes(stato);
   const domandaRimborso = online
@@ -28,6 +36,7 @@ export function AzioniIscrizione({ id, stato, pagato, online, daRimborsare, maiP
       {attiva && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('annulla', online ? 'Annullare senza restituire i soldi? Il QR smette di funzionare. Per restituirli usa Rimborsa.' : 'Annullare questa iscrizione? Il QR smette di funzionare.')}>Annulla</button>}
       {!daRimborsare && (attiva || stato === 'annullato') && pagato && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('rimborsa', domandaRimborso)}>Rimborsa</button>}
       {stato === 'annullato' && !maiPagata && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={() => fai('ripristina', 'Riattivare il QR?')}>Ripristina</button>}
+      {nominativo && ['in_lista', 'pagato'].includes(stato) && <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }} onClick={cambiaNome}>Cambia nome</button>}
       {errore && <span className="text-[12px] text-stop-testo">{errore}</span>}
     </span>
   );

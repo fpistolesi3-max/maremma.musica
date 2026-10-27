@@ -645,3 +645,60 @@ test('tavoli: pagamento online, tavolo fermo pochi minuti, conferma automatica, 
   assert.equal(pag.firmaStripeValida(corpo, `t=${t - 600},v1=${firma(t - 600, corpo)}`, 'whsec_prova'), false, 'troppo vecchia');
   assert.equal(pag.firmaStripeValida(corpo, null, 'whsec_prova'), false);
 });
+
+test('serata senza telefono: il documento si conferma sempre, il telefono non salta il controllo, lista, cambio nome, dati cancellati dopo 30 giorni', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const staff = await sessione('porta@maremmamusica.test');
+  const pr = await sessione('test-pr@maremmamusica.test');
+  const ev0 = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  const { id: _id, createdAt: _c, updatedAt: _u, piantinaUrl: _p, numero: _n, ...dati } = ev0;
+  const ev = await m.admin.salvaEvento(admin, null, { ...dati, slug: 'senza-telefono', nome: 'Senza telefono', senzaTelefono: true, pubblicato: true });
+  assert.equal((await m.porta.eventiPorta(staff)).find((e) => e.id === ev.id)!.senzaTelefono, true, 'la porta lo sa');
+
+  const crea = async (cognome: string, dataNascita: string) => {
+    const r = await m.pubblico.creaIscrizione({ slug: 'senza-telefono', handlePr: null, nome: 'Anna', cognome, dataNascita, email: `${cognome.toLowerCase()}@esempio.it`, marketing: false });
+    assert.ok(r.ok);
+    if (r.ok) await m.prevendita.confermaPagamentoIscrizione(r.iscrizione.id, `prova_${cognome}`);
+    return (await m.archivio.leggi()).iscrizioni.find((x) => x.cognome === cognome && x.eventoId === ev.id)!;
+  };
+  const rossi = await crea('Rossi', '1995-03-14');
+  const verdi = await crea('Verdi', '1990-07-02');
+  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+
+  // Anche senza categoria: la scansione da sola non basta, serve il "Fai entrare" dopo il controllo del documento.
+  assert.equal((await m.porta.checkIn(staff, ev.id, rossi.tokenQr, o)).esito, 'da_confermare');
+  assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === rossi.id)!.stato, 'pagato');
+  assert.equal((await m.porta.checkIn(staff, ev.id, rossi.tokenQr, { ...o, confermato: true })).esito, 'entrato');
+  assert.equal((await m.porta.checkIn(staff, ev.id, rossi.tokenQr, { ...o, confermato: true })).esito, 'gia_entrato', 'un ingresso solo');
+  // "Non corrisponde": nessun ingresso, il rifiuto è salvato e l'iscrizione resta valida.
+  assert.equal((await m.porta.rifiutaIngresso(staff, ev.id, verdi.tokenQr, { porta: 'P2', ora: o.ora })).esito, 'rifiutato');
+  assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === verdi.id)!.stato, 'pagato');
+
+  // Lista di riserva: in ordine alfabetico, con data di nascita; solo staff e admin.
+  const lista = (await m.porta.listaStampabile(admin, ev.id))!;
+  assert.deepEqual(lista.righe.map((r) => r.cognome), ['Rossi', 'Verdi']);
+  assert.equal(lista.righe[0].entrato, true);
+  await assert.rejects(m.porta.listaStampabile(pr, ev.id), /non_autorizzato/);
+
+  // Cambio di nominativo: solo admin, solo prima dell'ingresso, con età e doppioni controllati.
+  const nuovo = { nome: 'Bruno', cognome: 'Bianchi', dataNascita: '1992-01-01' };
+  await assert.rejects(m.admin.cambiaNominativo(staff, verdi.id, nuovo), /non_autorizzato/);
+  await assert.rejects(m.admin.cambiaNominativo(admin, rossi.id, nuovo), /non è ancora entrato/);
+  await assert.rejects(m.admin.cambiaNominativo(admin, verdi.id, { ...nuovo, dataNascita: '2012-01-01' }), /18\+/);
+  await assert.rejects(m.admin.cambiaNominativo(admin, verdi.id, { ...nuovo, cognome: 'Rossi', dataNascita: '1995-03-14' }), /già una prevendita/);
+  await m.admin.cambiaNominativo(admin, verdi.id, nuovo);
+  const cambiata = (await m.archivio.leggi()).iscrizioni.find((x) => x.id === verdi.id)!;
+  assert.equal(cambiata.cognome, 'Bianchi');
+  assert.equal(cambiata.tokenQr, verdi.tokenQr, 'è lo stesso biglietto');
+
+  // Dati cancellati 30 giorni dopo la serata, non prima; i conti restano.
+  const fine = new Date(ev.dataFine ?? ev.data).getTime();
+  assert.equal(await m.prevendita.cancellaDatiSenzaTelefono(new Date(fine + 20 * 86_400_000)), 0, 'dopo 20 giorni no');
+  assert.equal(await m.prevendita.cancellaDatiSenzaTelefono(new Date(fine + 31 * 86_400_000)), 2);
+  const dopo = (await m.archivio.leggi()).iscrizioni.filter((x) => x.eventoId === ev.id);
+  assert.ok(dopo.every((x) => x.cognome === '' && x.email === '' && x.dataNascita === '0000-00-00'));
+  assert.equal(dopo.filter((x) => x.stato === 'entrato').length, 1, 'lo stato resta');
+  assert.equal(await m.prevendita.cancellaDatiSenzaTelefono(new Date(fine + 40 * 86_400_000)), 0, 'ripetibile');
+  // Una serata normale non viene toccata.
+  assert.ok((await m.archivio.leggi()).iscrizioni.some((x) => x.eventoId === ev0.id && x.cognome !== ''));
+});

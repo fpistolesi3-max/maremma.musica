@@ -54,8 +54,10 @@ export interface OpzioniIngresso {
   metodo: MetodoPagamento;
   porta: string;
   ora: string;
-  /** Lo staff ha toccato "Fai entrare" dopo aver controllato la categoria. */
+  /** Lo staff ha toccato "Fai entrare" dopo aver controllato la categoria (o il documento). */
   confermato?: boolean;
+  /** Serata senza telefono: ogni ingresso passa dal controllo del documento, anche senza categoria. */
+  documento?: boolean;
 }
 
 /**
@@ -77,7 +79,7 @@ export function decidiIngresso(voce: VocePorta, o: OpzioniIngresso): { esito: Es
   if (voce.stato === 'entrato') return { esito: { esito: 'gia_entrato', voce }, aggiornata: null };
   if (voce.stato === 'scaduta') return { esito: { esito: 'non_valido', motivo: 'Prevendita mai pagata' }, aggiornata: null };
   if (voce.stato === 'in_attesa') return { esito: { esito: 'non_pagato', voce }, aggiornata: null };
-  if (categoriaDaControllare(voce) && !o.confermato) return { esito: { esito: 'da_confermare', voce }, aggiornata: null };
+  if ((categoriaDaControllare(voce) || o.documento) && !o.confermato) return { esito: { esito: 'da_confermare', voce }, aggiornata: null };
   const aggiornata: VocePorta = { ...voce, stato: 'entrato', oraCheckIn: o.ora, porta: o.porta };
   return { esito: { esito: 'entrato', voce: aggiornata, incassato: 0, ora: o.ora, primaPagato: voce.stato === 'pagato' }, aggiornata };
 }

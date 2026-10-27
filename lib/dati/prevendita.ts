@@ -3,7 +3,7 @@ import { leggi, modifica } from './archivio';
 import type { Archivio, Iscrizione } from './tipi';
 import type { Sessione } from '../sessione';
 import { bigliettoDi, type Biglietto } from './pubblico';
-import { giaIscritto, iscrizioneScaduta, pagamentoIscrizioneValido, tienePosto } from '../regole';
+import { eventoPassato, giaIscritto, iscrizioneScaduta, pagamentoIscrizioneValido, tienePosto } from '../regole';
 
 // Pagamento online della prevendita in lista: stesso giro dei tavoli (lib/dati/tavoli.ts).
 // L'iscrizione nasce "in attesa" con il posto tenuto per pochi minuti; vale (e il QR si vede) solo a pagamento ricevuto.
@@ -16,6 +16,31 @@ function faiScadere(d: Archivio, adesso = new Date()) {
 export async function applicaScadenzeIscrizioni() {
   const d = await leggi();
   if (d.iscrizioni.some((i) => iscrizioneScaduta(i))) await modifica((a) => { faiScadere(a); });
+}
+
+/** Giorni dopo la serata senza telefono oltre i quali nome, cognome, data di nascita ed email dei clienti si cancellano. */
+export const GIORNI_DATI_SENZA_TELEFONO = 30;
+export const DATI_CANCELLATI = '(dati cancellati)';
+
+/**
+ * Serate senza telefono: i dati usati per il controllo del documento non servono più dopo la serata. Passati
+ * `GIORNI_DATI_SENZA_TELEFONO` giorni restano solo stato, importo e ingresso (i conti tornano), il resto si azzera.
+ * Idempotente: ritorna quante iscrizioni ha ripulito. Lo chiama il cron giornaliero.
+ */
+export async function cancellaDatiSenzaTelefono(adesso = new Date()): Promise<number> {
+  const limite = new Date(adesso.getTime() - GIORNI_DATI_SENZA_TELEFONO * 86_400_000);
+  const da = (d: Readonly<Archivio>) => {
+    const scadute = new Set(d.eventi.filter((e) => e.senzaTelefono && eventoPassato(e, limite)).map((e) => e.id));
+    return d.iscrizioni.filter((i) => scadute.has(i.eventoId) && i.nome !== DATI_CANCELLATI);
+  };
+  if (!da(await leggi()).length) return 0;
+  return modifica((d) => {
+    const lista = da(d);
+    for (const i of lista) {
+      i.nome = DATI_CANCELLATI; i.cognome = ''; i.dataNascita = '0000-00-00'; i.email = ''; i.consensoMarketing = false;
+    }
+    return lista.length;
+  });
 }
 
 /** Il cliente apre "Paga": solo un'iscrizione sua (id + email) ancora in attesa e nel termine. */

@@ -68,7 +68,7 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
 
           <div className="border-t border-linea bg-notte-2 px-4 pb-8 pt-6 md:border-t md:px-8 md:pb-8">
             {aperta ? (
-              <ModuloPrevendita slug={e.slug} prHandle={pr?.handle ?? null} totaleEtichetta={totaleEtichetta} totaleValore={totaleValore} etaMinima={e.etaMinima}
+              <ModuloPrevendita slug={e.slug} prHandle={pr?.handle ?? null} totaleEtichetta={totaleEtichetta} totaleValore={totaleValore} etaMinima={e.etaMinima} senzaTelefono={e.senzaTelefono}
                 aPagamento={aPagamento} soloPrevendita={!e.cassaAttiva}
                 tipo={tipo && (tipo.categoria || ep.lotti.length > 1) ? { nome: tipo.nome, categoria: tipo.categoria, conferma: tipo.confermaCategoria, prossimo: prossimo ? `${prossimo.lotto.nome}${prossimo.dal ? ` dal ${dataPunti(prossimo.dal.toISOString())}` : ' quando finiscono i posti'}` : null } : null}>
                 {pr

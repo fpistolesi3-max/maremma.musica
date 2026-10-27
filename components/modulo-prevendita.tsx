@@ -10,6 +10,7 @@ interface Props {
   totaleEtichetta: string;
   totaleValore: string;
   etaMinima: number;
+  senzaTelefono?: boolean; // serata senza telefono: niente QR, alla porta si controlla il documento
   aPagamento: boolean;    // false = serata gratis: il QR arriva subito
   soloPrevendita: boolean; // la serata non ha la cassa alla porta
   tipo?: { nome: string; categoria: string | null; conferma: boolean; prossimo: string | null } | null; // tipo di prevendita in vendita adesso
@@ -18,7 +19,7 @@ interface Props {
 
 const INIZIALE: StatoModulo = { errori: {}, valori: {} };
 
-export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore, etaMinima, aPagamento, soloPrevendita, tipo, children }: Props) {
+export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore, etaMinima, senzaTelefono, aPagamento, soloPrevendita, tipo, children }: Props) {
   const [stato, invia, inCorso] = useActionState(iscriviti, INIZIALE);
   const e = stato.errori;
   const v = stato.valori;
@@ -46,6 +47,13 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
       <input type="hidden" name="slug" value={slug} />
       {prHandle && <input type="hidden" name="pr" value={prHandle} />}
       {children}
+
+      {senzaTelefono && (
+        <div className="flex flex-col gap-1 border border-arancio px-4 py-3">
+          <strong className="font-display text-[20px] font-extrabold uppercase leading-none">Serata senza telefono</strong>
+          <p className="m-0 text-[14px] leading-5">Niente QR: alla porta portare un documento. Nome, cognome e data di nascita che scrivi qui devono essere identici a quelli del documento.</p>
+        </div>
+      )}
 
       {tipo && (
         <div className="flex flex-col gap-1 border border-linea-forte px-4 py-3">
@@ -78,7 +86,7 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
       </fieldset>
 
       <Campo id="p-email" nome="email" etichetta="Email" tipo="email" errore={e.email} valore={v.email} autoComplete="email" placeholder="nome@email.it"
-        aiuto="Ti mandiamo lì il QR, così non lo perdi." />
+        aiuto={senzaTelefono ? 'Ti mandiamo lì la conferma della prevendita.' : 'Ti mandiamo lì il QR, così non lo perdi.'} />
 
       <div className="flex flex-col gap-[14px]">
         {tipo?.categoria && tipo.conferma && (
@@ -106,7 +114,8 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
         {inCorso ? 'Un attimo…' : <>{aPagamento ? `Paga ${totaleValore}` : 'Mettiti in lista'} <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
       </button>
       <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
-        {aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · IL QR ARRIVA DOPO IL PAGAMENTO' : 'IL QR ARRIVA SUBITO'}
+        {senzaTelefono ? (aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · ALLA PORTA SERVE IL DOCUMENTO' : 'ALLA PORTA SERVE IL DOCUMENTO')
+          : aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · IL QR ARRIVA DOPO IL PAGAMENTO' : 'IL QR ARRIVA SUBITO'}
         {soloPrevendita && <><br />INGRESSO SOLO IN PREVENDITA: ALLA PORTA NON SI PAGA</>}
       </span>
     </form>

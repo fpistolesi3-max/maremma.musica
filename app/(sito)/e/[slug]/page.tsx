@@ -86,7 +86,7 @@ export default async function PaginaEvento({ params }: Props) {
               : e.cassaAttiva ? `Prevendita online. Prezzo in cassa ${euro(e.prezzoCassa ?? e.prezzoLista)}.` : 'Ingresso solo in prevendita: alla porta non si paga.'} />
             <Info largo titolo="Dove" valore={visibile ? e.location || e.comune || 'In arrivo' : 'Location segreta'}
               nota={<span className="font-mono text-[11px] leading-4 md:text-[13px]">{visibile ? [e.location && e.comune, coordinate].filter(Boolean).join(' · ') || 'Te la diciamo presto' : 'Svelata 48 ore prima'}</span>} />
-            <Info largo titolo="Età" valore={e.etaMinima > 0 ? `${e.etaMinima}+` : 'Per tutti'} nota="Porta un documento: il nome deve combaciare con il QR." />
+            <Info largo titolo="Età" valore={e.etaMinima > 0 ? `${e.etaMinima}+` : 'Per tutti'} nota={e.senzaTelefono ? 'Serata senza telefono: alla porta serve un documento con lo stesso nome e la stessa data di nascita.' : 'Porta un documento: il nome deve combaciare con il QR.'} />
           </div>
 
           {(tipi.length > 1 || tipi.some((t) => t.lotto.categoria)) && (

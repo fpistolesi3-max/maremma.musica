@@ -4,7 +4,7 @@ import { inviaChiusuraTavolo, inviaPromemoriaRichiestaPr, inviaScadutaAlPr } fro
 import { verificaSospesi } from '@/lib/pagamento-tavolo';
 import { modalitaProva } from '@/lib/prova';
 import { verificaSospesiIscrizioni } from '@/lib/pagamento-prevendita';
-import { applicaScadenzeIscrizioni } from '@/lib/dati/prevendita';
+import { applicaScadenzeIscrizioni, cancellaDatiSenzaTelefono } from '@/lib/dati/prevendita';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +26,7 @@ export async function GET(req: Request) {
   const prevendite = await verificaSospesiIscrizioni(origine);
   await applicaScadenze();
   await applicaScadenzeIscrizioni();
+  const cancellati = await cancellaDatiSenzaTelefono();
   let inviati = 0;
   // Richieste inserite dal PR (o dalla crew) non ancora pagate: promemoria al cliente e avviso al PR.
   for (const { vista, emailPr } of await promemoriaRichiestePr()) {
@@ -41,5 +42,5 @@ export async function GET(req: Request) {
       if (emailPr) await inviaScadutaAlPr(v, emailPr, origine);
     } catch (e) { console.error('[tavoli] avviso di chiusura non inviato', e); }
   }
-  return NextResponse.json({ ok: true, pagamenti, prevendite, promemoria: inviati, decadute: avvisati }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ ok: true, pagamenti, prevendite, promemoria: inviati, decadute: avvisati, datiCancellati: cancellati }, { headers: { 'Cache-Control': 'no-store' } });
 }

@@ -9,7 +9,7 @@ export interface ValoriSerata {
   id: string | null; numero: string; nome: string; slug: string; giorno: string; apertura: string; chiusura: string;
   lineup: string; highlight: string; dressCode: string; descrizione: string;
   location: string; comune: string; lat: string; lng: string; locationSegreta: boolean; infoArrivo: string;
-  tipoIngresso: 'libero' | 'lista'; prezzoLista: string; cassaAttiva: boolean; prezzoCassa: string; etaMinima: string;
+  tipoIngresso: 'libero' | 'lista'; prezzoLista: string; cassaAttiva: boolean; senzaTelefono: boolean; prezzoCassa: string; etaMinima: string;
   locandinaUrl: string; pubblicato: boolean; prAbilitati: string[] | null;
 }
 
@@ -27,6 +27,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
   const [stato, invia, inCorso] = useActionState(salvaSerata, {} as EsitoAzione);
   const [tipo, setTipo] = useState(v.tipoIngresso);
   const [cassa, setCassa] = useState(v.cassaAttiva);
+  const [senzaTel, setSenzaTel] = useState(v.senzaTelefono);
   const [tutti, setTutti] = useState(v.prAbilitati === null);
   const [anteprima, setAnteprima] = useState(v.locandinaUrl);
   const c = stato.campi ?? {};
@@ -92,6 +93,15 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [] }: {
           <div className="grid gap-4 sm:grid-cols-3">
             {tipo === 'lista' && <Campo nome="prezzoLista" etichetta="Prezzo prevendita (€)" v={v.prezzoLista} inputMode="decimal" errore={c.prezzoLista} aiuto="Il primo lotto nasce con questo prezzo" />}
             <Campo nome="etaMinima" etichetta="Età minima" v={v.etaMinima} inputMode="numeric" errore={c.etaMinima} />
+          </div>
+          <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
+            <label className="flex items-center gap-[10px] text-[15px]">
+              <input type="checkbox" name="senzaTelefono" checked={senzaTel} onChange={(e) => setSenzaTel(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />
+              Ingresso senza telefono (con documento)
+            </label>
+            <span className="mm-campo__aiuto">
+              {senzaTel ? 'Il cliente compra online come sempre ma alla porta non mostra il QR: lo staff cerca il cognome e controlla nome e data di nascita sul documento.' : 'Spento: alla porta si scansiona il QR del biglietto.'}
+            </span>
           </div>
           <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
             <label className="flex items-center gap-[10px] text-[15px]">

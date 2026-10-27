@@ -5,7 +5,7 @@ import type { Archivio, Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } fro
 import { tipiDelModello, type NomeModello } from '../tipi-modelli';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
-import { eventoPassato, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, EMAIL_RE, HANDLE_RE } from '../regole';
+import { eventoPassato, etaSufficiente, giaIscritto, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, EMAIL_RE, HANDLE_RE } from '../regole';
 import { nascita, ora as oraDi, dataCompleta } from '../formato';
 import { usatiPerLotto } from './pubblico';
 import { applicaScadenze } from './tavoli';
@@ -185,6 +185,26 @@ export async function cambiaStatoIscrizione(s: Sessione, id: string, azione: 'an
       const stato: StatoIscrizione = i.oraCheckIn ? 'entrato' : i.metodoPagamento ? 'pagato' : 'in_lista';
       i.stato = stato; i.annullatoAt = null;
     }
+  });
+}
+
+/**
+ * Cambio di nominativo (es. un amico subentra): solo l'admin, solo per chi non è ancora entrato. Controlla età e doppioni
+ * come l'acquisto. Il biglietto resta lo stesso (stesso QR, stesso pagamento): cambia chi lo usa.
+ */
+export async function cambiaNominativo(s: Sessione, id: string, dati: { nome: string; cognome: string; dataNascita: string }) {
+  soloAdmin(s);
+  await modifica((d) => {
+    const i = d.iscrizioni.find((x) => x.id === id);
+    if (!i) throw new Error('Iscrizione non trovata');
+    if (!['in_lista', 'pagato'].includes(i.stato)) throw new Error('Si può cambiare il nome solo a chi ha una prevendita valida e non è ancora entrato');
+    const nome = dati.nome.trim().slice(0, 80);
+    const cognome = dati.cognome.trim().slice(0, 80);
+    if (!nome || !cognome || !/^\d{4}-\d{2}-\d{2}$/.test(dati.dataNascita)) throw new Error('Scrivi nome, cognome e data di nascita');
+    const evento = d.eventi.find((e) => e.id === i.eventoId);
+    if (evento && !etaSufficiente(dati.dataNascita, evento)) throw new Error(`Serata ${evento.etaMinima}+: con questa data non può entrare`);
+    if (giaIscritto(d.iscrizioni.filter((x) => x.id !== i.id), i.eventoId, cognome, dati.dataNascita)) throw new Error('C’è già una prevendita con questo nome e questa data di nascita');
+    i.nome = nome; i.cognome = cognome; i.dataNascita = dati.dataNascita;
   });
 }
 
