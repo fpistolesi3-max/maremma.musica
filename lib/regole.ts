@@ -207,3 +207,78 @@ export const percorsoInterno = (p: string | null | undefined): p is string => ty
 
 export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 export const HANDLE_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+// ── Serata: prezzo dai tipi, bozza, "Cosa manca", tavoli in serie, coordinate da Google Maps ──
+
+/** Prezzi dei tipi di prevendita di una serata: il prezzo si decide solo lì, il resto lo calcola da qui. */
+export interface PrezzoTipi { primo: number; minimo: number; massimo: number }
+
+/** `primo` è il prezzo del primo tipo (per ordine): è quello che precompila la cassa. Senza tipi: null. */
+export function prezzoDaTipi(lotti: Pick<Lotto, 'prezzo' | 'ordine'>[]): PrezzoTipi | null {
+  if (lotti.length === 0) return null;
+  const prezzi = lotti.map((l) => l.prezzo);
+  const primo = lotti.slice().sort((a, b) => a.ordine - b.ordine)[0].prezzo;
+  return { primo, minimo: Math.min(...prezzi), massimo: Math.max(...prezzi) };
+}
+
+/** "8 €" se i tipi costano tutti uguale, "da 8 €" se i prezzi sono diversi. Senza tipi vale `daEvento` (serate vecchie). */
+export function testoPrezzoTipi(p: PrezzoTipi | null, daEvento = 0) {
+  if (!p) return euro(daEvento);
+  return p.minimo === p.massimo ? euro(p.minimo) : `da ${euro(p.minimo)}`;
+}
+
+/** Il primo salvataggio di una serata nuova è sempre una bozza; poi vale il pulsante premuto (o lo stato di prima). */
+export function pubblicatoDopoSalvataggio(o: { nuova: boolean; azione: string; eraPubblicata: boolean }) {
+  if (o.nuova) return false;
+  return o.azione === 'pubblica' ? true : o.azione === 'bozza' ? false : o.eraPubblicata;
+}
+
+export interface Manca { id: 'tipi' | 'locandina' | 'tavoli' | 'cassa'; testo: string; ancora: string }
+
+/**
+ * Cosa manca prima di pubblicare: tipi propri (non solo quello creato in automatico), locandina, tavoli se previsti,
+ * prezzo della cassa se la cassa è attiva. Non blocca nulla: serve a pubblicare sapendolo.
+ */
+export function cosaManca(
+  e: Pick<Evento, 'tipoIngresso' | 'locandinaUrl' | 'cassaAttiva' | 'prezzoCassa'>,
+  lotti: (Pick<Lotto, 'nome' | 'prezzo'> & { automatico?: boolean })[], nTavoli: number,
+): Manca[] {
+  const manca: Manca[] = [];
+  if (e.tipoIngresso !== 'libero') {
+    if (lotti.length === 0) manca.push({ id: 'tipi', testo: 'Nessun tipo di prevendita: nessuno può iscriversi.', ancora: 'lotti' });
+    else if (lotti.length === 1 && lotti[0].automatico) {
+      manca.push({ id: 'tipi', testo: `Ci sono solo i tipi creati in automatico («${lotti[0].nome}», ${euro(lotti[0].prezzo)}): controllali o scegli un modello.`, ancora: 'lotti' });
+    }
+  }
+  if (!e.locandinaUrl) manca.push({ id: 'locandina', testo: 'Manca la locandina.', ancora: 'copertina' });
+  if (nTavoli === 0) manca.push({ id: 'tavoli', testo: 'Nessun tavolo (se la serata li prevede, aggiungili).', ancora: 'tavoli' });
+  if (e.tipoIngresso !== 'libero' && e.cassaAttiva && e.prezzoCassa == null) manca.push({ id: 'cassa', testo: 'La cassa è attiva ma manca il prezzo in cassa.', ancora: 'porta' });
+  return manca;
+}
+
+/**
+ * Nomi di tavoli in serie da un nome di partenza: "T1" → T1, T2…; "T08" tiene gli zeri (T08, T09, T10);
+ * senza numero finale ("Privé") parte da 1 ("Privé 1", "Privé 2"…).
+ */
+export function nomiInSerie(partenza: string, quanti: number): string[] {
+  const nome = partenza.trim();
+  const m = /^(.*?)(\d+)$/.exec(nome);
+  const prefisso = m ? m[1] : `${nome} `;
+  const cifre = m ? m[2] : '1';
+  const primo = Number(cifre);
+  const larghezza = cifre.length > 1 && cifre.startsWith('0') ? cifre.length : 0;
+  return Array.from({ length: Math.max(0, quanti) }, (_, k) => `${prefisso}${String(primo + k).padStart(larghezza, '0')}`);
+}
+
+/** Latitudine e longitudine da un link lungo di Google Maps (@lat,lng · !3d…!4d… · q=lat,lng · ll=lat,lng). I link corti (goo.gl) no. */
+export function coordinateDaLinkMaps(testo: string): { lat: number; lng: number } | null {
+  const t = testo.trim();
+  if (!t) return null;
+  const coppia = /!3d(-?\d{1,3}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)/.exec(t)
+    ?? /@(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/.exec(t)
+    ?? /[?&](?:q|ll|query|center)=(-?\d{1,3}(?:\.\d+)?)(?:,|%2C)(-?\d{1,3}(?:\.\d+)?)/i.exec(t);
+  if (!coppia) return null;
+  const lat = Number(coppia[1]);
+  const lng = Number(coppia[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}

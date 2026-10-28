@@ -5,7 +5,8 @@ export function TestataAdmin({ briciole, titolo, chip, sotto, azioni }: { bricio
   return (
     <div className="flex flex-col gap-4 border-b border-linea px-4 pb-6 pt-6 md:flex-row md:items-end md:gap-6 md:px-12 md:pt-7">
       <div className="flex min-w-0 flex-grow flex-col gap-[10px]">
-        <span className="font-mono text-[11px] leading-[14px] text-osso-2">{briciole}</span>
+        {/* Niente briciola che ripete il titolo ("SERATE / Serate"). */}
+        {briciole.trim().toLowerCase() !== titolo.trim().toLowerCase() && <span className="font-mono text-[11px] leading-[14px] text-osso-2">{briciole}</span>}
         <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2">
           <h1 className="m-0 font-display text-[44px] font-black uppercase leading-[.85] md:text-[64px]">{titolo}</h1>
           {chip}

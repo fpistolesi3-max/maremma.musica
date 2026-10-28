@@ -763,3 +763,98 @@ test('cruscotto admin: solo l’admin, con la prossima serata e i rimborsi da fa
   assert.equal(dopo.tavoliDaRimborsare.reduce((t, x) => t + x.n, 0), prima + 1, 'il tavolo da rimborsare compare nel cruscotto');
   assert.ok(tavoli && tavoli.n >= 1);
 });
+
+test('serata: il prezzo viene dai tipi, il primo salvataggio è una bozza con il suo primo tipo, la cassa ha sempre un prezzo', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const staff = await sessione('porta@maremmamusica.test');
+  const d0 = await m.archivio.leggi();
+  const { id: _i, createdAt: _c, updatedAt: _u, piantinaUrl: _p, numero: _n, ...modello } = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const dati = { ...modello, slug: 'prezzo-dai-tipi', nome: 'Prezzo dai tipi', prezzoLista: 9, prezzoCassa: null, pubblicato: false };
+  const nuova = await m.admin.salvaEvento(admin, null, dati);
+  let x = (await m.admin.eventoAdmin(admin, nuova.id))!;
+  assert.equal(x.lotti.length, 1, 'nasce con il primo tipo');
+  assert.deepEqual([x.lotti[0].prezzo, x.lotti[0].automatico], [9, true]);
+  assert.equal(x.evento.prezzoCassa, 9, 'cassa accesa: il prezzo parte da quello del primo tipo');
+
+  // Il prezzo si cambia nei tipi: l'evento lo segue, il modulo non lo sposta più
+  await m.admin.salvaLotto(admin, { ...x.lotti[0], prezzo: 12 });
+  x = (await m.admin.eventoAdmin(admin, nuova.id))!;
+  assert.equal(x.evento.prezzoLista, 12);
+  assert.equal(x.lotti[0].automatico, false, 'ritoccato: non è più "creato in automatico"');
+  await m.admin.salvaEvento(admin, nuova.id, { ...dati, prezzoLista: 99, prezzoCassa: 15 });
+  x = (await m.admin.eventoAdmin(admin, nuova.id))!;
+  assert.deepEqual([x.evento.prezzoLista, x.evento.prezzoCassa], [12, 15], 'il vecchio campo del modulo non conta; il prezzo in cassa è quello scelto');
+  assert.equal((await m.admin.serataLive(admin, nuova.id))!.prezzoTipi?.primo, 12);
+
+  // Un secondo tipo più economico: l'intestazione dice "da", il primo (per ordine) resta quello della cassa
+  await m.admin.salvaLotto(admin, { ...x.lotti[0], id: null, nome: 'Early bird', prezzo: 8, ordine: 1 });
+  const live = (await m.admin.serataLive(admin, nuova.id))!;
+  assert.deepEqual([live.prezzoTipi?.minimo, live.prezzoTipi?.primo], [8, 12]);
+
+  // Il modello rapido riparte dal prezzo pieno e applicato due volte non fa scendere i prezzi
+  await m.admin.applicaModelloTipi(admin, nuova.id, 'early-standard');
+  const prima = (await m.admin.eventoAdmin(admin, nuova.id))!.lotti.map((l) => l.prezzo);
+  await m.admin.applicaModelloTipi(admin, nuova.id, 'early-standard');
+  assert.deepEqual((await m.admin.eventoAdmin(admin, nuova.id))!.lotti.map((l) => l.prezzo), prima);
+  assert.equal(Math.max(...prima), 12);
+  await assert.rejects(m.admin.duplicaSerata(staff, nuova.id, '2027-01-09'), /non_autorizzato/);
+});
+
+test('duplica serata: copia dati, tipi con le uscite spostate, tavoli e piantina, in bozza', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const d0 = await m.archivio.leggi();
+  const { id: _i, createdAt: _c, updatedAt: _u, piantinaUrl: _p, numero: _n, ...modello } = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const orig = await m.admin.salvaEvento(admin, null, {
+    ...modello, slug: 'serata-da-copiare', nome: 'Serata da copiare', data: '2026-11-07T23:00:00+01:00', dataFine: '2026-11-08T04:00:00+01:00',
+    prezzoLista: 10, prezzoCassa: 14, cassaAttiva: true, senzaTelefono: true, etaMinima: 21, inCopertina: true, pubblicato: true, prAbilitati: [],
+  });
+  const tipi = (await m.admin.eventoAdmin(admin, orig.id))!.lotti;
+  await m.admin.salvaLotto(admin, { ...tipi[0], nome: 'Early bird', prezzo: 8, dataInizio: '2026-10-20T00:00:00+02:00', dataFine: null, uscitaGiorniPrima: null });
+  await m.admin.salvaLotto(admin, { ...tipi[0], id: null, nome: 'Standard', prezzo: 11, ordine: 1, dataInizio: null, dataFine: null, uscitaGiorniPrima: 7 });
+  await m.admin.creaTavoliInSerie(admin, { eventoId: orig.id, partenza: 'D1', quanti: 3, zona: 'Pista', posti: 6, spesaMinima: 200 });
+  await m.admin.salvaPiantina(admin, orig.id, '/media/sala-d.jpg');
+
+  await assert.rejects(m.admin.duplicaSerata(admin, orig.id, ''), /nuova data/);
+  const copia = await m.admin.duplicaSerata(admin, orig.id, '2026-11-14');
+  const c = (await m.admin.eventoAdmin(admin, copia.id))!;
+  assert.equal(c.evento.pubblicato, false, 'la copia è una bozza');
+  assert.equal(c.evento.inCopertina, false);
+  assert.ok(c.evento.numero! > orig.numero! && c.evento.slug !== orig.slug && /2026-11-14/.test(c.evento.slug));
+  assert.deepEqual([c.evento.data, c.evento.dataFine], ['2026-11-14T23:00:00+01:00', '2026-11-15T04:00:00+01:00'].map((x) => new Date(x).toISOString()), 'stessi orari, nuova data');
+  assert.deepEqual([c.evento.cassaAttiva, c.evento.prezzoCassa, c.evento.senzaTelefono, c.evento.etaMinima, c.evento.prAbilitati], [true, 14, true, 21, []], 'porta e PR');
+  assert.deepEqual(c.lotti.map((l) => [l.nome, l.prezzo, l.uscitaGiorniPrima]), [['Early bird', 8, null], ['Standard', 11, 7]]);
+  assert.equal(c.lotti[0].dataInizio, new Date('2026-10-27T00:00:00+01:00').toISOString(), 'data fissa spostata di 7 giorni, alla stessa ora anche con il cambio dell’ora legale');
+  assert.equal(c.evento.prezzoLista, 8, 'il prezzo dell’evento segue il primo tipo');
+  assert.deepEqual(c.tavoli.map((t) => [t.nome, t.posti, t.zona, t.stato]), [['D1', 6, 'Pista', 'libero'], ['D2', 6, 'Pista', 'libero'], ['D3', 6, 'Pista', 'libero']]);
+  assert.equal(c.evento.piantinaUrl, '/media/sala-d.jpg');
+  const dopo = await m.archivio.leggi();
+  assert.equal(dopo.iscrizioni.filter((i) => i.eventoId === copia.id).length, 0, 'niente iscrizioni');
+  assert.equal(dopo.eventi.find((e) => e.id === orig.id)!.pubblicato, true, 'l’originale non cambia');
+  const seconda = await m.admin.duplicaSerata(admin, orig.id, '2026-11-14');
+  assert.notEqual(seconda.slug, copia.slug, 'stesso giorno due volte: indirizzo diverso');
+});
+
+test('tavoli in serie: tutto o niente, posti obbligatori, solo admin', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const staff = await sessione('porta@maremmamusica.test');
+  const d0 = await m.archivio.leggi();
+  const { id: _i, createdAt: _c, updatedAt: _u, piantinaUrl: _p, numero: _n, ...modello } = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const ev = await m.admin.salvaEvento(admin, null, { ...modello, slug: 'serie-tavoli', nome: 'Serie tavoli' });
+  const base = { eventoId: ev.id, partenza: 'S1', quanti: 4, zona: null, posti: 8, spesaMinima: 250 };
+  await assert.rejects(m.admin.creaTavoliInSerie(staff, base), /non_autorizzato/);
+  await assert.rejects(m.admin.creaTavoliInSerie(admin, { ...base, posti: 0 }), /Posti/);
+  await assert.rejects(m.admin.creaTavoliInSerie(admin, { ...base, quanti: 0 }), /Quanti/);
+  await assert.rejects(m.admin.creaTavoliInSerie(admin, { ...base, quanti: 61 }), /Quanti/);
+  await assert.rejects(m.admin.creaTavoliInSerie(admin, { ...base, partenza: ' ' }), /nome di partenza/);
+  assert.deepEqual(await m.admin.creaTavoliInSerie(admin, base), ['S1', 'S2', 'S3', 'S4']);
+  const tavoli = (await m.admin.eventoAdmin(admin, ev.id))!.tavoli;
+  assert.deepEqual(tavoli.map((t) => [t.nome, t.posti, t.spesaMinima, t.ordine]), [['S1', 8, 250, 0], ['S2', 8, 250, 1], ['S3', 8, 250, 2], ['S4', 8, 250, 3]]);
+  // Nome già presente: non ne aggiunge nessuno
+  await assert.rejects(m.admin.creaTavoliInSerie(admin, { ...base, partenza: 'S3', quanti: 3 }), /Ci sono già: S3, S4/);
+  assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.length, 4);
+  // Si prosegue da dove si era arrivati
+  await m.admin.creaTavoliInSerie(admin, { ...base, partenza: 'S5', quanti: 2 });
+  assert.deepEqual((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.map((t) => t.ordine), [0, 1, 2, 3, 4, 5]);
+  // Un tavolo singolo senza posti non si salva più
+  await assert.rejects(m.admin.salvaTavolo(admin, { eventoId: ev.id, nome: 'X1', zona: null, posti: null, spesaMinima: 0, stato: 'libero', nota: null, visibileDaPr: true, prAbilitati: null, ordine: 9 }), /posti/);
+});

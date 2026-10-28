@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno } from './regole';
+import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
 import { categoriaDaControllare, cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro } from './formato';
@@ -223,4 +223,54 @@ test('copertina: la scelta dell’admin vale se pubblicata e non passata, altrim
 test('accesso: "dopo" accetta solo percorsi interni (niente reindirizzamenti verso altri siti)', () => {
   for (const ok of ['/', '/admin', '/door', '/gestione/pr?serata=1', '/e/halloween-party/prevendita']) assert.equal(percorsoInterno(ok), true, ok);
   for (const no of ['//evil.com', '/\\evil.com', '/\\\\evil.com', 'https://evil.com', 'evil.com', '/\t/evil.com', '/\n/evil.com', '/ /evil.com', '', null, undefined]) assert.equal(percorsoInterno(no as string), false, String(no));
+});
+
+test('prezzo dai tipi: "da 8 €" per le intestazioni, il primo tipo precompila la cassa', () => {
+  assert.equal(prezzoDaTipi([]), null);
+  const tipi = [lotto({ id: 'b', ordine: 1, prezzo: 11 }), lotto({ id: 'a', ordine: 0, prezzo: 8 }), lotto({ id: 'c', ordine: 2, prezzo: 11 })];
+  assert.deepEqual(prezzoDaTipi(tipi), { primo: 8, minimo: 8, massimo: 11 });
+  assert.equal(testoPrezzoTipi(prezzoDaTipi(tipi)), 'da 8 €');
+  assert.equal(prezzoDaTipi([lotto({ ordine: 1, prezzo: 12 }), lotto({ ordine: 0, prezzo: 15 })])!.primo, 15, 'il primo è per ordine, non il più basso');
+  assert.equal(testoPrezzoTipi(prezzoDaTipi([lotto({ prezzo: 10 })])), '10 €', 'un solo prezzo: niente "da"');
+  assert.equal(testoPrezzoTipi(null, 12), '12 €', 'serata vecchia senza tipi: vale il prezzo salvato');
+});
+
+test('bozza: il primo salvataggio di una serata nuova non pubblica mai', () => {
+  assert.equal(pubblicatoDopoSalvataggio({ nuova: true, azione: 'pubblica', eraPubblicata: false }), false);
+  assert.equal(pubblicatoDopoSalvataggio({ nuova: true, azione: '', eraPubblicata: true }), false);
+  assert.equal(pubblicatoDopoSalvataggio({ nuova: false, azione: 'pubblica', eraPubblicata: false }), true);
+  assert.equal(pubblicatoDopoSalvataggio({ nuova: false, azione: 'bozza', eraPubblicata: true }), false);
+  assert.equal(pubblicatoDopoSalvataggio({ nuova: false, azione: '', eraPubblicata: true }), true, 'Salva su una serata online la lascia online');
+  assert.equal(pubblicatoDopoSalvataggio({ nuova: false, azione: '', eraPubblicata: false }), false);
+});
+
+test('cosa manca prima di pubblicare: tipi propri, locandina, tavoli, prezzo della cassa', () => {
+  const base = { tipoIngresso: 'lista' as const, locandinaUrl: null, cassaAttiva: true, prezzoCassa: null };
+  const ids = (m: ReturnType<typeof cosaManca>) => m.map((x) => x.id);
+  assert.deepEqual(ids(cosaManca(base, [], 0)), ['tipi', 'locandina', 'tavoli', 'cassa']);
+  const auto = [{ nome: 'Lista', prezzo: 10, automatico: true }];
+  assert.deepEqual(ids(cosaManca(base, auto, 0)), ['tipi', 'locandina', 'tavoli', 'cassa'], 'solo il tipo creato in automatico non basta');
+  const propri = [{ nome: 'Early bird', prezzo: 8 }, { nome: 'Standard', prezzo: 10 }];
+  assert.deepEqual(ids(cosaManca({ ...base, locandinaUrl: '/media/a.jpg', prezzoCassa: 12 }, propri, 4)), [], 'tutto a posto: niente da dire');
+  assert.deepEqual(ids(cosaManca({ ...base, locandinaUrl: '/media/a.jpg', cassaAttiva: false }, [{ nome: 'Standard', prezzo: 10 }], 2)), [], 'cassa spenta: niente prezzo da chiedere');
+  assert.deepEqual(ids(cosaManca({ ...base, tipoIngresso: 'libero', locandinaUrl: '/media/a.jpg' }, [], 1)), [], 'ingresso libero: né tipi né cassa');
+});
+
+test('tavoli in serie: T1…T10, zeri conservati, senza numero parte da 1', () => {
+  assert.deepEqual(nomiInSerie('T1', 3), ['T1', 'T2', 'T3']);
+  assert.deepEqual(nomiInSerie('T8', 4), ['T8', 'T9', 'T10', 'T11']);
+  assert.deepEqual(nomiInSerie('T08', 3), ['T08', 'T09', 'T10']);
+  assert.deepEqual(nomiInSerie('Privé', 2), ['Privé 1', 'Privé 2']);
+  assert.deepEqual(nomiInSerie('Pista 5', 2), ['Pista 5', 'Pista 6']);
+  assert.deepEqual(nomiInSerie('T1', 0), []);
+});
+
+test('coordinate da un link di Google Maps', () => {
+  assert.deepEqual(coordinateDaLinkMaps('https://www.google.com/maps/place/Pineta/@42.9371,10.8922,17z/data=!3m1'), { lat: 42.9371, lng: 10.8922 });
+  assert.deepEqual(coordinateDaLinkMaps('https://www.google.com/maps/place/X/data=!4m6!3d42.9012!4d11.1034'), { lat: 42.9012, lng: 11.1034 });
+  assert.deepEqual(coordinateDaLinkMaps('https://www.google.com/maps?q=42.5,11.25'), { lat: 42.5, lng: 11.25 });
+  assert.deepEqual(coordinateDaLinkMaps('https://maps.google.com/?ll=-33.86,151.21&z=10'), { lat: -33.86, lng: 151.21 });
+  assert.equal(coordinateDaLinkMaps('https://maps.app.goo.gl/AbCdEf'), null, 'link corto: non si può leggere');
+  assert.equal(coordinateDaLinkMaps('https://www.google.com/maps/@142.9,10.9,17z'), null, 'latitudine impossibile');
+  assert.equal(coordinateDaLinkMaps(''), null);
 });

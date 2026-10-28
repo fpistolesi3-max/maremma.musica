@@ -8,7 +8,7 @@ import { tavoliDelPr } from '@/lib/dati/tavoli';
 import { modoPagamentoOnline } from '@/lib/pagamenti';
 import { linkPagamento, quandoScade } from '@/lib/tavolo-email';
 import { AzioniPrenotazione } from '@/components/tavoli-azioni';
-import { chipLista, isAttiva } from '@/lib/regole';
+import { chipLista, isAttiva, testoPrezzoTipi } from '@/lib/regole';
 import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, orari, quandoRelativo } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
 import { CampoLink } from '@/components/client';
@@ -127,7 +127,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
               <div className="flex flex-col gap-[6px] px-5 pb-4 pt-5">
                 <span className="font-mono text-[11px] leading-[14px] text-arancio">✦ {serata === serate[0] ? 'PROSSIMA' : 'SERATA'} · {giornoSett(serata.evento.data)} {dataPunti(serata.evento.data)} · {numeroEvento(serata.evento.numero)}</span>
                 <span className="font-display text-[40px] font-black uppercase leading-[.9]">{serata.evento.nome}</span>
-                <span className="font-mono text-[11px] leading-4 text-osso-2">{luogoTesto(serata.evento).toUpperCase()} · {serata.evento.tipoIngresso !== 'libero' && serata.evento.prezzoLista ? `PREVENDITA ${euro(serata.evento.prezzoLista)} ONLINE · ${serata.evento.cassaAttiva ? 'CASSA ALLA PORTA' : 'SOLO PREVENDITA'}` : 'INGRESSO LIBERO'}</span>
+                <span className="font-mono text-[11px] leading-4 text-osso-2">{luogoTesto(serata.evento).toUpperCase()} · {serata.evento.tipoIngresso !== 'libero' && (serata.prezzoTipi?.massimo ?? serata.evento.prezzoLista) ? `PREVENDITA ${testoPrezzoTipi(serata.prezzoTipi, serata.evento.prezzoLista).toUpperCase()} ONLINE · ${serata.evento.cassaAttiva ? 'CASSA ALLA PORTA' : 'SOLO PREVENDITA'}` : 'INGRESSO LIBERO'}</span>
               </div>
               <div className="grid grid-cols-3 border-t border-linea">
                 <Stat valore={String(inLista)} etichetta="In lista" />

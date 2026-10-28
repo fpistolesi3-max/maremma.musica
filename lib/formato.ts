@@ -41,6 +41,27 @@ export function euro(n: number) {
   return `${s} €`;
 }
 
+/** "2026-10-31" + "22:00" nel fuso di Roma → ISO. */
+export function isoRoma(giorno: string, orario: string) {
+  const prova = new Date(`${giorno}T${orario}:00Z`);
+  const offset = new Intl.DateTimeFormat('en-US', { timeZone: TZ, timeZoneName: 'shortOffset' })
+    .formatToParts(prova).find((p) => p.type === 'timeZoneName')?.value.replace('GMT', '') || '+1';
+  const [h, m = '0'] = offset.split(':');
+  const segno = h.startsWith('-') ? '-' : '+';
+  return new Date(`${giorno}T${orario}:00${segno}${String(Math.abs(Number(h))).padStart(2, '0')}:${m.padStart(2, '0')}`).toISOString();
+}
+
+/** Giorni di calendario (a Roma) da una data all'altra: negativo se la seconda è prima. */
+export function giorniTra(daIso: string, aIso: string) {
+  return Math.round((Date.parse(`${dataIso(aIso)}T00:00:00Z`) - Date.parse(`${dataIso(daIso)}T00:00:00Z`)) / 86_400_000);
+}
+
+/** Sposta una data di N giorni di calendario tenendo la stessa ora a Roma (anche a cavallo dell'ora legale). */
+export function spostaGiorni(iso: string, giorni: number) {
+  const nuovo = new Date(Date.parse(`${dataIso(iso)}T00:00:00Z`) + giorni * 86_400_000).toISOString().slice(0, 10);
+  return isoRoma(nuovo, ora(iso));
+}
+
 export const numeroEvento = (n: number | null) => (n == null ? 'MM/—' : `MM/${String(n).padStart(3, '0')}`);
 
 /** "14.05.2001" da "2001-05-14" */
