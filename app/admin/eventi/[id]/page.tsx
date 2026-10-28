@@ -95,16 +95,16 @@ export default async function SerataLive({ params }: Props) {
               </div>
               {l.tavoli.perLista.length > 0 && (
                 <div className="mm-scroll">
-                  <table className="mm-classifica">
+                  <table className="mm-classifica mm-schede">
                     <thead><tr><th>Lista</th><th className="mm-num">Pagati</th><th className="mm-num">Incassato</th><th className="mm-num">In attesa</th><th className="mm-num">Da incassare</th></tr></thead>
                     <tbody>
                       {l.tavoli.perLista.map((r) => (
                         <tr key={r.prId ?? 'mm'}>
-                          <td className="mm-classifica__nome">{r.nome}</td>
-                          <td className="mm-num">{r.pagati}</td>
-                          <td className="mm-num">{euro(r.incassato)}</td>
-                          <td className="mm-num">{r.inAttesa}</td>
-                          <td className="mm-num">{euro(r.atteso)}</td>
+                          <td className="mm-pieno mm-classifica__nome">{r.nome}</td>
+                          <td data-et="Pagati" className="mm-num">{r.pagati}</td>
+                          <td data-et="Incassato" className="mm-num">{euro(r.incassato)}</td>
+                          <td data-et="In attesa" className="mm-num">{r.inAttesa}</td>
+                          <td data-et="Da incassare" className="mm-num">{euro(r.atteso)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -118,19 +118,19 @@ export default async function SerataLive({ params }: Props) {
           <section className="flex flex-col gap-[10px]">
             <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">PR della serata</h2>
             <div className="mm-scroll">
-              <table className="mm-classifica">
+              <table className="mm-classifica mm-schede">
                 <thead><tr><th>#</th><th>PR</th><th className="mm-num">In lista</th><th className="mm-num">Entrati</th><th style={{ width: '30%' }}>Resa</th><th className="mm-num">Online</th></tr></thead>
                 <tbody>
                   {l.classifica.map((r, i) => {
                     const resa = r.inLista ? Math.round((r.entrati / r.inLista) * 100) : 0;
                     return (
                       <tr key={r.prId ?? 'mm'}>
-                        <td className="mm-classifica__pos">{i + 1}</td>
-                        <td className="mm-classifica__nome">{r.nome}</td>
-                        <td className="mm-num">{r.inLista}</td>
-                        <td className="mm-num">{r.entrati}</td>
-                        <td><div className="flex items-center gap-[10px]"><div className="mm-barra flex-grow" aria-label={`${resa}%`}><span style={{ width: `${resa}%` }} /></div><span className="w-9 text-right font-mono text-[12px] text-osso-2">{resa}%</span></div></td>
-                        <td className="mm-num">{euro(r.incassato ?? 0)}</td>
+                        <td className="mm-pieno mm-classifica__pos">{i + 1}</td>
+                        <td className="mm-pieno mm-classifica__nome">{r.nome}</td>
+                        <td data-et="In lista" className="mm-num">{r.inLista}</td>
+                        <td data-et="Entrati" className="mm-num">{r.entrati}</td>
+                        <td data-et="Resa" className="mm-pieno"><div className="flex items-center gap-[10px]"><div className="mm-barra flex-grow" aria-label={`${resa}%`}><span style={{ width: `${resa}%` }} /></div><span className="w-9 text-right font-mono text-[12px] text-osso-2">{resa}%</span></div></td>
+                        <td data-et="Online" className="mm-num">{euro(r.incassato ?? 0)}</td>
                       </tr>
                     );
                   })}
@@ -149,18 +149,18 @@ export default async function SerataLive({ params }: Props) {
               {canali.senzaPr.numeri.inLista} in lista e {canali.senzaPr.numeri.entrati} entrati senza passare da un PR.
             </span>
             <div className="mm-scroll">
-              <table className="mm-classifica">
+              <table className="mm-classifica mm-schede">
                 <thead><tr><th>Canale</th><th className="mm-num">In lista</th><th className="mm-num">Quota</th><th className="mm-num">Entrati</th><th style={{ width: '30%' }}>Resa</th></tr></thead>
                 <tbody>
                   {canali.senzaPr.canali.map((r) => {
                     const resa = r.inLista ? Math.round((r.entrati / r.inLista) * 100) : 0;
                     return (
                       <tr key={r.canale}>
-                        <td className="mm-classifica__nome">{r.etichetta}</td>
-                        <td className="mm-num">{r.inLista}</td>
-                        <td className="mm-num">{r.quota}%</td>
-                        <td className="mm-num">{r.entrati}</td>
-                        <td><div className="flex items-center gap-[10px]"><div className="mm-barra flex-grow" aria-label={`${resa}%`}><span style={{ width: `${resa}%` }} /></div><span className="w-9 text-right font-mono text-[12px] text-osso-2">{resa}%</span></div></td>
+                        <td className="mm-pieno mm-classifica__nome">{r.etichetta}</td>
+                        <td data-et="In lista" className="mm-num">{r.inLista}</td>
+                        <td data-et="Quota" className="mm-num">{r.quota}%</td>
+                        <td data-et="Entrati" className="mm-num">{r.entrati}</td>
+                        <td data-et="Resa" className="mm-pieno"><div className="flex items-center gap-[10px]"><div className="mm-barra flex-grow" aria-label={`${resa}%`}><span style={{ width: `${resa}%` }} /></div><span className="w-9 text-right font-mono text-[12px] text-osso-2">{resa}%</span></div></td>
                       </tr>
                     );
                   })}
@@ -175,16 +175,16 @@ export default async function SerataLive({ params }: Props) {
               <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Rifiutati alla porta</h2>
               <span className="text-[14px] text-osso-2">La categoria non rispettata: l&apos;iscrizione resta valida, decidi tu se rimborsare (da <Link href={`/admin/iscrizioni?evento=${e.id}`} className="link-sottolineato">Iscrizioni</Link>).</span>
               <div className="mm-scroll">
-                <table className="mm-classifica">
+                <table className="mm-classifica mm-schede">
                   <thead><tr><th>Persona</th><th>Categoria</th><th>Alle</th><th>Porta</th><th>Da</th></tr></thead>
                   <tbody>
                     {l.rifiuti.map((r) => (
                       <tr key={r.id}>
-                        <td className="mm-classifica__nome">{r.nome}{r.entrato && <span className="text-osso-2"> · poi entrato</span>}</td>
-                        <td>{r.categoria ?? '—'}</td>
-                        <td className="mm-num">{ora(r.ora)}</td>
-                        <td>{r.porta}</td>
-                        <td className="text-[13px]">{r.da}</td>
+                        <td className="mm-pieno mm-classifica__nome">{r.nome}{r.entrato && <span className="text-osso-2"> · poi entrato</span>}</td>
+                        <td data-et="Categoria">{r.categoria ?? '—'}</td>
+                        <td data-et="Alle" className="mm-num">{ora(r.ora)}</td>
+                        <td data-et="Porta">{r.porta}</td>
+                        <td data-et="Da" className="text-[13px]">{r.da}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -197,17 +197,17 @@ export default async function SerataLive({ params }: Props) {
             <section className="flex flex-col gap-[10px]">
               <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Per tipo di prevendita</h2>
               <div className="mm-scroll">
-                <table className="mm-classifica">
+                <table className="mm-classifica mm-schede">
                   <thead><tr><th>Tipo</th><th>Categoria</th><th className="mm-num">Venduti</th><th className="mm-num">Posti</th><th className="mm-num">Entrati</th><th className="mm-num">Incassato</th></tr></thead>
                   <tbody>
                     {l.perTipo.map((t) => (
                       <tr key={t.id}>
-                        <td className="mm-classifica__nome">{t.nome}</td>
-                        <td>{t.categoria ?? '—'}</td>
-                        <td className="mm-num">{t.venduti}</td>
-                        <td className="mm-num">{t.posti ?? '∞'}</td>
-                        <td className="mm-num">{t.entrati}</td>
-                        <td className="mm-num">{euro(t.incassato)}</td>
+                        <td className="mm-pieno mm-classifica__nome">{t.nome}</td>
+                        <td data-et="Categoria">{t.categoria ?? '—'}</td>
+                        <td data-et="Venduti" className="mm-num">{t.venduti}</td>
+                        <td data-et="Posti" className="mm-num">{t.posti ?? '∞'}</td>
+                        <td data-et="Entrati" className="mm-num">{t.entrati}</td>
+                        <td data-et="Incassato" className="mm-num">{euro(t.incassato)}</td>
                       </tr>
                     ))}
                   </tbody>
