@@ -1,5 +1,6 @@
 // Logica della porta condivisa da server e telefono dello staff (che la usa anche senza campo).
 import type { MetodoPagamento, RifiutoIngresso, StatoIscrizione } from './dati/tipi';
+import { chiaveCognome } from './regole';
 
 export interface VocePorta {
   id: string;
@@ -40,9 +41,17 @@ export function entratiVoce(v: VocePorta) {
 /** Dati di chi entra pagando in cassa, senza lista e senza QR. */
 export interface DatiCassa { nome: string; cognome: string; dataNascita: string; importo: number }
 
+/** Stessa persona per cognome (senza accenti e apostrofi) e data di nascita: serve ai doppioni tra lista e cassa. */
+export const stessaPersona = (a: Pick<VocePorta, 'cognome' | 'dataNascita'>, b: Pick<VocePorta, 'cognome' | 'dataNascita'>) =>
+  a.dataNascita === b.dataNascita && chiaveCognome(a.cognome) === chiaveCognome(b.cognome);
+
+/** Serata di un biglietto che non è quella aperta sul telefono. */
+export interface SerataBiglietto { id: string; nome: string; data: string }
+
 export type EsitoPorta =
   | { esito: 'entrato'; voce: VocePorta; incassato: number; ora: string; primaPagato: boolean }
-  | { esito: 'non_pagato'; voce: VocePorta }    // prevendita chiesta ma non (ancora) pagata online: non entra
+  | { esito: 'non_pagato'; voce: VocePorta }    // prevendita non completata (in_attesa): non ha un QR e non vale per entrare
+  | { esito: 'altra_serata'; serata: SerataBiglietto; chiave: string } // QR valido ma di un'altra serata: solo sul telefono, non lo manda il server
   | { esito: 'da_confermare'; voce: VocePorta }  // prevendita con categoria: entra solo dopo "Fai entrare" dello staff
   | { esito: 'rifiutato'; voce: VocePorta }       // lo staff ha toccato "Non rientra": niente ingresso, rifiuto salvato
   | { esito: 'gia_entrato'; voce: VocePorta }
@@ -62,7 +71,7 @@ export interface OpzioniIngresso {
 
 /**
  * Decide l'esito e, se la persona entra, restituisce la voce aggiornata. Entra chi ha la prevendita pagata (o gratis);
- * chi l'ha chiesta senza pagare no: può pagarla dal telefono e riprovare, o passare dalla cassa se c'è.
+ * chi non l'ha completata (in_attesa) non ha una prevendita: può pagarla dal telefono e riprovare, o passare dalla cassa se c'è.
  * Idempotente: il secondo passaggio dà sempre "già entrato" con l'orario del primo.
  * Fa eccezione il QR di un tavolo, che vale per più persone: ogni passaggio ne fa entrare una, fino al completo.
  */
@@ -77,7 +86,7 @@ export function decidiIngresso(voce: VocePorta, o: OpzioniIngresso): { esito: Es
     return { esito: { esito: 'entrato', voce: aggiornata, incassato: 0, ora: o.ora, primaPagato: true }, aggiornata };
   }
   if (voce.stato === 'entrato') return { esito: { esito: 'gia_entrato', voce }, aggiornata: null };
-  if (voce.stato === 'scaduta') return { esito: { esito: 'non_valido', motivo: 'Prevendita mai pagata' }, aggiornata: null };
+  if (voce.stato === 'scaduta') return { esito: { esito: 'non_valido', motivo: 'Prevendita non completata: non vale per entrare' }, aggiornata: null };
   if (voce.stato === 'in_attesa') return { esito: { esito: 'non_pagato', voce }, aggiornata: null };
   if ((categoriaDaControllare(voce) || o.documento) && !o.confermato) return { esito: { esito: 'da_confermare', voce }, aggiornata: null };
   const aggiornata: VocePorta = { ...voce, stato: 'entrato', oraCheckIn: o.ora, porta: o.porta };

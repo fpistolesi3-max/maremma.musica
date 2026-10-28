@@ -184,6 +184,9 @@ export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; 
   const q = filtro.q ? norm(filtro.q) : '';
   return d.iscrizioni
     .filter((i) => !filtro.eventoId || i.eventoId === filtro.eventoId)
+    // La prevendita mai completata di chi è poi entrato dalla cassa è chiusa e collegata a quell'ingresso: la persona compare una volta sola.
+    // Se il pagamento è arrivato lo stesso, resta visibile tra i rimborsi.
+    .filter((i) => !(i.chiusaDaCassa && i.stato === 'scaduta' && !i.pagamentoOnline?.daRimborsare))
     .filter((i) => !filtro.stato || (filtro.stato === 'cassa' ? i.origine === 'cassa'
       : filtro.stato === 'da_rimborsare' ? Boolean(i.pagamentoOnline?.daRimborsare) : i.stato === filtro.stato))
     .filter((i) => !q || norm(`${i.nome} ${i.cognome} ${i.email} ${i.codice}`).includes(q))

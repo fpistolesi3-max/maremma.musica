@@ -764,6 +764,99 @@ test('cruscotto admin: solo l’admin, con la prossima serata e i rimborsi da fa
   assert.ok(tavoli && tavoli.n >= 1);
 });
 
+test('cassa dopo una prevendita non completata: la richiesta si chiude, la pagina di pagamento pure, una persona sola, il pagamento tardivo si rimborsa', async () => {
+  const { decidiIngresso } = await import('../porta-logica');
+  const staff = await sessione('porta@maremmamusica.test');
+  const admin = await sessione('admin@maremmamusica.test');
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+  const dati = { nome: 'Mario', cognome: 'Rossi Cassa', dataNascita: '1991-09-09' };
+
+  const r = await m.pubblico.creaIscrizione({ slug: 'halloween-party', handlePr: null, marketing: false, ...dati, email: 'mario.cassa@esempio.it' });
+  assert.ok(r.ok);
+  const id = r.ok ? r.iscrizione.id : '';
+  await m.prevendita.salvaSessioneIscrizione(id, 'cs_test_aperta');
+
+  // Alla porta non è una prevendita: compare una volta, "non pagato", e non entra.
+  const prima = (await m.porta.elencoPorta(staff, ev.id)).filter((v) => v.cognome === dati.cognome);
+  assert.equal(prima.length, 1);
+  assert.equal(prima[0].stato, 'in_attesa');
+  assert.equal(decidiIngresso(prima[0], { ...o }).esito.esito, 'non_pagato');
+  const checkInAttesa = await m.porta.checkIn(staff, ev.id, prima[0].token, o);
+  assert.equal(checkInAttesa.esito, 'non_pagato', 'anche dal server: niente ingresso senza pagamento');
+
+  // Entra dalla cassa (anche con il cognome scritto diverso): la richiesta si chiude e si collega all'ingresso.
+  const chiamate: string[] = [];
+  const fetchVero = globalThis.fetch;
+  const chiaveVera = process.env.STRIPE_SECRET_KEY;
+  process.env.STRIPE_SECRET_KEY = 'sk_test_finta';
+  globalThis.fetch = (async (url: string | URL | Request) => { chiamate.push(String(url)); return { ok: true, json: async () => ({}) } as Response; }) as typeof fetch;
+  let cassa;
+  try {
+    cassa = await m.porta.registraCassa(staff, ev.id, 'tel-attesa-1', { ...dati, cognome: 'ROSSI cassa', importo: 10 }, o);
+  } finally {
+    globalThis.fetch = fetchVero;
+    if (chiaveVera === undefined) delete process.env.STRIPE_SECRET_KEY; else process.env.STRIPE_SECRET_KEY = chiaveVera;
+  }
+  assert.equal(cassa.esito, 'entrato');
+  assert.deepEqual(chiamate, ['https://api.stripe.com/v1/checkout/sessions/cs_test_aperta/expire'], 'la pagina di pagamento aperta si chiude');
+  const chiusa = (await m.archivio.leggi()).iscrizioni.find((x) => x.id === id)!;
+  assert.equal(chiusa.stato, 'scaduta');
+  assert.equal(chiusa.chiusaDaCassa, cassa.esito === 'entrato' ? cassa.voce.id : null, 'collegata all’ingresso in cassa');
+
+  // Una persona sola, alla porta e in Iscrizioni.
+  const dopo = (await m.porta.elencoPorta(staff, ev.id)).filter((v) => v.cognome.toLowerCase() === dati.cognome.toLowerCase());
+  assert.deepEqual(dopo.map((v) => v.origine), ['cassa']);
+  assert.equal((await m.admin.iscrizioniAdmin(admin, { eventoId: ev.id, q: 'rossi cassa' })).length, 1);
+
+  // Registrata una seconda volta con un altro id: è già entrata, non si duplica.
+  const ancora = await m.porta.registraCassa(staff, ev.id, 'tel-attesa-2', { ...dati, importo: 10 }, o);
+  assert.equal(ancora.esito, 'gia_entrato');
+
+  // Il pagamento arriva lo stesso (pagina aperta prima della chiusura): la persona ha già un ingresso valido, i soldi vanno restituiti.
+  assert.equal((await m.prevendita.confermaPagamentoIscrizione(id, 'pi_tardivo_cassa')).esito, 'da_rimborsare');
+  const tardiva = (await m.archivio.leggi()).iscrizioni.find((x) => x.id === id)!;
+  assert.equal(tardiva.stato, 'scaduta', 'non diventa una seconda prevendita valida');
+  assert.equal(tardiva.pagamentoOnline?.daRimborsare, true);
+  const daRimborsare = await m.admin.iscrizioniAdmin(admin, { eventoId: ev.id, stato: 'da_rimborsare' });
+  assert.ok(daRimborsare.some((x) => x.iscrizione.id === id), 'il pagamento da restituire resta visibile all’admin');
+  assert.equal((await m.porta.elencoPorta(staff, ev.id)).filter((v) => v.cognome.toLowerCase() === dati.cognome.toLowerCase()).length, 1, 'alla porta resta una persona sola');
+});
+
+test('QR di un’altra serata: la porta dice di quale e solo se la firma è vera; le bozze non si aprono alla porta', async () => {
+  const staff = await sessione('porta@maremmamusica.test');
+  const pr = await sessione('test-pr@maremmamusica.test');
+  const d = await m.archivio.leggi();
+  const halloween = d.eventi.find((e) => e.slug === 'halloween-party')!;
+  const altra = d.eventi.find((e) => e.slug === 'senza-telefono')!;
+  const bigliettoAltra = d.iscrizioni.find((i) => i.eventoId === altra.id && i.tokenQr)!;
+  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+
+  // Scansionato sulla serata sbagliata: l'ingresso non passa...
+  assert.equal((await m.porta.checkIn(staff, halloween.id, bigliettoAltra.tokenQr, o)).esito, 'non_valido');
+  // ...ma la porta riconosce la serata del biglietto.
+  assert.deepEqual(await m.porta.serataDelBiglietto(staff, bigliettoAltra.tokenQr), { id: altra.id, nome: altra.nome, data: altra.data });
+  // Un biglietto di questa serata dice questa serata (il telefono confronta e non propone niente).
+  const bigliettoHalloween = d.iscrizioni.find((i) => i.eventoId === halloween.id && i.tokenQr)!;
+  assert.equal((await m.porta.serataDelBiglietto(staff, bigliettoHalloween.tokenQr))?.id, halloween.id);
+  // QR modificato, codice a mano, testo qualunque: niente da dire.
+  const falso = bigliettoAltra.tokenQr.slice(0, -2) + (bigliettoAltra.tokenQr.endsWith('AA') ? 'BB' : 'AA');
+  assert.equal(await m.porta.serataDelBiglietto(staff, falso), null);
+  assert.equal(await m.porta.serataDelBiglietto(staff, bigliettoAltra.codice), null);
+  assert.equal(await m.porta.serataDelBiglietto(staff, 'MM1.xx.yy.zz'), null);
+  await assert.rejects(m.porta.serataDelBiglietto(pr, bigliettoAltra.tokenQr), /non_autorizzato/);
+
+  // Serata in bozza: non è nell'elenco della porta e non la si propone.
+  await m.archivio.modifica((x) => { x.eventi.find((e) => e.id === altra.id)!.pubblicato = false; });
+  try {
+    assert.ok(!(await m.porta.eventiPorta(staff)).some((e) => e.id === altra.id), 'le bozze non si scelgono alla porta');
+    assert.equal(await m.porta.serataDelBiglietto(staff, bigliettoAltra.tokenQr), null);
+  } finally {
+    await m.archivio.modifica((x) => { x.eventi.find((e) => e.id === altra.id)!.pubblicato = true; });
+  }
+  assert.ok((await m.porta.eventiPorta(staff)).some((e) => e.id === altra.id));
+});
+
 test('serata: il prezzo viene dai tipi, il primo salvataggio è una bozza con il suo primo tipo, la cassa ha sempre un prezzo', async () => {
   const admin = await sessione('admin@maremmamusica.test');
   const staff = await sessione('porta@maremmamusica.test');

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sessioneCorrente } from '@/lib/sessione';
-import { cassaAttivaPorta, checkIn, elencoPorta, registraCassa, rifiutaIngresso, segnaPorta } from '@/lib/dati/porta';
+import { cassaAttivaPorta, checkIn, elencoPorta, registraCassa, rifiutaIngresso, segnaPorta, serataDelBiglietto } from '@/lib/dati/porta';
 import type { MetodoPagamento } from '@/lib/dati/tipi';
 import type { DatiCassa, EsitoPorta } from '@/lib/porta-logica';
 
@@ -11,11 +11,14 @@ async function staff() {
   return s && (s.utente.ruolo === 'staff' || s.utente.ruolo === 'admin') ? s : null;
 }
 
-/** GET /api/door?evento=… → elenco per la cache del telefono. */
+/** GET /api/door?evento=… → elenco per la cache del telefono. GET /api/door?biglietto=… → di quale serata è un QR che non è in elenco. */
 export async function GET(req: Request) {
   const s = await staff();
   if (!s) return NextResponse.json({ errore: 'accesso' }, { status: 401 });
-  const eventoId = new URL(req.url).searchParams.get('evento');
+  const params = new URL(req.url).searchParams;
+  const biglietto = params.get('biglietto');
+  if (biglietto) return NextResponse.json({ serata: await serataDelBiglietto(s, biglietto) }, { headers: { 'Cache-Control': 'no-store' } });
+  const eventoId = params.get('evento');
   if (!eventoId) return NextResponse.json({ errore: 'evento' }, { status: 400 });
   return NextResponse.json({ elenco: await elencoPorta(s, eventoId), cassa: await cassaAttivaPorta(s, eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
 }

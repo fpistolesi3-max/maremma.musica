@@ -3,10 +3,11 @@ import { leggi, modifica, segreto } from './archivio';
 import type { Archivio, Iscrizione, PrenotazioneTavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { leggiTokenQr, verificaTokenQr } from '../qr-token';
-import { decidiIngresso, trovaVoce, type DatiCassa, type EsitoPorta, type OpzioniIngresso, type VocePorta } from '../porta-logica';
+import { decidiIngresso, trovaVoce, type DatiCassa, type EsitoPorta, type OpzioniIngresso, type SerataBiglietto, type VocePorta } from '../porta-logica';
+import { chiudiCheckout } from '../pagamenti';
 import { randomUUID } from 'node:crypto';
 import { creaCodice, creaTokenQr } from '../qr-token';
-import { etaSufficiente, giaIscritto, iscrizioneScaduta } from '../regole';
+import { chiaveCognome, etaSufficiente, giaIscritto, iscrizioneScaduta } from '../regole';
 import { eventoPassato, prenotazioneAttiva, prenotazioneScaduta } from '../regole';
 
 // Porta: staff e admin. Lo staff vede le iscrizioni ma dei PR solo il nome della lista
@@ -52,7 +53,7 @@ export async function eventiPorta(s: Sessione) {
   const d = await leggi();
   const ieri = new Date(Date.now() - 12 * 3_600_000);
   return d.eventi
-    .filter((e) => !eventoPassato(e, ieri))
+    .filter((e) => e.pubblicato && !eventoPassato(e, ieri))
     .sort((a, b) => a.data.localeCompare(b.data))
     .map((e) => ({
       id: e.id, nome: e.nome, data: e.data, numero: e.numero, etaMinima: e.etaMinima,
@@ -65,6 +66,22 @@ export async function elencoPorta(s: Sessione, eventoId: string): Promise<VocePo
   soloStaff(s);
   const d = await leggi();
   return vociEvento(d, eventoId);
+}
+
+/**
+ * Un QR firmato che non è di questa serata: di quale serata è? Serve a dire "Biglietto di … Cambia serata" invece di "Codice non trovato".
+ * Il token porta solo l'id: la serata si ricava dall'iscrizione (o dal tavolo) e la firma si verifica con quella serata, quindi un QR
+ * falso o modificato non dice niente. Solo serate che la porta può aprire (non in bozza, non passate).
+ */
+export async function serataDelBiglietto(s: Sessione, chiave: string): Promise<SerataBiglietto | null> {
+  soloStaff(s);
+  const letto = chiave.startsWith('MM1.') ? leggiTokenQr(chiave) : null;
+  if (!letto) return null;
+  const d = await leggi();
+  const eventoId = d.iscrizioni.find((i) => i.id === letto.id)?.eventoId ?? d.prenotazioni.find((p) => p.id === letto.id)?.eventoId;
+  if (!eventoId || !verificaTokenQr(await segreto(), chiave, eventoId)) return null;
+  const e = (await eventiPorta(s)).find((x) => x.id === eventoId);
+  return e ? { id: e.id, nome: e.nome, data: e.data } : null;
 }
 
 /** Lista di riserva per le serate senza telefono, in ordine alfabetico: chi ha una prevendita valida, con nome e data di nascita da confrontare col documento. */
@@ -149,7 +166,8 @@ export async function registraCassa(s: Sessione, eventoId: string, rif: string, 
   soloStaff(s);
   const chiave = await segreto();
   const ora = new Date(Math.min(new Date(o.ora).getTime() || Date.now(), Date.now())).toISOString();
-  return modifica((d): EsitoPorta => {
+  const sessioniDaChiudere: string[] = [];
+  const esito = await modifica((d): EsitoPorta => {
     const gia = d.iscrizioni.find((i) => i.rifCassa === rif && i.eventoId === eventoId);
     if (gia) return { esito: 'entrato', voce: voce(d, gia), incassato: gia.importo, ora: gia.oraCheckIn ?? ora, primaPagato: false };
     const evento = d.eventi.find((e) => e.id === eventoId);
@@ -172,10 +190,25 @@ export async function registraCassa(s: Sessione, eventoId: string, rif: string, 
       consensoPrivacyAt: ora, consensoMarketing: false, annullatoAt: null, createdAt: ora,
       canale: 'cassa', consegnaId: null, origine: 'cassa' as const, rifCassa: rif,
     };
+    // Chi aveva chiesto la prevendita senza completarla (stessi dati, stessa serata) non è più "in sospeso": la sua richiesta si chiude
+    // e si collega a questo ingresso, così compare una volta sola e non può pagare dopo (la pagina di Stripe si chiude qui sotto;
+    // se un pagamento arriva lo stesso, trova un ingresso valido e finisce tra i rimborsi: vedi confermaPagamentoIscrizione).
+    for (const x of d.iscrizioni) {
+      if (!nonCompletata(x) || x.eventoId !== eventoId || x.anonimizzata || x.dataNascita !== dati.dataNascita || chiaveCognome(x.cognome) !== chiaveCognome(cognome)) continue;
+      x.stato = 'scaduta';
+      x.chiusaDaCassa = id;
+      if (x.pagamentoOnline?.sessione) sessioniDaChiudere.push(x.pagamentoOnline.sessione);
+    }
     d.iscrizioni.push(i);
     return { esito: 'entrato', voce: voce(d, i), incassato: importo, ora, primaPagato: false };
   });
+  // Fuori dal salvataggio: è una chiamata di rete. Se fallisce l'ingresso è comunque registrato.
+  await Promise.all(sessioniDaChiudere.map((id) => chiudiCheckout(id).catch(() => undefined)));
+  return esito;
 }
+
+/** Prevendita chiesta ma mai completata: in attesa, o scaduta ma ancora senza un pagamento registrato. */
+const nonCompletata = (i: Iscrizione) => i.stato === 'in_attesa' || (i.stato === 'scaduta' && !i.pagamentoOnline?.pagamento && !i.chiusaDaCassa);
 
 /** Ogni sincronizzazione aggiorna lo stato della porta, visibile all'admin. */
 export async function segnaPorta(nome: string, eventoId: string) {
