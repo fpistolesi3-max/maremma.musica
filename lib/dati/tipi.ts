@@ -61,6 +61,7 @@ export interface Lotto {
   fineOrePrima: number | null;    // si chiude N ore prima della serata (vale al posto di dataFine)
   dopoPrecedente: boolean;        // esce solo quando i posti del tipo precedente sono finiti
   prAbilitati: string[] | null;   // dai link di quali PR si vende; null = tutti (se visibileDaPr)
+  automatico?: boolean;           // creato in automatico con la serata e mai ritoccato (assente nelle serate vecchie = false)
 }
 
 export type StatoTavolo = 'libero' | 'riservato' | 'confermato' | 'non_in_vendita';

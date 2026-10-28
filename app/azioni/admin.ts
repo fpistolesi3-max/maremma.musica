@@ -6,13 +6,13 @@ import { redirect } from 'next/navigation';
 import { sessioneCorrente, type Sessione } from '@/lib/sessione';
 import type { NomeModello } from '@/lib/tipi-modelli';
 import {
-  applicaModelloTipi, cambiaNominativo, cambiaStatoIscrizione, cambiaStatoPr, copiaTipi, copiaTavoli, creaPr, creaStaff, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
+  applicaModelloTipi, cambiaNominativo, cambiaStatoIscrizione, cambiaStatoPr, copiaTipi, copiaTavoli, creaPr, creaStaff, creaTavoliInSerie, duplicaSerata, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
 } from '@/lib/dati/admin';
 import { salvaMedia } from '@/lib/dati/media';
 import { chiudiRimborsoIscrizione, pagamentoIscrizioneDi } from '@/lib/dati/prevendita';
 import { rimborsa } from '@/lib/pagamenti';
-import { slugDa } from '@/lib/formato';
-import { componiData } from '@/lib/regole';
+import { isoRoma, slugDa } from '@/lib/formato';
+import { componiData, pubblicatoDopoSalvataggio } from '@/lib/regole';
 import type { StatoTavolo, TipoIngresso } from '@/lib/dati/tipi';
 
 async function admin(): Promise<Sessione> {
@@ -25,16 +25,6 @@ export interface EsitoAzione { ok?: string; errore?: string; campi?: Record<stri
 
 const t = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 const num = (v: string) => (v === '' ? null : Number(v.replace(',', '.').replace(/[^\d.]/g, '')));
-
-/** "2026-10-31" + "22:00" nel fuso di Roma → ISO. La chiusura dopo mezzanotte passa al giorno dopo. */
-function isoRoma(giorno: string, orario: string) {
-  const prova = new Date(`${giorno}T${orario}:00Z`);
-  const offset = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Rome', timeZoneName: 'shortOffset' })
-    .formatToParts(prova).find((p) => p.type === 'timeZoneName')?.value.replace('GMT', '') || '+1';
-  const [h, m = '0'] = offset.split(':');
-  const segno = h.startsWith('-') ? '-' : '+';
-  return new Date(`${giorno}T${orario}:00${segno}${String(Math.abs(Number(h))).padStart(2, '0')}:${m.padStart(2, '0')}`).toISOString();
-}
 
 // Su Vercel il corpo di una richiesta non supera ~4,5 MB: il modulo riduce la foto prima dell'invio (form-serata).
 const MAX_LOCANDINA = 4 * 1024 * 1024;
@@ -63,11 +53,14 @@ export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAz
   const slug = slugDa(t(f, 'slug') || nome);
   if (!slug) campi.slug = 'Indirizzo non valido';
   const tipo = t(f, 'tipoIngresso') as TipoIngresso;
-  const prezzo = num(t(f, 'prezzoLista')) ?? 0;
+  // Il prezzo di prevendita si scrive solo alla nascita (è il prezzo del primo tipo): poi si decide nei tipi.
+  const prezzo = num(t(f, 'prezzoLista'));
   const eta = num(t(f, 'etaMinima')) ?? 18;
   const prezzoCassa = num(t(f, 'prezzoCassa'));
+  const cassaAttiva = f.get('cassaAttiva') === 'on';
   if (prezzoCassa != null && (Number.isNaN(prezzoCassa) || prezzoCassa < 0)) campi.prezzoCassa = 'Prezzo non valido';
-  if (Number.isNaN(prezzo) || prezzo < 0) campi.prezzoLista = 'Prezzo non valido';
+  else if (cassaAttiva && tipo !== 'libero' && prezzoCassa == null) campi.prezzoCassa = 'Scrivi il prezzo in cassa';
+  if (!id && tipo !== 'libero' && (prezzo == null || Number.isNaN(prezzo) || prezzo < 0)) campi.prezzoLista = 'Scrivi il prezzo del primo tipo';
   if (Number.isNaN(eta) || eta < 0 || eta > 99) campi.etaMinima = 'Età non valida';
   if (Object.keys(campi).length) return { errore: 'Controlla i campi segnati.', campi };
 
@@ -95,13 +88,14 @@ export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAz
     descrizione: t(f, 'descrizione') || null, highlight: t(f, 'highlight') || null, dressCode: t(f, 'dressCode') || null,
     lineup: t(f, 'lineup').split(/\n|·/).map((x) => x.trim()).filter(Boolean),
     infoArrivo: t(f, 'infoArrivo') || null, locandinaUrl,
-    prezzoLista: tipo === 'libero' ? 0 : prezzo, etaMinima: eta,
+    prezzoLista: tipo === 'libero' ? 0 : prezzo ?? 0, etaMinima: eta,
     prezzoCassa: tipo === 'libero' ? null : prezzoCassa,
     // Ingresso in cassa alla porta per chi non ha la prevendita: si accende e spegne per serata.
-    cassaAttiva: f.get('cassaAttiva') === 'on',
+    cassaAttiva,
     senzaTelefono: f.get('senzaTelefono') === 'on',
     inCopertina: f.get('inCopertina') === 'on',
-    pubblicato: t(f, 'azione') === 'pubblica' ? true : t(f, 'azione') === 'bozza' ? false : f.get('pubblicato') === '1',
+    // Il primo salvataggio è sempre una bozza: si pubblica dopo, con l'elenco "Cosa manca".
+    pubblicato: pubblicatoDopoSalvataggio({ nuova: !id, azione: t(f, 'azione'), eraPubblicata: f.get('pubblicato') === '1' }),
     prAbilitati: tuttiPr ? null : prScelti,
   };
   let salvato;
@@ -165,7 +159,7 @@ export async function copiaTipiAzione(eventoId: string, daEventoId: string): Pro
   try {
     const r = await copiaTipi(s, daEventoId, eventoId);
     revalidatePath('/', 'layout');
-    return { ok: `${r.copiati} tipi copiati.${r.dateFisse ? ` ${r.dateFisse} hanno una data fissa: controllala.` : ''}` };
+    return { ok: `${r.copiati} tipi copiati.${r.dateFisse ? ` ${r.dateFisse} hanno una data fissa, spostata come la serata: controllala.` : ''}` };
   } catch (e) { return { errore: (e as Error).message }; }
 }
 
@@ -180,11 +174,11 @@ export async function salvaTavoloAzione(_p: EsitoAzione, f: FormData): Promise<E
   if (!nome) return { errore: 'Dai un nome al tavolo (es. "T4" o "Privé 2").' };
   if (nome.length > 40) return { errore: 'Nome troppo lungo.' };
   if (Number.isNaN(spesa) || spesa < 0) return { errore: 'Spesa minima non valida.' };
-  if (posti != null && (Number.isNaN(posti) || posti < 1 || posti > 99)) return { errore: 'Posti: un numero da 1 a 99.' };
+  if (posti == null || Number.isNaN(posti) || posti < 1 || posti > 99) return { errore: 'Scrivi i posti del tavolo: un numero da 1 a 99.' };
   try {
     await salvaTavolo(s, {
       id: t(f, 'id') || null, eventoId: t(f, 'eventoId'), nome, zona: t(f, 'zona').slice(0, 40) || null,
-      posti: posti == null ? null : Math.round(posti), spesaMinima: spesa,
+      posti: Math.round(posti), spesaMinima: spesa,
       stato: STATI_TAVOLO.includes(stato) ? stato : 'libero', nota: t(f, 'nota').slice(0, 200) || null,
       // A chi è affidato: tutti i PR, nessuno, o solo quelli spuntati.
       visibileDaPr: t(f, 'prChi') !== 'nessuno', prAbilitati: t(f, 'prChi') === 'alcuni' ? f.getAll('prAbilitati').map(String) : null,
@@ -193,6 +187,25 @@ export async function salvaTavoloAzione(_p: EsitoAzione, f: FormData): Promise<E
   } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/', 'layout');
   return { ok: 'Tavolo salvato.' };
+}
+
+/** "Aggiungi N tavoli": nome di partenza (T1), zona, posti e spesa minima uguali per tutti; i singoli si ritoccano dopo. */
+export async function creaTavoliSerieAzione(_p: EsitoAzione, f: FormData): Promise<EsitoAzione> {
+  const s = await admin();
+  const quanti = num(t(f, 'quanti'));
+  const posti = num(t(f, 'posti'));
+  const spesa = num(t(f, 'spesaMinima')) ?? 0;
+  if (quanti == null || Number.isNaN(quanti)) return { errore: 'Scrivi quanti tavoli vuoi aggiungere.' };
+  if (posti == null || Number.isNaN(posti)) return { errore: 'Scrivi i posti di ogni tavolo.' };
+  if (Number.isNaN(spesa)) return { errore: 'Spesa minima non valida.' };
+  try {
+    const nomi = await creaTavoliInSerie(s, {
+      eventoId: t(f, 'eventoId'), partenza: t(f, 'partenza'), quanti: Math.round(quanti), zona: t(f, 'zona').slice(0, 40) || null,
+      posti: Math.round(posti), spesaMinima: spesa,
+    });
+    revalidatePath('/', 'layout');
+    return { ok: `${nomi.length} ${nomi.length === 1 ? 'tavolo aggiunto' : 'tavoli aggiunti'}: ${nomi.length > 1 ? `${nomi[0]} … ${nomi[nomi.length - 1]}` : nomi[0]}. Ritocca i singoli qui sotto.` };
+  } catch (e) { return { errore: (e as Error).message }; }
 }
 
 export async function posizionaTavoloAzione(id: string, x: number | null, y: number | null): Promise<EsitoAzione> {
@@ -262,6 +275,15 @@ export async function cambiaNominativoAzione(id: string, nome: string, cognome: 
   try { await cambiaNominativo(s, id, { nome, cognome, dataNascita: iso, email }); } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/admin', 'layout');
   return { ok: 'Nominativo cambiato.' };
+}
+
+/** Duplica serata: chiede solo la nuova data, crea la copia in bozza e porta a modificarla. */
+export async function duplicaSerataAzione(_p: EsitoAzione, f: FormData): Promise<EsitoAzione> {
+  const s = await admin();
+  let nuovoId: string;
+  try { nuovoId = (await duplicaSerata(s, t(f, 'id'), t(f, 'giorno'))).id; } catch (e) { return { errore: (e as Error).message, campi: { giorno: (e as Error).message } }; }
+  revalidatePath('/', 'layout');
+  redirect(`/admin/eventi/${nuovoId}/modifica?copia=1`);
 }
 
 export async function creaPrAzione(_p: EsitoAzione, f: FormData): Promise<EsitoAzione> {

@@ -1,10 +1,12 @@
 'use client';
 
-import { useActionState, useState, useTransition } from 'react';
-import { eliminaTavoloAzione, salvaTavoloAzione, type EsitoAzione } from '@/app/azioni/admin';
+import { useState, useTransition } from 'react';
+import { creaTavoliSerieAzione, eliminaTavoloAzione, salvaTavoloAzione, type EsitoAzione } from '@/app/azioni/admin';
 import type { StatoPrenotazione, StatoTavolo } from '@/lib/dati/tipi';
 import { AzioniPrenotazione } from '@/components/tavoli-azioni';
 import { MandaLinkPagamento } from '@/components/area-pr-client';
+import { nomiInSerie } from '@/lib/regole';
+import { StatoSalvataggio, useModuloSalvabile } from './salva-tutto';
 
 export interface PrenotazioneRiga {
   id: string; nome: string; email: string; telefono: string; persone: number; spesaMinima: number;
@@ -43,14 +45,20 @@ export function Tavoli({ eventoId, tavoli, pr }: { eventoId: string; tavoli: Rig
           {t.prenotazione && <Prenotazione p={t.prenotazione} />}
           <FormTavolo eventoId={eventoId} t={t} pr={pr} />
           <div className="flex justify-end">
-            <button type="button" className="mm-btn mm-btn--muto" disabled={inCorso || Boolean(t.prenotazione)} style={{ minHeight: 36 }}
+            <button type="button" className="mm-btn mm-btn--muto" disabled={inCorso || Boolean(t.prenotazione)} style={{ minHeight: 44 }}
               title={t.prenotazione ? 'Ha una prenotazione: annullala prima di eliminarlo' : undefined}
               onClick={() => { if (confirm(`Eliminare il tavolo "${t.nome}"?`)) avvia(async () => setMsg(await eliminaTavoloAzione(t.id))); }}>Elimina</button>
           </div>
         </div>
       ))}
       <details className="border border-dashed border-linea-forte p-4" open={tavoli.length === 0 || undefined}>
-        <summary className="cursor-pointer font-display text-[22px] font-extrabold uppercase">+ Aggiungi tavolo</summary>
+        <summary className="cursor-pointer font-display text-[22px] font-extrabold uppercase">+ Aggiungi più tavoli in serie</summary>
+        <div className="pt-4">
+          <SerieTavoli eventoId={eventoId} />
+        </div>
+      </details>
+      <details className="border border-dashed border-linea-forte p-4">
+        <summary className="cursor-pointer font-display text-[22px] font-extrabold uppercase">+ Aggiungi un tavolo solo</summary>
         <div className="pt-4">
           {/* La chiave cambia dopo ogni aggiunta: il modulo torna vuoto per il tavolo successivo. */}
           <FormTavolo key={tavoli.length} eventoId={eventoId} pr={pr}
@@ -81,18 +89,50 @@ function Prenotazione({ p }: { p: PrenotazioneRiga }) {
   );
 }
 
+/** "Aggiungi N tavoli": nome di partenza, zona, posti e spesa minima per tutti; poi si ritoccano i singoli. */
+function SerieTavoli({ eventoId }: { eventoId: string }) {
+  const { esito, modificato, inCorso, proprieta } = useModuloSalvabile(creaTavoliSerieAzione, 'serie di tavoli');
+  const [quanti, setQuanti] = useState('10');
+  const [partenza, setPartenza] = useState('T1');
+  const n = Math.round(Number(quanti));
+  const nomi = Number.isFinite(n) && n >= 1 && n <= 60 && partenza.trim() ? nomiInSerie(partenza, n) : [];
+  return (
+    <form {...proprieta} className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
+      <input type="hidden" name="eventoId" value={eventoId} />
+      <div className="mm-campo">
+        <label className="mm-campo__etichetta" htmlFor="serie-quanti">Quanti tavoli</label>
+        <input className="mm-campo__input" style={{ height: 44, fontSize: 15 }} id="serie-quanti" name="quanti" inputMode="numeric" value={quanti} onChange={(e) => setQuanti(e.target.value)} />
+      </div>
+      <div className="mm-campo">
+        <label className="mm-campo__etichetta" htmlFor="serie-partenza">Nome di partenza</label>
+        <input className="mm-campo__input" style={{ height: 44, fontSize: 15 }} id="serie-partenza" name="partenza" value={partenza} onChange={(e) => setPartenza(e.target.value)} />
+      </div>
+      <Mini id="serie-zona" nome="zona" etichetta="Zona" v="" lista="tavoli-zone" />
+      <Mini id="serie-posti" nome="posti" etichetta="Posti per tavolo" v="" numerico />
+      <Mini id="serie-spesa" nome="spesaMinima" etichetta="Spesa min. €" v="0" numerico />
+      <span className="font-mono text-[12px] text-osso-2 sm:col-span-2 md:col-span-5">
+        {nomi.length ? `Nomi: ${nomi.length > 4 ? `${nomi[0]}, ${nomi[1]} … ${nomi[nomi.length - 1]}` : nomi.join(', ')}` : 'Scrivi quanti tavoli (da 1 a 60) e un nome di partenza, per esempio T1.'}
+      </span>
+      <div className="flex flex-wrap items-center justify-end gap-3 sm:col-span-2 md:col-span-5">
+        <StatoSalvataggio esito={esito} modificato={modificato} nuovo />
+        <button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} disabled={inCorso || nomi.length === 0}>{nomi.length ? `Aggiungi ${nomi.length} ${nomi.length === 1 ? 'tavolo' : 'tavoli'}` : 'Aggiungi i tavoli'}</button>
+      </div>
+    </form>
+  );
+}
+
 function FormTavolo({ eventoId, t, pr }: { eventoId: string; t: RigaTavolo; pr: { id: string; nome: string }[] }) {
-  const [stato, invia, inCorso] = useActionState(salvaTavoloAzione, {} as EsitoAzione);
+  const { esito, modificato, inCorso, proprieta } = useModuloSalvabile(salvaTavoloAzione, 'tavolo');
   const [chi, setChi] = useState<'tutti' | 'alcuni' | 'nessuno'>(!t.visibileDaPr ? 'nessuno' : t.prAbilitati ? 'alcuni' : 'tutti');
   const p = t.id || 'nuovo';
   return (
-    <form action={invia} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_120px_minmax(0,1fr)]">
+    <form {...proprieta} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_120px_minmax(0,1fr)]">
       <input type="hidden" name="eventoId" value={eventoId} />
       <input type="hidden" name="id" value={t.id} />
       <input type="hidden" name="ordine" value={t.ordine} />
       <Mini id={`t-${p}-nome`} nome="nome" etichetta="Nome" v={t.nome} />
       <Mini id={`t-${p}-zona`} nome="zona" etichetta="Zona" v={t.zona} lista="tavoli-zone" />
-      <Mini id={`t-${p}-posti`} nome="posti" etichetta="Posti" v={t.posti == null ? '' : String(t.posti)} numerico />
+      <Mini id={`t-${p}-posti`} nome="posti" etichetta="Posti (obbligatorio)" v={t.posti == null ? '' : String(t.posti)} numerico />
       <Mini id={`t-${p}-spesa`} nome="spesaMinima" etichetta="Spesa min. €" v={String(t.spesaMinima)} numerico />
       <div className="mm-campo">
         <label className="mm-campo__etichetta" htmlFor={`t-${p}-stato`}>Stato</label>
@@ -120,10 +160,11 @@ function FormTavolo({ eventoId, t, pr }: { eventoId: string; t: RigaTavolo; pr: 
           {pr.length === 0 && <span className="text-[14px] text-osso-2">Non ci sono PR.</span>}
         </div>
       )}
-      <div className="flex items-center justify-end gap-3 md:col-span-5">
-        {stato.ok && <span className="text-[13px] text-ok">{stato.ok}</span>}
-        {stato.errore && <span role="alert" className="text-[13px] text-stop-testo">{stato.errore}</span>}
-        <button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 40 }} disabled={inCorso}>{t.id ? 'Salva tavolo' : 'Aggiungi'}</button>
+      <div className="flex flex-wrap items-center justify-end gap-3 md:col-span-5">
+        <StatoSalvataggio esito={esito} modificato={modificato} nuovo={!t.id} />
+        {/* Un tavolo esistente si salva con il «Salva» in basso (insieme a tutto il resto); uno nuovo si aggiunge qui. */}
+        {!t.id && <button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} disabled={inCorso}>Aggiungi il tavolo</button>}
+        {t.id && modificato && <button type="submit" className="mm-btn mm-btn--muto" style={{ minHeight: 44 }} disabled={inCorso}>Salva solo questo tavolo</button>}
       </div>
     </form>
   );
