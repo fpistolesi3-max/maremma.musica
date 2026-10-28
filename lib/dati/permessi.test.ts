@@ -834,6 +834,33 @@ test('duplica serata: copia dati, tipi con le uscite spostate, tavoli e piantina
   assert.notEqual(seconda.slug, copia.slug, 'stesso giorno due volte: indirizzo diverso');
 });
 
+test('duplica serata: a cavallo del cambio d’ora le chiusure restano alla stessa ora locale', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const d0 = await m.archivio.leggi();
+  const { id: _i, createdAt: _c, updatedAt: _u, piantinaUrl: _p, numero: _n, ...modello } = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const ora = (iso: string) => new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+  const prova = async (slug: string, data: string, dataFine: string, chiusuraTipo: string, nuovoGiorno: string) => {
+    const orig = await m.admin.salvaEvento(admin, null, { ...modello, slug, nome: slug, data, dataFine, pubblicato: true, inCopertina: false });
+    const tipo = (await m.admin.eventoAdmin(admin, orig.id))!.lotti[0];
+    await m.admin.salvaLotto(admin, { ...tipo, dataInizio: null, dataFine: chiusuraTipo, uscitaGiorniPrima: null, fineOrePrima: null });
+    const copia = (await m.admin.duplicaSerata(admin, orig.id, nuovoGiorno));
+    const c = (await m.admin.eventoAdmin(admin, copia.id))!;
+    return { c, ore: [ora(c.evento.data), ora(c.evento.dataFine!), ora(c.lotti[0].dataFine!)] };
+  };
+
+  // Ottobre -> novembre: l'ora legale finisce il 25.10.2026 (la serata a cavallo, chiusura alle 04:00 in ora solare)
+  const autunno = await prova('serata-ottobre-ora-legale', '2026-10-24T23:00:00+02:00', '2026-10-25T04:00:00+01:00', '2026-10-24T22:00:00+02:00', '2026-11-07');
+  assert.deepEqual(autunno.ore, ['23:00', '04:00', '22:00'], 'apertura, chiusura e fine del tipo restano alle stesse ore');
+  assert.equal(autunno.c.evento.dataFine, new Date('2026-11-08T04:00:00+01:00').toISOString());
+  assert.equal(autunno.c.lotti[0].dataFine, new Date('2026-11-07T22:00:00+01:00').toISOString());
+
+  // Marzo -> aprile: l'ora legale comincia il 28.03.2027
+  const primavera = await prova('serata-marzo-ora-solare', '2027-03-27T23:00:00+01:00', '2027-03-28T04:00:00+02:00', '2027-03-27T22:00:00+01:00', '2027-04-10');
+  assert.deepEqual(primavera.ore, ['23:00', '04:00', '22:00']);
+  assert.equal(primavera.c.evento.dataFine, new Date('2027-04-11T04:00:00+02:00').toISOString());
+  assert.equal(primavera.c.lotti[0].dataFine, new Date('2027-04-10T22:00:00+02:00').toISOString());
+});
+
 test('tavoli in serie: tutto o niente, posti obbligatori, solo admin', async () => {
   const admin = await sessione('admin@maremmamusica.test');
   const staff = await sessione('porta@maremmamusica.test');

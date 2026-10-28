@@ -221,6 +221,21 @@ export function prezzoDaTipi(lotti: Pick<Lotto, 'prezzo' | 'ordine'>[]): PrezzoT
   return { primo, minimo: Math.min(...prezzi), massimo: Math.max(...prezzi) };
 }
 
+/**
+ * Prezzi da mostrare nelle intestazioni: solo i tipi ancora vendibili (aperti, in arrivo o in coda dopo il precedente),
+ * come la regola "il sito vende il primo tipo aperto con posti". Chiusi ed esauriti non contano, e a serata passata nulla
+ * è vendibile. Se non resta nulla da vendere vale il prezzo dell'ultimo tipo, l'ultimo a cui si è venduto.
+ * `primo` resta sempre il prezzo del primo tipo (precompila la cassa).
+ */
+export function prezzoVendibile(evento: Evento, lotti: Lotto[], usati: Record<string, number> = {}, adesso = new Date()): PrezzoTipi | null {
+  const suoi = lotti.filter((l) => l.eventoId === evento.id).sort((a, b) => a.ordine - b.ordine);
+  if (suoi.length === 0) return null;
+  const vendibili = eventoPassato(evento, adesso) ? [] : tipiVista(evento, suoi, usati, { adesso })
+    .filter((t) => t.stato === 'in_vendita' || t.stato === 'presto' || t.stato === 'dopo_precedente').map((t) => t.lotto);
+  const prezzi = (vendibili.length > 0 ? vendibili : [suoi[suoi.length - 1]]).map((l) => l.prezzo);
+  return { primo: suoi[0].prezzo, minimo: Math.min(...prezzi), massimo: Math.max(...prezzi) };
+}
+
 /** "8 €" se i tipi costano tutti uguale, "da 8 €" se i prezzi sono diversi. Senza tipi vale `daEvento` (serate vecchie). */
 export function testoPrezzoTipi(p: PrezzoTipi | null, daEvento = 0) {
   if (!p) return euro(daEvento);

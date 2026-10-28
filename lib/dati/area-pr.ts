@@ -3,7 +3,8 @@ import { leggi } from './archivio';
 import type { Evento, Iscrizione } from './tipi';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica, type RigaClassifica } from './classifica';
-import { eventoPassato, isAttiva, prezzoDaTipi, type PrezzoTipi } from '../regole';
+import { eventoPassato, isAttiva, prezzoVendibile, type PrezzoTipi } from '../regole';
+import { usatiPerLotto } from './pubblico';
 import { dataIso } from '../formato';
 
 // Area PR. Ogni funzione riceve la sessione e filtra SEMPRE per il PR della sessione:
@@ -45,7 +46,7 @@ export async function serateDelPr(s: Sessione): Promise<SerataPr[]> {
       const classifica = calcolaClassifica(d, evento.id, { admin: false, prId: pr.id });
       const pos = classifica.findIndex((r) => r.sonoIo);
       return {
-        evento, mie, prezzoTipi: prezzoDaTipi(d.lotti.filter((l) => l.eventoId === evento.id)),
+        evento, mie, prezzoTipi: prezzoVendibile(evento, d.lotti, usatiPerLotto(d, evento.id)),
         oggi: attive.filter((i) => dataIso(i.createdAt) === oggi).length,
         perGiorno: giorni.map((g) => ({ giorno: g, n: attive.filter((i) => dataIso(i.createdAt) === g).length })),
         classifica,

@@ -43,12 +43,16 @@ export function euro(n: number) {
 
 /** "2026-10-31" + "22:00" nel fuso di Roma → ISO. */
 export function isoRoma(giorno: string, orario: string) {
-  const prova = new Date(`${giorno}T${orario}:00Z`);
-  const offset = new Intl.DateTimeFormat('en-US', { timeZone: TZ, timeZoneName: 'shortOffset' })
-    .formatToParts(prova).find((p) => p.type === 'timeZoneName')?.value.replace('GMT', '') || '+1';
-  const [h, m = '0'] = offset.split(':');
-  const segno = h.startsWith('-') ? '-' : '+';
-  return new Date(`${giorno}T${orario}:00${segno}${String(Math.abs(Number(h))).padStart(2, '0')}:${m.padStart(2, '0')}`).toISOString();
+  const offsetMinuti = (istante: number) => {
+    const offset = new Intl.DateTimeFormat('en-US', { timeZone: TZ, timeZoneName: 'shortOffset' })
+      .formatToParts(new Date(istante)).find((p) => p.type === 'timeZoneName')?.value.replace('GMT', '') || '+1';
+    const [h, m = '0'] = offset.split(':');
+    return (h.startsWith('-') ? -1 : 1) * (Math.abs(Number(h)) * 60 + Number(m));
+  };
+  const prova = Date.parse(`${giorno}T${orario}:00Z`);
+  // Due passaggi: l'offset si legge nell'istante già corretto, così anche le ore piccole del giorno del cambio d'ora tornano.
+  const offset = offsetMinuti(prova - offsetMinuti(prova) * 60_000);
+  return new Date(prova - offset * 60_000).toISOString();
 }
 
 /** Giorni di calendario (a Roma) da una data all'altra: negativo se la seconda è prima. */

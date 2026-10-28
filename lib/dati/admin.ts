@@ -5,7 +5,7 @@ import type { Archivio, Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } fro
 import { tipiDelModello, type NomeModello } from '../tipi-modelli';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
-import { eventoPassato, etaSufficiente, giaIscritto, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, prezzoDaTipi, nomiInSerie, EMAIL_RE, HANDLE_RE } from '../regole';
+import { eventoPassato, etaSufficiente, giaIscritto, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, prezzoDaTipi, prezzoVendibile, nomiInSerie, EMAIL_RE, HANDLE_RE } from '../regole';
 import { nascita, ora as oraDi, dataCompleta, giorniTra, isoRoma, slugDa, spostaGiorni } from '../formato';
 import { usatiPerLotto } from './pubblico';
 import { applicaScadenze } from './tavoli';
@@ -133,7 +133,7 @@ export async function serataLive(s: Sessione, eventoId: string) {
   const nomeLista = (i: Iscrizione) => (i.origine === 'cassa' ? 'Cassa' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica');
   return {
     evento,
-    prezzoTipi: prezzoDaTipi(d.lotti.filter((l) => l.eventoId === eventoId)),
+    prezzoTipi: prezzoVendibile(evento, d.lotti, usatiPerLotto(d, eventoId)),
     inLista: attive.length,
     entrati: entrati.length,
     entratiDaLista: entrati.filter((i) => i.origine !== 'cassa').length,
@@ -297,7 +297,8 @@ export async function duplicaSerata(s: Sessione, daEventoId: string, nuovoGiorno
     const da = d.eventi.find((e) => e.id === daEventoId);
     if (!da) throw new Error('Serata non trovata');
     const data = isoRoma(nuovoGiorno, oraDi(da.data));
-    const dataFine = da.dataFine ? new Date(new Date(data).getTime() + (new Date(da.dataFine).getTime() - new Date(da.data).getTime())).toISOString() : null;
+    // Giorni di calendario, non millisecondi: a cavallo del cambio d'ora la chiusura resta alla stessa ora a Roma.
+    const dataFine = da.dataFine ? spostaGiorni(da.dataFine, giorniTra(da.data, data)) : null;
     const base = slugDa(`${da.slug.replace(/-\d{4}-\d{2}-\d{2}(-\d+)?$/, '')}-${nuovoGiorno}`);
     let slug = base;
     for (let k = 2; d.eventi.some((e) => e.slug === slug); k++) slug = `${base}-${k}`;

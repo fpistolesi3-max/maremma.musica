@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { eventoPerSlug, locationVisibile, usatiPerLotto } from '@/lib/dati/pubblico';
 import { leggi } from '@/lib/dati/archivio';
 import { tavoliPubblici } from '@/lib/dati/tavoli';
-import { chipLista, prezzoDaTipi, testoPrezzoTipi, tipiVista } from '@/lib/regole';
+import { chipLista, prezzoVendibile, testoPrezzoTipi, tipiVista } from '@/lib/regole';
 import { dataPunti, esceTra, euro, giornoSett, giornoSettLungo, meseCorto, meseLungo, numeroEvento, orari, giorno2 } from '@/lib/formato';
 import { BottoneLista, Locandina, PuoIscriversi } from '@/components/evento';
 import { Disco, Freccia } from '@/components/ui';
@@ -34,7 +34,7 @@ export default async function PaginaEvento({ params }: Props) {
   const usati = usatiPerLotto(await leggi(), e.id);
   const chip = chipLista(ep.stato);
   const tipi = tipiVista(e, ep.lotti, usati, {});
-  const prezzo = ep.stato.tipo === 'aperta' ? euro(ep.stato.prezzo) : ep.stato.tipo === 'libero' ? 'Libero' : ep.lotti.length ? testoPrezzoTipi(prezzoDaTipi(ep.lotti)) : e.prezzoLista ? euro(e.prezzoLista) : 'Libero';
+  const prezzo = ep.stato.tipo === 'aperta' ? euro(ep.stato.prezzo) : ep.stato.tipo === 'libero' ? 'Libero' : ep.lotti.length ? testoPrezzoTipi(prezzoVendibile(e, ep.lotti, usati)) : e.prezzoLista ? euro(e.prezzoLista) : 'Libero';
   const puo = PuoIscriversi(ep.stato);
   const tavoli = (await tavoliPubblici(e.slug))?.tavoli ?? [];
   const tavoliLiberi = tavoli.filter((t) => t.libero);

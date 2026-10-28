@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps } from './regole';
+import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
 import { categoriaDaControllare, cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
-import { dataPunti, orari, euro } from './formato';
+import { dataPunti, orari, euro, isoRoma, spostaGiorni, giorniTra } from './formato';
 import type { Evento, Iscrizione, Lotto } from './dati/tipi';
 import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
 
@@ -233,6 +233,40 @@ test('prezzo dai tipi: "da 8 €" per le intestazioni, il primo tipo precompila 
   assert.equal(prezzoDaTipi([lotto({ ordine: 1, prezzo: 12 }), lotto({ ordine: 0, prezzo: 15 })])!.primo, 15, 'il primo è per ordine, non il più basso');
   assert.equal(testoPrezzoTipi(prezzoDaTipi([lotto({ prezzo: 10 })])), '10 €', 'un solo prezzo: niente "da"');
   assert.equal(testoPrezzoTipi(null, 12), '12 €', 'serata vecchia senza tipi: vale il prezzo salvato');
+});
+
+test('prezzo "da X €": contano solo i tipi ancora vendibili', () => {
+  const e = evento({ data: '2026-10-31T22:00:00+01:00' });
+  const adesso = new Date('2026-10-20T12:00:00Z');
+  const tipi = [
+    lotto({ id: 'a', ordine: 0, prezzo: 8, quantita: 50, dataFine: '2026-10-15T00:00:00Z' }),   // chiuso
+    lotto({ id: 'b', ordine: 1, prezzo: 10, quantita: 20 }),                                    // aperto, ma esaurito
+    lotto({ id: 'c', ordine: 2, prezzo: 12 }),                                                  // aperto
+    lotto({ id: 'd', ordine: 3, prezzo: 15, dataInizio: '2026-10-25T00:00:00Z' }),             // in arrivo
+  ];
+  const t = (usati: Record<string, number> = { b: 20 }, quando = adesso) => prezzoVendibile(e, tipi, usati, quando);
+  assert.deepEqual(t(), { primo: 8, minimo: 12, massimo: 15 }, 'chiuso ed esaurito non contano; il primo resta quello per ordine');
+  assert.equal(testoPrezzoTipi(t()), 'da 12 €');
+  assert.equal(testoPrezzoTipi(prezzoDaTipi(tipi)), 'da 8 €', 'senza il filtro avremmo promesso 8 €');
+  assert.equal(testoPrezzoTipi(prezzoVendibile(e, tipi.slice(2, 3), {}, adesso)), '12 €', 'un solo tipo vendibile: niente "da"');
+  assert.equal(testoPrezzoTipi(t({ b: 20, c: 10 }, new Date('2026-10-26T12:00:00Z'))), 'da 12 €', 'il tipo in arrivo ora è aperto');
+  assert.equal(prezzoVendibile(e, [lotto({ id: 'x', ordine: 0, prezzo: 9, quantita: 5 }), lotto({ id: 'y', ordine: 1, prezzo: 13, quantita: 5 })], { x: 5, y: 5 }, adesso)?.minimo, 13,
+    'tutto esaurito: vale l’ultimo prezzo, non il primo');
+  assert.equal(testoPrezzoTipi(prezzoVendibile(e, tipi, {}, new Date('2026-11-02T12:00:00Z'))), '15 €', 'serata passata: vale l’ultimo prezzo');
+  assert.equal(prezzoVendibile(e, [], {}, adesso), null);
+  assert.equal(prezzoVendibile(e, [lotto({ eventoId: 'altra' })], {}, adesso), null, 'i tipi di un’altra serata non contano');
+});
+
+test('date a Roma: stessa ora locale anche a cavallo del cambio d’ora', () => {
+  assert.equal(isoRoma('2026-10-24', '22:00'), '2026-10-24T20:00:00.000Z');
+  assert.equal(isoRoma('2026-11-07', '22:00'), '2026-11-07T21:00:00.000Z', 'ora solare');
+  assert.equal(isoRoma('2026-10-25', '01:30'), '2026-10-24T23:30:00.000Z', 'la notte del cambio, prima delle 03:00, è ancora ora legale');
+  assert.equal(isoRoma('2026-10-25', '04:00'), '2026-10-25T03:00:00.000Z');
+  assert.equal(isoRoma('2027-03-28', '00:30'), '2027-03-27T23:30:00.000Z');
+  assert.equal(isoRoma('2027-03-28', '04:00'), '2027-03-28T02:00:00.000Z');
+  assert.equal(spostaGiorni('2026-10-24T20:00:00Z', 14), '2026-11-07T21:00:00.000Z', '22:00 resta 22:00');
+  assert.equal(spostaGiorni('2027-03-27T21:00:00Z', 14), '2027-04-10T20:00:00.000Z', '22:00 resta 22:00 anche in primavera');
+  assert.equal(giorniTra('2026-10-24T20:00:00Z', '2026-11-07T21:00:00Z'), 14);
 });
 
 test('bozza: il primo salvataggio di una serata nuova non pubblica mai', () => {
