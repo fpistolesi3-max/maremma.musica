@@ -7,7 +7,7 @@ import { tavoliPubblici } from '@/lib/dati/tavoli';
 import { chipLista, tipiVista } from '@/lib/regole';
 import { dataPunti, esceTra, euro, giornoSett, giornoSettLungo, meseCorto, meseLungo, numeroEvento, orari, giorno2 } from '@/lib/formato';
 import { BottoneLista, Locandina, PuoIscriversi } from '@/components/evento';
-import { Disco } from '@/components/ui';
+import { Disco, Freccia } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,7 +122,7 @@ export default async function PaginaEvento({ params }: Props) {
                     : 'Tutti presi, per ora. Se una prenotazione decade il tavolo torna libero.'}
                 </span>
               </div>
-              <Link href={`/tavoli/${e.slug}`} className="mm-btn mm-btn--clip mm-btn--linea flex-none" style={{ minHeight: 52 }}>{tavoliLiberi.length > 0 ? 'Prenota un tavolo' : 'Vedi i tavoli'}</Link>
+              <Link href={`/tavoli/${e.slug}`} className="mm-btn mm-btn--clip mm-btn--linea flex-none" style={{ minHeight: 52 }}>{tavoliLiberi.length > 0 ? 'Prenota un tavolo' : 'Vedi i tavoli'} <Freccia /></Link>
             </div>
           )}
 
@@ -178,7 +178,7 @@ export default async function PaginaEvento({ params }: Props) {
           <span className="truncate font-mono text-[10px] leading-[14px] text-osso-2">{e.nome.toUpperCase()}</span>
         </div>
         {/* Su telefono le due strade stanno qui, una accanto all'altra. */}
-        {tavoli.length > 0 && <Link href={`/tavoli/${e.slug}`} className="mm-btn mm-btn--linea flex-none" style={{ minHeight: 52, padding: '0 12px', fontSize: 13 }}>Tavolo</Link>}
+        {tavoli.length > 0 && <Link href={`/tavoli/${e.slug}`} className="mm-btn mm-btn--clip mm-btn--linea flex-none" style={{ minHeight: 52, padding: '0 12px', fontSize: 13 }}>Tavolo</Link>}
         <BottoneLista ep={ep} className="flex-none" style={{ minHeight: 52, padding: tavoli.length > 0 ? '0 12px' : '0 16px', fontSize: tavoli.length > 0 ? 13 : undefined }} />
       </div>
     </div>

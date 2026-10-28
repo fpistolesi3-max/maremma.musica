@@ -67,7 +67,7 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
                   <p className="m-0 text-[18px] leading-[27px]">
                     Ci vediamo sotto cassa, {b.iscrizione.nome}.{b.evento.dressCode ? ` Dress code: ${b.evento.dressCode.toLowerCase()}.` : ''} {b.evento.senzaTelefono ? 'Serata senza telefono: alla porta porta un documento.' : 'Alla porta mostra questo QR con un documento.'}
                   </p>
-                  {pagato && b.iscrizione.importo > 0 && <PulsanteMorph href="#qr" esterno esito className="mm-btn--pieno">Biglietto pronto <span className="mm-btn__freccia" aria-hidden="true">↓</span></PulsanteMorph>}
+                  {pagato && b.iscrizione.importo > 0 && <PulsanteMorph href="#qr" esterno esito className="mm-btn--pieno">Biglietto pronto</PulsanteMorph>}
                 </>
               ) : (
                 <>
@@ -135,7 +135,7 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
               </p>
               {errore && <p role="alert" className="m-0 border border-stop-testo px-4 py-3 text-[14px] leading-5 text-stop-testo">Non siamo riusciti ad aprire il pagamento. Riprova tra poco.</p>}
               <PulsanteMorph href={linkPagaBiglietto('', i.id, i.email)} esterno className="mm-btn--pieno">
-                Paga {euro(i.importo)} <span className="mm-btn__freccia" aria-hidden="true">→</span>
+                Paga {euro(i.importo)}
               </PulsanteMorph>
               <span className="text-center font-mono text-[11px] leading-4 text-osso-2">CARTA · APPLE PAY · GOOGLE PAY · SE NON PAGHI IN TEMPO IL POSTO TORNA LIBERO</span>
               <form action={lasciaPostoAzione} className="self-center">
@@ -152,7 +152,7 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
           <h1 className="m-0 font-display text-[56px] font-black uppercase leading-[.86]">Niente <span className="text-arancio">QR.</span></h1>
           <p className="m-0 text-[17px] leading-[26px] text-osso-2">{spiega}</p>
           {!daRimborsare && i.stato !== 'rimborsato' && (
-            <Link href={`/e/${b.evento.slug}${b.prHandle ? `/${b.prHandle}` : ''}`} className="mm-btn mm-btn--linea self-start">Torna alla serata</Link>
+            <Link href={`/e/${b.evento.slug}${b.prHandle ? `/${b.prHandle}` : ''}`} className="mm-btn mm-btn--clip mm-btn--linea self-start">Torna alla serata</Link>
           )}
         </>
       )}
@@ -165,9 +165,9 @@ function Azioni({ id, email, nuovo, senzaTelefono }: { id: string; email: string
   return (
     <>
       {nuovo && <span className="text-[14px] leading-5 text-osso-2">{senzaTelefono ? 'Ti abbiamo mandato la conferma a' : 'Ti abbiamo mandato il QR a'} <span className="text-osso">{email}</span>.</span>}
-      {!senzaTelefono && <a className="mm-btn mm-btn--linea mm-btn--pieno" href={`/api/biglietto/${id}/pdf${q}`} target="_blank" rel="noopener">Scarica PDF</a>}
+      {!senzaTelefono && <a className="mm-btn mm-btn--clip mm-btn--linea mm-btn--pieno" href={`/api/biglietto/${id}/pdf${q}`} target="_blank" rel="noopener">Scarica PDF</a>}
       {/* Fase 2: Apple/Google Wallet */}
-      <button type="button" className="mm-btn mm-btn--linea mm-btn--pieno" disabled>Salva nel Wallet · in arrivo</button>
+      <button type="button" className="mm-btn mm-btn--clip mm-btn--linea mm-btn--pieno" disabled>Salva nel Wallet · in arrivo</button>
       <a className="mm-btn mm-btn--muto self-center" href={`/api/biglietto/${id}/calendario${q}`}>Aggiungi al calendario</a>
     </>
   );

@@ -112,7 +112,7 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
 
       <div className="mm-prevendita__totale mt-1"><span>{totaleEtichetta}</span><strong>{totaleValore}</strong></div>
       <PulsanteMorph type="submit" className="mm-btn--pieno" caricamento={inCorso} disabled={inCorso}>
-        {aPagamento ? `Paga ${totaleValore}` : 'Mettiti in lista'} <span className="mm-btn__freccia" aria-hidden="true">→</span>
+        {aPagamento ? `Paga ${totaleValore}` : 'Mettiti in lista'}
       </PulsanteMorph>
       <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
         {senzaTelefono ? (aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · ALLA PORTA SERVE IL DOCUMENTO' : 'ALLA PORTA SERVE IL DOCUMENTO')

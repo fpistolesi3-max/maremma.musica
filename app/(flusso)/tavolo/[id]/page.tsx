@@ -71,7 +71,7 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
                     </p>
                     {errore && <p role="alert" className="m-0 border border-stop-testo px-4 py-3 text-[14px] leading-5 text-stop-testo">Non siamo riusciti ad aprire il pagamento. Riprova tra poco.</p>}
                     <PulsanteMorph href={linkPagamento('', v.prenotazione.id, v.prenotazione.email)} esterno className="mm-btn--pieno">
-                      Paga {euro(v.prenotazione.spesaMinima)} <span className="mm-btn__freccia" aria-hidden="true">→</span>
+                      Paga {euro(v.prenotazione.spesaMinima)}
                     </PulsanteMorph>
                     <span className="text-center font-mono text-[11px] leading-4 text-osso-2">CARTA · APPLE PAY · GOOGLE PAY · SE NON PAGHI IN TEMPO IL TAVOLO TORNA LIBERO</span>
                     <form action={lasciaTavoloAzione} className="self-center">
@@ -105,7 +105,7 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
                 <p className="m-0 text-[17px] leading-[26px] text-osso-2">
                   {{ scaduta: 'Il pagamento non è arrivato in tempo e il tavolo è tornato libero.', annullata: 'Questa prenotazione è stata annullata.', rimborsata: 'Questa prenotazione è stata annullata e la spesa minima ti è stata restituita.' }[v.prenotazione.stato]} Puoi chiederne un altro, se ce ne sono.
                 </p>
-                <Link href={`/tavoli/${v.evento.slug}`} className="mm-btn mm-btn--linea self-start">Vedi i tavoli liberi</Link>
+                <Link href={`/tavoli/${v.evento.slug}`} className="mm-btn mm-btn--clip mm-btn--linea self-start">Vedi i tavoli liberi</Link>
               </>
             )}
           </section>

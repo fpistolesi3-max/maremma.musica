@@ -23,7 +23,7 @@ export function Testata() {
           ))}
         </nav>
         <Link href="/biglietto" className="px-[6px] py-[14px] font-sans text-[12px] font-semibold uppercase leading-none tracking-[.12em] no-underline md:hidden">Il mio QR</Link>
-        <Link href="/biglietto" className="mm-btn mm-btn--linea hidden md:inline-flex" style={{ minHeight: 40, padding: '0 18px', fontSize: 13 }}>Il mio QR</Link>
+        <Link href="/biglietto" className="mm-btn mm-btn--clip mm-btn--linea hidden md:inline-flex" style={{ minHeight: 40, padding: '0 18px', fontSize: 13 }}>Il mio QR</Link>
         {/* Menu telefono: <details>, si apre anche senza JavaScript (browser di Instagram) */}
         <MenuTelefono className="group md:hidden">
           <summary className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-sm border border-linea-forte text-osso [&::-webkit-details-marker]:hidden" aria-label="Menu">

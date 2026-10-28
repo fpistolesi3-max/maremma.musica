@@ -15,7 +15,7 @@ export default function NonTrovata() {
             <p className="m-0 max-w-[520px] text-[17px] leading-[26px] text-osso-2">Questa pagina non c&apos;è. Magari il link del PR era scritto male, o la serata è già passata.</p>
             <div className="flex flex-col gap-3 md:flex-row">
               <Link href="/" className="mm-btn mm-btn--primario">Torna alla home</Link>
-              <Link href="/eventi" className="mm-btn mm-btn--linea">Prossime date</Link>
+              <Link href="/eventi" className="mm-btn mm-btn--clip mm-btn--linea">Prossime date</Link>
             </div>
           </div>
           <Disco className="h-[280px] w-[280px] self-center md:h-[420px] md:w-[420px]" etichetta={['MAREMMA<br>MUSICA', 'LATO B<br>404']} />

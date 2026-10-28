@@ -52,12 +52,17 @@
   border: 1px solid transparent; border-radius: var(--radius-sm);
   font: 600 15px/20px var(--font-sans); letter-spacing: .08em; text-transform: uppercase;
   text-decoration: none; cursor: pointer; background: none; color: var(--osso);
-  transition: filter var(--durata-secca), background-color var(--durata-secca), color var(--durata-secca), transform var(--durata-secca);
+  transition: filter var(--durata-secca), background-color var(--durata-secca), color var(--durata-secca), transform var(--durata-secca), box-shadow var(--durata-cambio);
 }
-.mm-btn:active { transform: translateY(1px); }
+/* Tocco: ogni pulsante pubblico si comprime subito (visibile col dito, dove l'hover non esiste). */
+.mm-btn:not(:disabled):not([aria-disabled="true"]):active { transform: scale(.95); transition-duration: 60ms; }
 .mm-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .mm-btn--primario { background: var(--arancio); color: var(--su-arancio); }
 .mm-btn--primario:hover { filter: brightness(1.1); }
+.mm-btn--primario:not(:disabled):not([aria-disabled="true"]):not(.mm-morph):active { filter: brightness(1.25); box-shadow: 0 0 0 4px color-mix(in oklab, var(--arancio) 35%, transparent); }
+@media (hover: hover) {
+  .mm-btn--primario:not(.mm-morph):not(:disabled):not([aria-disabled="true"]):hover { transform: translateY(-2px); box-shadow: 0 10px 26px -10px rgba(213, 91, 35, .75); }
+}
 .mm-btn--linea { border-color: var(--osso); }
 .mm-btn--linea:hover { background: var(--osso); color: var(--notte); }
 .mm-btn--muto { padding: 0 var(--space-2); color: var(--osso-2); }
@@ -107,7 +112,7 @@
 .mm-morph:disabled[data-fase="carico"], .mm-morph:disabled[data-fase="tocco"] { color: var(--su-arancio); }
 .mm-morph:hover, .mm-morph:disabled { filter: none; background: none; }
 .mm-morph__testo { display: inline-flex; align-items: center; gap: var(--space-2); transition: opacity 160ms ease-out 100ms, filter 160ms ease-out 100ms, transform 180ms ease-out 100ms; }
-.mm-morph[data-fase="tocco"] { transform: scale(.97); }
+.mm-morph[data-fase="tocco"] { transform: scale(.95); }
 .mm-morph[data-fase="tocco"] .mm-morph__testo { opacity: .5; transition-delay: 0ms; transition-duration: 100ms; }
 .mm-morph[data-fase="carico"] .mm-morph__testo, .mm-morph[data-fase="ok"] .mm-morph__testo { opacity: 0; filter: blur(4px); transform: translateY(-6px); transition-delay: 0ms; transition-duration: 120ms; }
 .mm-morph__anello, .mm-morph__spunta { position: absolute; left: 50%; top: 50%; opacity: 0; pointer-events: none; transition: opacity 120ms ease-out; }
@@ -118,12 +123,26 @@
 .mm-morph[data-fase="ok"]::before { background: var(--arancio); }
 @keyframes mm-gira { to { transform: rotate(360deg); } }
 @media (hover: hover) { .mm-morph[data-fase="riposo"]:not(:disabled):hover::before { filter: brightness(1.1); } }
-.mm-morph:active:not(:disabled) { transform: scale(.97); }
+.mm-morph:active:not(:disabled) { transform: scale(.95); }
+.mm-morph:active:not(:disabled)::before { filter: brightness(1.25); }
+.mm-morph[data-fase="tocco"]::before { filter: brightness(1.25); }
+@media (hover: hover) {
+  .mm-morph[data-fase="riposo"]:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 10px 26px -10px rgba(213, 91, 35, .75); }
+}
+.mm-morph { transition: color 200ms ease-out, transform var(--durata-secca), box-shadow var(--durata-cambio); }
 @media (prefers-reduced-motion: reduce) {
   .mm-morph, .mm-morph::before, .mm-morph__testo, .mm-morph__anello, .mm-morph__spunta { transition: none !important; }
   .mm-morph__anello { animation: none !important; }
 }
-.mm-btn__freccia { font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; }
+/* Freccia: solo sui pulsanti che portano a un'altra pagina (mai su invio e pagamento). Scorre all'hover e al tocco. */
+.mm-btn__freccia { display: inline-block; font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; transition: transform var(--durata-cambio) cubic-bezier(.34, 1.4, .64, 1); }
+@media (hover: hover) { .mm-btn:not(:disabled):not([aria-disabled="true"]):hover .mm-btn__freccia { transform: translateX(4px); } }
+.mm-btn:not(:disabled):not([aria-disabled="true"]):active .mm-btn__freccia, .mm-morph[data-fase="tocco"] .mm-btn__freccia, .mm-morph[data-fase="carico"] .mm-btn__freccia { transform: translateX(6px); }
+@media (prefers-reduced-motion: reduce) {
+  .mm-btn, .mm-btn__freccia { transition: none; }
+  .mm-btn:not(:disabled):not([aria-disabled="true"]):active, .mm-btn--primario:not(:disabled):hover, .mm-morph:hover, .mm-morph:active { transform: none !important; }
+  .mm-btn__freccia { transform: none !important; }
+}
 
 /* ---------- TextField ---------- */
 .mm-campo { display: grid; gap: var(--space-2); min-width: 0; align-content: start; }

@@ -115,7 +115,7 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
           {e.privacy && <span className="-mt-2 text-[14px] leading-5 text-stop-testo">{e.privacy}</span>}
 
           <PulsanteMorph type="submit" className="mm-btn--pieno" caricamento={inCorso} disabled={inCorso || !sel}>
-            {perCliente ? 'Manda il link per pagare' : 'Continua al pagamento'} <span className="mm-btn__freccia" aria-hidden="true">→</span>
+            {perCliente ? 'Manda il link per pagare' : 'Continua al pagamento'}
           </PulsanteMorph>
           <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
             {perCliente ? `AL CLIENTE ARRIVA IL LINK PER PAGARE · IL TAVOLO RESTA FERMO FINO A ${scadenza.toUpperCase()}`

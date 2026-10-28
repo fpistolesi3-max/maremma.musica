@@ -21,7 +21,7 @@ export function ModuloAccesso({ dopo, sviluppo, accountProva = [] }: { dopo?: st
           <span className="mm-campo__aiuto" id="a-email-aiuto">{s1.errore ?? 'Ti mandiamo un link e un codice. Niente password.'}</span>
         </div>
         <button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" disabled={inCorso1}>
-          {inCorso1 ? 'Un attimo…' : <>Mandami il link <span className="mm-btn__freccia" aria-hidden="true">→</span></>}
+          {inCorso1 ? 'Un attimo…' : 'Mandami il link'}
         </button>
       </form>
       {sviluppo && accountProva.length > 0 && (
@@ -55,7 +55,7 @@ export function ModuloAccesso({ dopo, sviluppo, accountProva = [] }: { dopo?: st
           Se <span className="text-osso">{s1.email}</span> ha un accesso, ti è arrivato un link. Aprilo da qui o scrivi il codice a 6 cifre.
         </span>
         {sviluppo && s1.linkSviluppo && (
-          <a href={s1.linkSviluppo} className="mm-btn mm-btn--primario mt-3">Entra subito (solo sviluppo) <span className="mm-btn__freccia" aria-hidden="true">→</span></a>
+          <a href={s1.linkSviluppo} className="mm-btn mm-btn--primario mt-3">Entra subito (solo sviluppo)</a>
         )}
         {sviluppo && <a href="/dev/posta" target="_blank" className="link-sottolineato mt-2 self-start py-2">Apri la posta di prova →</a>}
       </div>
