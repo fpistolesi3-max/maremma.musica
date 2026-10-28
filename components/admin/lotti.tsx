@@ -1,8 +1,9 @@
 'use client';
 
-import { useActionState, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { copiaTipiAzione, eliminaLottoAzione, modelloTipiAzione, salvaLottoAzione, type EsitoAzione } from '@/app/azioni/admin';
 import { MODELLI } from '@/lib/tipi-modelli';
+import { StatoSalvataggio, useModuloSalvabile } from './salva-tutto';
 
 export interface RigaLotto {
   id: string; nome: string; prezzo: number; quantita: number | null; usati: number;
@@ -21,6 +22,7 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
   const [inCorso, avvia] = useTransition();
   const [copiaDa, setCopiaDa] = useState('');
   const sostituisce = lotti.length > 0 ? ' Sostituisce i tipi che ci sono ora.' : '';
+  const quanti = lotti.length === 1 ? '1 tipo' : `${lotti.length} tipi`;
   return (
     <div className="flex flex-col gap-4">
       {(msg.errore || msg.ok) && <p role={msg.errore ? 'alert' : 'status'} className={`m-0 text-[14px] ${msg.errore ? 'text-stop-testo' : 'text-ok'}`}>{msg.errore ?? msg.ok}</p>}
@@ -31,7 +33,10 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
           <div className="grid gap-2">
             {MODELLI.map((m) => (
               <button key={m.id} type="button" className="mm-btn mm-btn--linea flex-col items-start text-left" style={{ minHeight: 72, height: 'auto', padding: 12 }} disabled={inCorso}
-                onClick={() => avvia(async () => setMsg(await modelloTipiAzione(eventoId, m.id)))}>
+                onClick={() => {
+                  if (lotti.length > 0 && !confirm(`Sostituire ${quanti} con «${m.nome}»? I tipi di adesso vengono tolti.`)) return;
+                  avvia(async () => setMsg(await modelloTipiAzione(eventoId, m.id)));
+                }}>
                 <strong>{m.nome}</strong><span className="text-[12px] font-normal normal-case text-osso-2">{m.descrizione}{sostituisce}</span>
               </button>
             ))}
@@ -46,7 +51,10 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
                 </select>
               </div>
               <button type="button" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} disabled={inCorso || !copiaDa}
-                onClick={() => avvia(async () => setMsg(await copiaTipiAzione(eventoId, copiaDa)))}>Copia</button>
+                onClick={() => {
+                  if (lotti.length > 0 && !confirm(`Sostituire ${quanti} con quelli di quella serata?`)) return;
+                  avvia(async () => setMsg(await copiaTipiAzione(eventoId, copiaDa)));
+                }}>Copia</button>
             </div>
           )}
         </div>
@@ -57,7 +65,7 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
           <FormLotto eventoId={eventoId} l={l} pr={pr} primo={k === 0} />
           <div className="flex items-center justify-between">
             <span className="font-mono text-[11px] text-osso-2">{l.usati}{l.quantita != null ? `/${l.quantita}` : ''} VENDUTI{l.categoria ? ` · ${l.categoria.toUpperCase()}` : ''}</span>
-            <button type="button" className="mm-btn mm-btn--muto" disabled={inCorso || l.usati > 0} style={{ minHeight: 36 }}
+            <button type="button" className="mm-btn mm-btn--muto" disabled={inCorso || l.usati > 0} style={{ minHeight: 44 }}
               title={l.usati > 0 ? 'Ha già iscritti: chiudilo con una data di fine' : undefined}
               onClick={() => avvia(async () => setMsg(await eliminaLottoAzione(l.id)))}>Elimina</button>
           </div>
@@ -66,7 +74,7 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
       <details className="border border-dashed border-linea-forte p-4" open={lotti.length === 0}>
         <summary className="cursor-pointer font-display text-[22px] font-extrabold uppercase">+ Aggiungi tipo di prevendita</summary>
         <div className="pt-4">
-          <FormLotto eventoId={eventoId} pr={pr} primo={lotti.length === 0}
+          <FormLotto key={lotti.length} eventoId={eventoId} pr={pr} primo={lotti.length === 0}
             l={{ id: '', nome: '', prezzo: 0, quantita: null, usati: 0, dataInizio: '', dataFine: '', visibileDaPr: true, ordine: lotti.length, categoria: '', confermaCategoria: false, uscitaGiorniPrima: null, fineOrePrima: null, dopoPrecedente: false, prAbilitati: null }} />
         </div>
       </details>
@@ -75,14 +83,14 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
 }
 
 function FormLotto({ eventoId, l, pr, primo }: { eventoId: string; l: RigaLotto; pr: { id: string; nome: string }[]; primo: boolean }) {
-  const [stato, invia, inCorso] = useActionState(salvaLottoAzione, {} as EsitoAzione);
+  const { esito, modificato, inCorso, proprieta } = useModuloSalvabile(salvaLottoAzione, 'tipo');
   const p = l.id || 'nuovo';
   const [uscita, setUscita] = useState(l.uscitaGiorniPrima != null ? 'giorni' : l.dataInizio ? 'data' : 'subito');
   const [fine, setFine] = useState(l.fineOrePrima != null ? 'ore' : l.dataFine ? 'data' : 'mai');
   const [categoria, setCategoria] = useState(l.categoria);
   const [prModo, setPrModo] = useState(!l.visibileDaPr ? 'nessuno' : l.prAbilitati ? 'alcuni' : 'tutti');
   return (
-    <form action={invia} className="grid gap-3 md:grid-cols-4">
+    <form {...proprieta} className="grid gap-3 md:grid-cols-4">
       <input type="hidden" name="eventoId" value={eventoId} />
       <input type="hidden" name="id" value={l.id} />
       <input type="hidden" name="ordine" value={l.ordine} />
@@ -136,9 +144,10 @@ function FormLotto({ eventoId, l, pr, primo }: { eventoId: string; l: RigaLotto;
       </fieldset>
 
       <div className="flex items-center justify-end gap-3 md:col-span-4">
-        {stato.ok && <span className="text-[13px] text-ok">{stato.ok}</span>}
-        {stato.errore && <span className="text-[13px] text-stop-testo">{stato.errore}</span>}
-        <button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 40 }} disabled={inCorso}>{l.id ? 'Salva tipo' : 'Aggiungi'}</button>
+        <StatoSalvataggio esito={esito} modificato={modificato} nuovo={!l.id} />
+        {/* Un tipo esistente si salva con il «Salva» in basso (insieme a tutto il resto); uno nuovo si aggiunge qui. */}
+        {!l.id && <button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} disabled={inCorso}>Aggiungi il tipo</button>}
+        {l.id && modificato && <button type="submit" className="mm-btn mm-btn--muto" style={{ minHeight: 44 }} disabled={inCorso}>Salva solo questo tipo</button>}
       </div>
     </form>
   );

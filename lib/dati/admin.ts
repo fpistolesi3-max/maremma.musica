@@ -5,8 +5,8 @@ import type { Archivio, Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } fro
 import { tipiDelModello, type NomeModello } from '../tipi-modelli';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
-import { eventoPassato, etaSufficiente, giaIscritto, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, EMAIL_RE, HANDLE_RE } from '../regole';
-import { nascita, ora as oraDi, dataCompleta } from '../formato';
+import { eventoPassato, etaSufficiente, giaIscritto, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, prezzoDaTipi, prezzoVendibile, nomiInSerie, EMAIL_RE, HANDLE_RE } from '../regole';
+import { nascita, ora as oraDi, dataCompleta, giorniTra, isoRoma, slugDa, spostaGiorni } from '../formato';
 import { usatiPerLotto } from './pubblico';
 import { applicaScadenze } from './tavoli';
 
@@ -133,6 +133,7 @@ export async function serataLive(s: Sessione, eventoId: string) {
   const nomeLista = (i: Iscrizione) => (i.origine === 'cassa' ? 'Cassa' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica');
   return {
     evento,
+    prezzoTipi: prezzoVendibile(evento, d.lotti, usatiPerLotto(d, eventoId)),
     inLista: attive.length,
     entrati: entrati.length,
     entratiDaLista: entrati.filter((i) => i.origine !== 'cassa').length,
@@ -246,6 +247,16 @@ export async function cambiaNominativo(s: Sessione, id: string, dati: { nome: st
 
 export type DatiEvento = Omit<Evento, 'id' | 'createdAt' | 'updatedAt' | 'numero' | 'piantinaUrl'> & { numero?: number | null };
 
+/**
+ * Il prezzo della prevendita si decide nei tipi: `prezzoLista` dell'evento resta solo come copia del prezzo del primo tipo
+ * (lo leggono le serate senza tipi e i testi di biglietti ed email). Il modulo lo manda solo alla nascita, per il primo tipo.
+ */
+function allineaPrezzoLista(d: Archivio, eventoId: string) {
+  const e = d.eventi.find((x) => x.id === eventoId);
+  const p = prezzoDaTipi(d.lotti.filter((l) => l.eventoId === eventoId));
+  if (e && p && e.tipoIngresso !== 'libero') e.prezzoLista = p.primo;
+}
+
 export async function salvaEvento(s: Sessione, id: string | null, dati: DatiEvento): Promise<Evento> {
   soloAdmin(s);
   return modifica((d) => {
@@ -258,18 +269,54 @@ export async function salvaEvento(s: Sessione, id: string | null, dati: DatiEven
     if (id) {
       const e = d.eventi.find((x) => x.id === id);
       if (!e) throw new Error('Serata non trovata');
-      Object.assign(e, dati, { numero: dati.numero ?? e.numero, updatedAt: adesso });
+      const { prezzoLista: _daiTipi, ...resto } = dati;
+      Object.assign(e, resto, { numero: dati.numero ?? e.numero, updatedAt: adesso });
+      if (e.tipoIngresso === 'libero') e.prezzoLista = 0;
+      else allineaPrezzoLista(d, e.id);
+      // Cassa accesa: il prezzo in cassa c'è sempre (di partenza, quello del primo tipo).
+      if (e.tipoIngresso !== 'libero' && e.cassaAttiva && e.prezzoCassa == null) e.prezzoCassa = e.prezzoLista;
       return e;
     }
     const numero = dati.numero ?? Math.max(0, ...d.eventi.map((e) => e.numero ?? 0)) + 1;
     const e: Evento = { ...dati, id: randomUUID(), numero, piantinaUrl: null, createdAt: adesso, updatedAt: adesso };
+    if (e.tipoIngresso !== 'libero' && e.cassaAttiva && e.prezzoCassa == null) e.prezzoCassa = e.prezzoLista;
     d.eventi.push(e);
-    // Ogni serata a lista nasce con un lotto base: si modifica poi dalla pagina della serata.
+    // Ogni serata a lista nasce con un primo tipo, col prezzo scritto nel modulo: poi i prezzi si ritoccano solo nei tipi.
     if (e.tipoIngresso !== 'libero') {
-      d.lotti.push({ id: randomUUID(), eventoId: e.id, nome: 'Lista', prezzo: e.prezzoLista, quantita: null, dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0, categoria: null, confermaCategoria: false, uscitaGiorniPrima: null, fineOrePrima: null, dopoPrecedente: false, prAbilitati: null });
+      d.lotti.push({ id: randomUUID(), eventoId: e.id, nome: 'Lista', prezzo: e.prezzoLista, quantita: null, dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0, categoria: null, confermaCategoria: false, uscitaGiorniPrima: null, fineOrePrima: null, dopoPrecedente: false, prAbilitati: null, automatico: true });
     }
     return e;
   });
+}
+
+/**
+ * Copia di una serata per la nuova data: dati, PR e impostazioni della porta, poi tipi (uscite spostate come la serata)
+ * e tavoli con piantina. Nasce in bozza, fuori dalla copertina e con un altro numero e un altro indirizzo.
+ */
+export async function duplicaSerata(s: Sessione, daEventoId: string, nuovoGiorno: string): Promise<Evento> {
+  soloAdmin(s);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nuovoGiorno) || Number.isNaN(Date.parse(`${nuovoGiorno}T00:00:00Z`))) throw new Error('Scegli la nuova data');
+  const { nuovo, haTipi, haTavoli } = await modifica((d) => {
+    const da = d.eventi.find((e) => e.id === daEventoId);
+    if (!da) throw new Error('Serata non trovata');
+    const data = isoRoma(nuovoGiorno, oraDi(da.data));
+    // Giorni di calendario, non millisecondi: a cavallo del cambio d'ora la chiusura resta alla stessa ora a Roma.
+    const dataFine = da.dataFine ? spostaGiorni(da.dataFine, giorniTra(da.data, data)) : null;
+    const base = slugDa(`${da.slug.replace(/-\d{4}-\d{2}-\d{2}(-\d+)?$/, '')}-${nuovoGiorno}`);
+    let slug = base;
+    for (let k = 2; d.eventi.some((e) => e.slug === slug); k++) slug = `${base}-${k}`;
+    const adesso = new Date().toISOString();
+    const nuovo: Evento = {
+      ...da, id: randomUUID(), numero: Math.max(0, ...d.eventi.map((e) => e.numero ?? 0)) + 1, slug, data, dataFine,
+      lineup: [...da.lineup], prAbilitati: da.prAbilitati ? [...da.prAbilitati] : null,
+      pubblicato: false, inCopertina: false, piantinaUrl: null, createdAt: adesso, updatedAt: adesso,
+    };
+    d.eventi.push(nuovo);
+    return { nuovo, haTipi: d.lotti.some((l) => l.eventoId === da.id), haTavoli: d.tavoli.some((t) => t.eventoId === da.id) };
+  });
+  if (haTipi) await copiaTipi(s, daEventoId, nuovo.id);
+  if (haTavoli) await copiaTavoli(s, daEventoId, nuovo.id);
+  return (await leggi()).eventi.find((e) => e.id === nuovo.id)!;
 }
 
 export async function prossimoNumero(s: Sessione) {
@@ -284,10 +331,11 @@ export async function salvaLotto(s: Sessione, lotto: Omit<Lotto, 'id'> & { id?: 
     if (lotto.id) {
       const l = d.lotti.find((x) => x.id === lotto.id);
       if (!l) throw new Error('Lotto non trovato');
-      Object.assign(l, { ...lotto, id: l.id });
+      Object.assign(l, { ...lotto, id: l.id, automatico: false });
     } else {
-      d.lotti.push({ ...lotto, id: randomUUID() });
+      d.lotti.push({ ...lotto, id: randomUUID(), automatico: false });
     }
+    allineaPrezzoLista(d, lotto.eventoId);
   });
 }
 
@@ -295,7 +343,9 @@ export async function eliminaLotto(s: Sessione, id: string) {
   soloAdmin(s);
   await modifica((d) => {
     if (d.iscrizioni.some((i) => i.lottoId === id)) throw new Error('Ci sono iscrizioni su questo lotto: chiudilo con una data di fine invece di eliminarlo');
+    const eventoId = d.lotti.find((l) => l.id === id)?.eventoId;
     d.lotti = d.lotti.filter((l) => l.id !== id);
+    if (eventoId) allineaPrezzoLista(d, eventoId);
   });
 }
 
@@ -304,6 +354,7 @@ export async function salvaTavolo(s: Sessione, tavolo: Omit<Tavolo, 'id' | 'x' |
   soloAdmin(s);
   await modifica((d) => {
     if (!d.eventi.some((e) => e.id === tavolo.eventoId)) throw new Error('Serata non trovata');
+    if (tavolo.posti == null || !Number.isInteger(tavolo.posti) || tavolo.posti < 1) throw new Error('Scrivi i posti del tavolo');
     const nome = tavolo.nome.trim().toLowerCase();
     if (d.tavoli.some((x) => x.eventoId === tavolo.eventoId && x.id !== tavolo.id && x.nome.trim().toLowerCase() === nome)) {
       throw new Error(`C'è già un tavolo "${tavolo.nome.trim()}" in questa serata`);
@@ -326,6 +377,33 @@ export async function salvaTavolo(s: Sessione, tavolo: Omit<Tavolo, 'id' | 'x' |
       d.tavoli.push({ ...tavolo, id: randomUUID(), x: null, y: null });
     }
   });
+}
+
+/**
+ * Aggiunge N tavoli in serie (T1, T2…) con la stessa zona, gli stessi posti e la stessa spesa minima: i singoli si ritoccano dopo.
+ * Tutto o niente: se un nome c'è già, non ne aggiunge nessuno.
+ */
+export async function creaTavoliInSerie(s: Sessione, dati: { eventoId: string; partenza: string; quanti: number; zona: string | null; posti: number; spesaMinima: number }): Promise<string[]> {
+  soloAdmin(s);
+  if (!Number.isInteger(dati.quanti) || dati.quanti < 1 || dati.quanti > 60) throw new Error('Quanti tavoli: da 1 a 60');
+  if (!dati.partenza.trim()) throw new Error('Scrivi il nome di partenza (es. T1)');
+  if (!Number.isInteger(dati.posti) || dati.posti < 1 || dati.posti > 99) throw new Error('Posti: un numero da 1 a 99');
+  if (!Number.isFinite(dati.spesaMinima) || dati.spesaMinima < 0) throw new Error('Spesa minima non valida');
+  const nomi = nomiInSerie(dati.partenza, dati.quanti);
+  if (nomi.some((n) => n.length > 40)) throw new Error('Nome troppo lungo');
+  await modifica((d) => {
+    if (!d.eventi.some((e) => e.id === dati.eventoId)) throw new Error('Serata non trovata');
+    const suoi = d.tavoli.filter((t) => t.eventoId === dati.eventoId);
+    const presenti = new Set(suoi.map((t) => t.nome.trim().toLowerCase()));
+    const doppi = nomi.filter((n) => presenti.has(n.toLowerCase()));
+    if (doppi.length) throw new Error(`Ci sono già: ${doppi.slice(0, 4).join(', ')}${doppi.length > 4 ? '…' : ''}. Cambia il nome di partenza.`);
+    const base = Math.max(-1, ...suoi.map((t) => t.ordine)) + 1;
+    nomi.forEach((nome, k) => d.tavoli.push({
+      id: randomUUID(), eventoId: dati.eventoId, nome, zona: dati.zona, posti: dati.posti, spesaMinima: dati.spesaMinima,
+      stato: 'libero', nota: null, visibileDaPr: true, prAbilitati: null, ordine: base + k, x: null, y: null,
+    }));
+  });
+  return nomi;
 }
 
 /** Mette il tavolo sulla mappa (x, y in % della piantina) o lo toglie (null). */
@@ -523,21 +601,34 @@ export async function applicaModelloTipi(s: Sessione, eventoId: string, modello:
   await modifica((d) => {
     const e = d.eventi.find((x) => x.id === eventoId);
     if (!e) throw new Error('Serata non trovata');
+    // Si parte dal prezzo "pieno" (il più alto dei tipi di adesso): applicare due volte lo stesso modello non fa scendere i prezzi.
+    const base = prezzoDaTipi(d.lotti.filter((l) => l.eventoId === eventoId))?.massimo ?? e.prezzoLista;
     sostituibili(d, eventoId);
-    tipiDelModello(modello, e.prezzoLista).forEach((t, ordine) => d.lotti.push({ ...t, id: randomUUID(), eventoId, ordine }));
+    tipiDelModello(modello, base).forEach((t, ordine) => d.lotti.push({ ...t, id: randomUUID(), eventoId, ordine }));
+    allineaPrezzoLista(d, eventoId);
   });
 }
 
-/** Copia i tipi da un'altra serata. Le uscite relative seguono la nuova data; quelle con data fissa vanno controllate. */
+/**
+ * Copia i tipi da un'altra serata. Le uscite relative seguono la nuova data; quelle con data fissa si spostano dello stesso
+ * numero di giorni della serata e vanno controllate.
+ */
 export async function copiaTipi(s: Sessione, daEventoId: string, aEventoId: string): Promise<{ copiati: number; dateFisse: number }> {
   soloAdmin(s);
   if (daEventoId === aEventoId) throw new Error('Scegli un’altra serata');
   return modifica((d) => {
-    if (!d.eventi.some((e) => e.id === aEventoId) || !d.eventi.some((e) => e.id === daEventoId)) throw new Error('Serata non trovata');
+    const dae = d.eventi.find((e) => e.id === daEventoId);
+    const ae = d.eventi.find((e) => e.id === aEventoId);
+    if (!dae || !ae) throw new Error('Serata non trovata');
     const da = d.lotti.filter((l) => l.eventoId === daEventoId).sort((a, b) => a.ordine - b.ordine);
     if (da.length === 0) throw new Error('Quella serata non ha tipi di prevendita');
     sostituibili(d, aEventoId);
-    da.forEach((l, ordine) => d.lotti.push({ ...l, id: randomUUID(), eventoId: aEventoId, ordine, prAbilitati: null }));
+    const giorni = giorniTra(dae.data, ae.data);
+    da.forEach((l, ordine) => d.lotti.push({
+      ...l, id: randomUUID(), eventoId: aEventoId, ordine, prAbilitati: null, automatico: false,
+      dataInizio: l.dataInizio ? spostaGiorni(l.dataInizio, giorni) : null, dataFine: l.dataFine ? spostaGiorni(l.dataFine, giorni) : null,
+    }));
+    allineaPrezzoLista(d, aEventoId);
     return { copiati: da.length, dateFisse: da.filter((l) => (l.dataInizio && l.uscitaGiorniPrima == null) || (l.dataFine && l.fineOrePrima == null)).length };
   });
 }
