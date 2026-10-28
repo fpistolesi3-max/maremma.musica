@@ -75,12 +75,12 @@ a.mm-btn--primario:hover, a.mm-btn--primario:active { color: var(--su-arancio); 
 .mm-btn:disabled, .mm-btn[aria-disabled="true"] { background: var(--notte-3); color: var(--osso-3); border-color: transparent; filter: none; cursor: not-allowed; }
 /* Effetto "forma che cambia": un riempimento osso sale da sotto con un velo di rimbalzo, il raggio si allarga e il testo si scurisce.
    Solo sui pulsanti d'azione pubblici (mm-btn--clip); mai su porta e admin. Nessun movimento di layout: tutto sta in un pseudo-elemento ritagliato. */
-.mm-btn--clip { position: relative; isolation: isolate; overflow: hidden; transition: border-radius 320ms cubic-bezier(.34,1.4,.64,1), color 200ms ease-out, transform var(--durata-secca); }
+.mm-btn--clip { position: relative; isolation: isolate; overflow: hidden; transition: border-radius 320ms cubic-bezier(.34,1.4,.64,1), color 300ms ease-out, transform var(--durata-secca); }
 .mm-btn--clip::before {
   content: ""; position: absolute; inset: -1px; z-index: -1; pointer-events: none; background: var(--osso);
   clip-path: inset(100% 0 0 0 round 0); transition: clip-path 320ms cubic-bezier(.34,1.3,.64,1);
 }
-.mm-btn--clip.mm-btn--linea:hover { background: none; }
+.mm-btn--clip.mm-btn--linea:hover { background: none; color: var(--osso); }
 .mm-btn--clip:not(:disabled):not([aria-disabled="true"]):active::before { clip-path: inset(0 round 0); transition-duration: 90ms; }
 .mm-btn--clip:not(:disabled):not([aria-disabled="true"]):active { color: var(--notte); }
 @media (hover: hover) {
