@@ -172,6 +172,8 @@ export interface Iscrizione {
   consegnaId: string | null;      // solo storico: soldi incassati dal PR e consegnati, prima che tutto passasse dal sito
   origine: 'lista' | 'cassa';     // cassa = registrato alla porta dallo staff, entra subito, senza QR
   rifCassa: string | null;
+  /** Prevendita mai completata chiusa perché la persona è entrata dalla cassa: id dell'ingresso in cassa che l'ha sostituita. */
+  chiusaDaCassa?: string | null;
   /**
    * Dopo `GIORNI_ANONIMIZZAZIONE` giorni dalla serata nome, cognome, email e data di nascita si cancellano (restano come stringa
    * vuota; nel database relazionale diventano null). La riga resta per le analisi: età alla serata, tipo di prevendita, importo,

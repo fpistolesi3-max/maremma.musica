@@ -28,7 +28,7 @@ Si entra da `/accedi` con l'email: arriva un link e un codice a 6 cifre. Finché
 non è configurato, le email si leggono su **`/dev/posta`** (anche i QR delle iscrizioni).
 
 In sviluppo `/accedi` mostra anche gli **account di prova**: un tocco e poi "Entra subito".
-Per cambiare account usa "Esci" (area PR in alto, admin in alto, scanner nelle impostazioni della porta).
+Per cambiare account usa "Esci" (sempre in alto a destra: area PR, admin e barra della porta); riporta a `/accedi`.
 Da telefono: menu ☰ → "Accedi" (nel sito non c'è un link separato alla porta: lo staff entra da qui o dall'icona sul telefono).
 
 | Email | Ruolo | Dove va |
@@ -110,11 +110,27 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   chiede a Stripe l'esito delle pagine di pagamento rimaste senza risposta, così un tavolo pagato non torna libero se il webhook
   non arriva. Non esiste "Segna pagato": un tavolo diventa "in attesa" o "pagato" solo con una prenotazione pagata sul sito.
 - PR: `/pr/[handle]` — chi apre il link vede le prossime serate; il PR entrato vede la sua area.
-- Porta: `/door` — fotocamera o codice, "cerca per nome", contatore live, funziona senza rete
-  (elenco e ingressi in coda salvati sul telefono, sincronizzati al ritorno del segnale).
-- Alla porta chi è in lista ha già pagato online: non si incassa niente. Una prevendita chiesta e non pagata dà
-  "Non pagato": la persona può pagarla dal telefono (rifà la prevendita con gli stessi dati e ritrova il posto) e poi "Riprova", oppure passare dalla cassa se la serata ce l'ha.
-  Offline vale l'elenco salvato: chi ha pagato dopo l'ultimo aggiornamento non c'è ancora e si aspetta la rete.
+- Porta: `/door` — fotocamera o codice, "cerca per nome", contatore live separato ("Lista 1/17 · Cassa 1": la cassa non gonfia il totale
+  della lista), funziona senza rete (elenco e ingressi in coda salvati sul telefono, sincronizzati al ritorno del segnale).
+  In alto una barra leggera Porta / PR / Admin (Admin solo per l'admin) con "Esci" sempre a destra, come nel resto dell'area
+  riservata; "Esci" chiede conferma e, se ci sono ingressi non ancora inviati, fa prima sincronizzare. "Esci" porta a `/accedi`
+  per tutti i ruoli. L'elenco delle serate della porta non mostra le bozze.
+- Alla porta chi è in lista ha già pagato online: non si incassa niente e la prevendita non si vende mai. Una prevendita
+  "non completata" (modulo compilato o link del PR, pagamento mai arrivato: stato `in_attesa`) non è una prevendita: non ha un QR,
+  non vale per entrare e non conta nel contatore. Nell'elenco e nella schermata del risultato dice "Prevendita non completata · non vale
+  per entrare", con tre strade: "Ha pagato ora? Riprova" (ha pagato online dal telefono, il telefono riscarica l'elenco), "Ingresso in
+  cassa" (se la serata ce l'ha: il modulo si apre già compilato con nome, cognome e data di nascita, lo staff sceglie contanti o POS e
+  conferma) oppure "Non entra". Offline vale l'elenco salvato: chi ha pagato dopo l'ultimo aggiornamento non c'è ancora e si aspetta la rete.
+- Niente doppioni tra lista e cassa: quando qualcuno entra dalla cassa con gli stessi dati (cognome senza accenti + data di nascita,
+  stessa serata) di una prevendita non completata, quella richiesta si chiude (stato `scaduta`, campo `chiusaDaCassa` = id dell'ingresso
+  in cassa) e la sua pagina di pagamento Stripe si chiude con `chiudiCheckout` (`/checkout/sessions/{id}/expire`), così non si può
+  più pagare. La persona compare una sola volta nella ricerca della porta e in Iscrizioni. Se un pagamento arriva lo stesso, trova
+  un ingresso valido (doppione) e finisce tra i pagamenti da rimborsare, visibili all'admin (`confermaPagamentoIscrizione`).
+- QR di un'altra serata: se il QR è firmato ma non è in elenco, il telefono chiede al server di quale serata è
+  (`/api/door?biglietto=…`, `serataDelBiglietto`: la serata si ricava dall'iscrizione o dal tavolo e la firma si verifica con quella
+  serata, quindi un QR falso non dice niente) e mostra "Biglietto di <serata> (<data>). Cambia serata →": un tocco passa alla serata
+  giusta (prima sincronizza la coda) e rilegge lo stesso QR. Serve la rete: il token porta solo l'id del biglietto, non la serata,
+  quindi offline resta "Non è in elenco" (cambiare il formato del token invaliderebbe i biglietti già inviati).
 - Ingresso in cassa (staff e admin, da `/door` → "Ingresso in cassa"), solo nelle serate con "Ingresso in cassa alla
   porta" acceso nel form della serata (sezione Ingresso; di default acceso). Spento: la porta non mostra il pulsante, la
   pagina della serata, il modulo e le email dicono "Ingresso solo in prevendita". La porta riceve l'interruttore a ogni

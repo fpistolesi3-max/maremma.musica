@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePorta, nuovoId } from './store';
 import { Fotocamera } from './fotocamera';
-import { categoriaDaControllare, cercaPerNome, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type VocePorta } from '@/lib/porta-logica';
+import { categoriaDaControllare, cercaPerNome, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
 import type { MetodoPagamento } from '@/lib/dati/tipi';
 import { etichettaCanale } from '@/lib/canali';
-import { SchermoCassa } from './cassa';
+import { SchermoCassa, type DatiIniziali } from './cassa';
 import type { DatiCassa } from '@/lib/porta-logica';
 
 // Scanner della porta (mockup Porta 1–5). Tutto il controllo avviene sul telefono con l'elenco salvato:
@@ -17,12 +17,13 @@ interface EventoPorta { id: string; nome: string; data: string; numero: number |
 type Schermo =
   | { tipo: 'scanner' }
   | { tipo: 'cerca' }
-  | { tipo: 'cassa' }
+  | { tipo: 'cassa'; iniziale?: DatiIniziali } // iniziale: arriva da una prevendita non completata, i dati sono già noti
   | { tipo: 'impostazioni' }
   | { tipo: 'esito'; esito: EsitoPorta };
 
 const oraDi = (iso: string) => new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
 const euro = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2).replace('.', ',')} €`;
+const giornoMese = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
 const nascita = (ymd: string) => ymd.split('-').reverse().join('.');
 function anni(ymd: string) {
   const [a, m, g] = ymd.split('-').map(Number);
@@ -40,6 +41,8 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   const [metodo, setMetodo] = useState<MetodoPagamento>('porta_contanti');
   const [codice, setCodice] = useState('');
   const [q, setQ] = useState('');
+  const [confermaEsci, setConfermaEsci] = useState(false);
+  const [inSospeso, setInSospeso] = useState<{ eventoId: string; chiave: string } | null>(null); // QR da rileggere dopo "Cambia serata"
   const ritorno = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Evento di default: quello salvato, altrimenti il più vicino.
@@ -68,10 +71,12 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   const cassaAttiva = Boolean(evento && (st.cassa ?? evento.cassa));
   // Serata senza telefono: niente scanner, la porta parte dalla ricerca per cognome e controlla il documento.
   const senzaTelefono = Boolean(evento?.senzaTelefono);
-  // Si contano le persone: un tavolo vale per tutto il suo gruppo. I tavoli non ancora pagati non contano.
-  const contate = st.elenco.filter((v) => (!v.tavolo || v.tavolo.pagato) && v.stato !== 'in_attesa');
+  // Si contano le persone: un tavolo vale per tutto il suo gruppo. I tavoli non ancora pagati e le prevendite non completate non contano.
+  // La lista (prevendite e tavoli) e la cassa stanno separate: chi paga in cassa non fa salire il totale della lista.
+  const contate = st.elenco.filter((v) => v.origine !== 'cassa' && (!v.tavolo || v.tavolo.pagato) && v.stato !== 'in_attesa');
   const totale = contate.reduce((n, v) => n + personeVoce(v), 0);
   const entrati = contate.reduce((n, v) => n + entratiVoce(v), 0);
+  const inCassa = st.elenco.filter((v) => v.origine === 'cassa' && v.stato === 'entrato').length;
 
   const mostra = useCallback((esito: EsitoPorta) => {
     clearTimeout(ritorno.current);
@@ -123,6 +128,11 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
       v = trovaVoce(usePorta.getState().elenco, chiave);
     }
     if (!v) {
+      // Un QR firmato può essere di un'altra serata: lo chiediamo al server (serve la rete; offline il token non dice la serata).
+      if (chiave.startsWith('MM1.') && navigator.onLine) {
+        const serata = await altraSerata(chiave, usePorta.getState().eventoId);
+        if (serata) { mostra({ esito: 'altra_serata', serata, chiave }); return; }
+      }
       const salvato = usePorta.getState().salvatoAlle;
       mostra({ esito: 'non_valido', motivo: chiave.startsWith('MM1.') ? `Non è in elenco${salvato ? ` (salvato alle ${oraDi(salvato)})` : ''}` : 'Codice non trovato' });
       return;
@@ -130,7 +140,25 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
     entra(v);
   }, [entra, mostra]);
 
-  /** "Riprova" dopo un "Non pagato": magari ha appena pagato dal telefono. */
+  /** "Cambia serata →": passa all'altra serata e rilegge lo stesso QR appena arriva il suo elenco. */
+  const cambiaSerata = useCallback(async (serata: SerataBiglietto, chiave: string) => {
+    // Cambiare serata svuota la coda del telefono: prima si inviano gli ingressi ancora in sospeso.
+    await usePorta.getState().sincronizza();
+    if (usePorta.getState().coda.length > 0) {
+      mostra({ esito: 'non_valido', motivo: 'Ci sono ingressi non ancora inviati: aspetta la sincronizzazione e riprova' });
+      return;
+    }
+    usePorta.getState().scegliEvento(serata.id);
+    setInSospeso({ eventoId: serata.id, chiave });
+    setSchermo({ tipo: 'scanner' });
+  }, [mostra]);
+  useEffect(() => {
+    if (!inSospeso || st.eventoId !== inSospeso.eventoId || !st.salvatoAlle) return;
+    setInSospeso(null);
+    void leggiChiave(inSospeso.chiave);
+  }, [inSospeso, st.eventoId, st.salvatoAlle, leggiChiave]);
+
+  /** "Riprova" dopo "Prevendita non completata": magari ha appena pagato dal telefono. */
   const riprova = useCallback(async (v: VocePorta) => {
     await usePorta.getState().sincronizza();
     entra(trovaVoce(usePorta.getState().elenco, v.id) ?? v);
@@ -143,18 +171,29 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   if (!pronto) return <div className="min-h-dvh bg-vinile" />;
 
   const colori = schermo.tipo === 'esito'
-    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
+    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-attesa text-su-stato', altra_serata: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
     : schermo.tipo === 'cerca' || schermo.tipo === 'impostazioni' || schermo.tipo === 'cassa' ? 'bg-notte text-osso' : 'bg-vinile text-osso';
   const suPieno = schermo.tipo === 'esito';
 
   return (
     <div className={`mm-interno flex min-h-dvh flex-col ${colori} transition-colors duration-cambio`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* Navigazione leggera, come nel resto dell'area riservata: Esci sta sempre in alto a destra. Sparisce sulle schermate d'esito a tutto campo. */}
+      {schermo.tipo !== 'esito' && (
+        <nav aria-label="Area riservata" className="flex flex-none items-center border-b border-linea px-2">
+          <span aria-current="page" className="flex min-h-[44px] items-center border-b-2 border-arancio px-3 text-[11px] font-semibold uppercase tracking-[.12em] text-osso">Porta</span>
+          <a href={`/gestione/pr${st.eventoId ? `?serata=${st.eventoId}` : ''}`} className="flex min-h-[44px] items-center px-3 text-[11px] font-semibold uppercase tracking-[.12em] text-osso-2 no-underline">PR</a>
+          {admin && <a href="/admin" className="flex min-h-[44px] items-center px-3 text-[11px] font-semibold uppercase tracking-[.12em] text-osso-2 no-underline">Admin</a>}
+          <span className="flex-grow" />
+          <button type="button" onClick={() => setConfermaEsci(true)} className="flex min-h-[44px] items-center border-0 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-[.12em] text-osso-2">Esci</button>
+        </nav>
+      )}
       {/* Testata con contatore ingressi */}
       <button type="button" onClick={() => setSchermo({ tipo: 'impostazioni' })} className="flex flex-none flex-col gap-[10px] border-0 bg-transparent px-4 pt-[14px] text-left text-current" aria-label="Impostazioni della porta">
         <span className="flex w-full items-center gap-[10px]">
-          <span className="flex-grow text-[11px] font-semibold leading-none tracking-logo">{st.porta.replace('P', 'PORTA ')} · {(evento?.nome ?? 'SCEGLI LA SERATA').toUpperCase()}</span>
-          <span className="font-mono text-[12px] font-medium leading-none" aria-label={`${entrati} entrati su ${totale}`}>
-            {entrati}<span className={suPieno ? 'opacity-50' : 'text-osso-3'}>/{totale}</span>
+          <span className="min-w-0 flex-grow truncate text-[11px] font-semibold leading-none tracking-logo">{st.porta.replace('P', 'PORTA ')} · {(evento?.nome ?? 'SCEGLI LA SERATA').toUpperCase()}</span>
+          <span className="flex-none font-mono text-[12px] font-medium leading-none" aria-label={`In lista ${entrati} entrati su ${totale}${cassaAttiva || inCassa > 0 ? `, in cassa ${inCassa}` : ''}`}>
+            LISTA {entrati}<span className={suPieno ? 'opacity-50' : 'text-osso-3'}>/{totale}</span>
+            {(cassaAttiva || inCassa > 0) && <span className={suPieno ? 'opacity-70' : 'text-osso-2'}> · CASSA {inCassa}</span>}
           </span>
         </span>
         <span className={`block h-[3px] w-full ${suPieno ? 'bg-[rgba(5,5,5,.18)]' : 'bg-notte-3'}`}>
@@ -224,7 +263,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
                 : dentro ? ['mm-chip mm-chip--entrato', `Entrato ${v.oraCheckIn ? oraDi(v.oraCheckIn) : ''}`]
                 : v.stato === 'annullato' || v.stato === 'rimborsato' ? ['mm-chip mm-chip--annullato', 'Annullato']
                   : v.stato === 'pagato' ? ['mm-chip mm-chip--pagato', 'Pagato']
-                    : v.stato === 'in_attesa' ? ['mm-chip mm-chip--incassare', 'Non pagato'] : ['mm-chip mm-chip--lista', 'In lista'];
+                    : v.stato === 'in_attesa' ? ['mm-chip mm-chip--incassare', 'Prevendita non completata · non vale per entrare'] : ['mm-chip mm-chip--lista', 'In lista'];
               return (
                 <div key={v.id} className="flex items-center gap-3 border-t border-linea py-4">
                   <div className="flex min-w-0 flex-grow flex-col gap-[6px]">
@@ -254,7 +293,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
       )}
 
       {schermo.tipo === 'cassa' && evento && cassaAttiva && (
-        <SchermoCassa evento={evento} elenco={st.elenco} metodo={metodo} setMetodo={setMetodo}
+        <SchermoCassa key={schermo.iniziale ? 'precompilata' : 'vuota'} evento={evento} elenco={st.elenco} metodo={metodo} setMetodo={setMetodo} iniziale={schermo.iniziale}
           onRegistra={registraCassa} onApri={(v) => entra(v)} onChiudi={() => setSchermo({ tipo: 'scanner' })} />
       )}
 
@@ -283,24 +322,53 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
             <span>STAFF: {email}</span>
           </div>
           <button type="button" className="mm-btn mm-btn--linea mm-btn--pieno" onClick={() => void st.sincronizza()}>Aggiorna ora</button>
-          <a href={`/gestione/pr${st.eventoId ? `?serata=${st.eventoId}` : ''}`} className="mm-btn mm-btn--linea mm-btn--pieno">PR</a>
-          {admin && <a href="/admin" className="mm-btn mm-btn--linea mm-btn--pieno">Admin</a>}
           <button type="button" className="mm-btn mm-btn--primario mm-btn--pieno" onClick={() => setSchermo({ tipo: 'scanner' })}>Torna allo scanner</button>
-          <form action={esci}><button type="submit" className="mm-btn mm-btn--muto" disabled={st.coda.length > 0}>{st.coda.length ? 'Esci (prima sincronizza)' : 'Esci'}</button></form>
           {daInstallare && <p className="m-0 font-mono text-[12px] leading-5 text-osso-2">PER APRIRE LA PORTA CON UN TOCCO: MENU DEL BROWSER → AGGIUNGI A HOME. L’INDIRIZZO È /door.</p>}
         </div>
       )}
 
       {schermo.tipo === 'esito' && (
-        <Esito esito={schermo.esito} cassa={cassaAttiva} senzaTelefono={senzaTelefono} online={st.online} salvatoAlle={st.salvatoAlle}
+        <Esito esito={schermo.esito} cassa={cassaAttiva} prezzoCassa={evento?.prezzoCassa ?? 0} senzaTelefono={senzaTelefono} online={st.online} salvatoAlle={st.salvatoAlle}
           onRiprova={() => { if (schermo.esito.esito === 'non_pagato') void riprova(schermo.esito.voce); }}
-          onCassa={() => setSchermo({ tipo: 'cassa' })}
+          onCassa={() => setSchermo(schermo.esito.esito === 'non_pagato'
+            ? { tipo: 'cassa', iniziale: { nome: schermo.esito.voce.nome, cognome: schermo.esito.voce.cognome, dataNascita: schermo.esito.voce.dataNascita } }
+            : { tipo: 'cassa' })}
+          onCambiaSerata={() => { if (schermo.esito.esito === 'altra_serata') void cambiaSerata(schermo.esito.serata, schermo.esito.chiave); }}
           onFaiEntrare={() => { if (schermo.esito.esito === 'da_confermare') entra(schermo.esito.voce, true); }}
           onNonRientra={() => { if (schermo.esito.esito === 'da_confermare') rifiuta(schermo.esito.voce); }}
           onChiudi={() => { clearTimeout(ritorno.current); if (senzaTelefono) setQ(''); setSchermo({ tipo: 'scanner' }); }} />
       )}
+
+      {confermaEsci && (
+        <div role="dialog" aria-modal="true" aria-labelledby="esci-titolo" className="fixed inset-0 z-50 grid place-items-end bg-[rgba(5,5,5,.8)] p-4 sm:place-items-center">
+          <div className="flex w-full max-w-[420px] flex-col gap-4 border border-linea-forte bg-notte p-5 text-osso">
+            <h2 id="esci-titolo" className="m-0 font-display text-[32px] font-black uppercase leading-none">Esci dalla porta?</h2>
+            {st.coda.length > 0 ? (
+              <p className="m-0 text-[15px] leading-5 text-attesa">Hai {st.coda.length} {st.coda.length === 1 ? 'ingresso non ancora inviato' : 'ingressi non ancora inviati'}: se esci ora restano sul telefono. Aspetta la sincronizzazione.</p>
+            ) : (
+              <p className="m-0 text-[15px] leading-5 text-osso-2">Dovrai rientrare con il link che ti arriva per email.</p>
+            )}
+            {st.coda.length > 0
+              ? <button type="button" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 52 }} onClick={() => void st.sincronizza()}>Aggiorna ora</button>
+              : <form action={esci}><button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 52 }}>Sì, esci</button></form>}
+            <button type="button" className="mm-btn mm-btn--linea mm-btn--pieno" style={{ minHeight: 52 }} autoFocus onClick={() => setConfermaEsci(false)}>Resta</button>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+/** Di quale serata è un QR che non è in elenco? Null se non si sa (rete assente, QR falso, serata non aperta alla porta) o se è questa. */
+async function altraSerata(chiave: string, eventoId: string | null): Promise<SerataBiglietto | null> {
+  try {
+    const r = await fetch(`/api/door?biglietto=${encodeURIComponent(chiave)}`, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const { serata } = (await r.json()) as { serata: SerataBiglietto | null };
+    return serata && serata.id !== eventoId ? serata : null;
+  } catch {
+    return null;
+  }
 }
 
 /** "Lista: Maremma Musica · da Instagram": senza PR si vede da dove è arrivato. */
@@ -323,8 +391,8 @@ function StatoRete() {
   );
 }
 
-function Esito({ esito, cassa, senzaTelefono, online, salvatoAlle, onRiprova, onCassa, onFaiEntrare, onNonRientra, onChiudi }: {
-  esito: EsitoPorta; cassa: boolean; senzaTelefono: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCassa: () => void; onFaiEntrare: () => void; onNonRientra: () => void; onChiudi: () => void;
+function Esito({ esito, cassa, prezzoCassa, senzaTelefono, online, salvatoAlle, onRiprova, onCassa, onCambiaSerata, onFaiEntrare, onNonRientra, onChiudi }: {
+  esito: EsitoPorta; cassa: boolean; prezzoCassa: number; senzaTelefono: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCassa: () => void; onCambiaSerata: () => void; onFaiEntrare: () => void; onNonRientra: () => void; onChiudi: () => void;
 }) {
   const linea = 'my-[10px] h-px bg-current opacity-30';
   const indietro = senzaTelefono ? 'Torna alla ricerca' : 'Torna allo scanner';
@@ -356,27 +424,48 @@ function Esito({ esito, cassa, senzaTelefono, online, salvatoAlle, onRiprova, on
     );
   }
 
-  // Prevendita chiesta ma non pagata: alla porta non si incassa. Paga dal telefono (poi "Riprova") o passa dalla cassa.
+  // Prevendita non completata (modulo compilato o link del PR, pagamento mai arrivato): non è una prevendita, non ha un QR e non vale per
+  // entrare. Alla porta non si incassa: paga online dal suo telefono (poi "Riprova") oppure, se c'è la cassa, entra come ingresso in cassa.
   if (esito.esito === 'non_pagato') {
     const v = esito.voce;
     return (
       <>
         <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-          <span className="font-mono text-[13px] font-medium leading-[18px]">PREVENDITA NON PAGATA{!online && salvatoAlle ? ` · ELENCO DELLE ${oraDi(salvatoAlle)}` : ''}</span>
-          <span className="font-display text-[100px] font-black uppercase leading-[.8]">Non<br />pagato</span>
+          <span className="font-mono text-[13px] font-medium leading-[18px]">PREVENDITA NON COMPLETATA · NON VALE PER ENTRARE{!online && salvatoAlle ? ` · ELENCO DELLE ${oraDi(salvatoAlle)}` : ''}</span>
+          <span className="font-display text-[72px] font-black uppercase leading-[.85]">Non<br />completata</span>
           <div className={linea} />
           <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
           <span className="font-mono text-[13px] font-medium leading-[18px]">NASCITA {nascita(v.dataNascita)} · {anni(v.dataNascita)} ANNI</span>
           <span className="text-[17px] font-medium leading-6">
             {online
-              ? `Può pagarla ora dal telefono: rifà la prevendita sul sito con gli stessi dati (ritrova il suo posto), poi tocca Riprova.${cassa ? ' Oppure passa dalla cassa.' : ' Stasera non c’è cassa: senza prevendita pagata non entra.'}`
-              : 'Senza rete: se ha pagato dopo l’ultimo aggiornamento non lo vediamo ancora. Aspetta che torni la rete e tocca Riprova.'}
+              ? `Ha compilato la prevendita ma il pagamento non è arrivato: non ha un QR. Può pagarla ora online dal suo telefono (rifà la prevendita sul sito con gli stessi dati), poi tocca “Ha pagato ora? Riprova”.${cassa ? ' Oppure entra come ingresso in cassa.' : ' Stasera non c’è cassa: senza prevendita pagata non entra.'}`
+              : 'Senza rete: se ha pagato dopo l’ultimo aggiornamento non lo vediamo ancora. Aspetta che torni la rete e tocca “Ha pagato ora? Riprova”.'}
           </span>
         </div>
         <div className="flex flex-none flex-col gap-2 px-4 pb-7">
-          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onRiprova}>Riprova</button>
-          {cassa && <button type="button" className="mm-btn" style={{ border: '1px solid var(--vinile)', color: 'var(--vinile)', minHeight: 52 }} onClick={onCassa}>Ingresso in cassa</button>}
+          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onRiprova}>Ha pagato ora? Riprova</button>
+          {cassa && <button type="button" className="mm-btn" style={{ border: '1px solid var(--vinile)', color: 'var(--vinile)', minHeight: 52 }} onClick={onCassa}>Ingresso in cassa{prezzoCassa > 0 ? ` · ${euro(prezzoCassa)}` : ''}</button>}
           <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 48 }} onClick={onChiudi}>Non entra</button>
+        </div>
+      </>
+    );
+  }
+
+  // Biglietto vero ma di un'altra serata: lo staff ha aperto la serata sbagliata.
+  if (esito.esito === 'altra_serata') {
+    const { serata } = esito;
+    return (
+      <>
+        <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
+          <span className="font-mono text-[13px] font-medium leading-[18px]">QR VALIDO · NON È DI QUESTA SERATA</span>
+          <span className="font-display text-[88px] font-black uppercase leading-[.85]">Altra<br />serata</span>
+          <div className={linea} />
+          <span className="font-display text-[40px] font-black uppercase leading-[.95] [overflow-wrap:anywhere]">{serata.nome}</span>
+          <span className="text-[17px] font-medium leading-6">Biglietto di {serata.nome} ({giornoMese(serata.data)}). Cambia serata e il QR si controlla lì.</span>
+        </div>
+        <div className="flex flex-none flex-col gap-2 px-4 pb-7">
+          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onCambiaSerata}>Cambia serata →</button>
+          <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 48 }} onClick={onChiudi}>{indietro}</button>
         </div>
       </>
     );

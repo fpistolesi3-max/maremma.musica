@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { MetodoPagamento } from '@/lib/dati/tipi';
-import type { DatiCassa, EsitoPorta, VocePorta } from '@/lib/porta-logica';
+import { stessaPersona, type DatiCassa, type EsitoPorta, type VocePorta } from '@/lib/porta-logica';
 
 // Stato del telefono della porta, salvato in localStorage: l'elenco resta anche senza campo
 // e gli ingressi fatti offline aspettano in coda finché torna la connessione.
@@ -57,7 +57,9 @@ export const usePorta = create<StatoPorta>()(
       scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, cassa: null, coda: [], conflitti: 0 }); },
       scegliPorta: (p) => set({ porta: p }),
       aggiungiCassa: (voce, m) => {
-        set((s) => ({ elenco: [...s.elenco, voce], coda: [...s.coda, m] }));
+        // Chi aveva una prevendita non completata e passa dalla cassa compare una volta sola: la richiesta sparisce subito anche qui
+        // (il server la chiude alla sincronizzazione).
+        set((s) => ({ elenco: [...s.elenco.filter((v) => !(v.stato === 'in_attesa' && stessaPersona(v, voce))), voce], coda: [...s.coda, m] }));
         void get().sincronizza();
       },
       applicaLocale: (voce, m) => {

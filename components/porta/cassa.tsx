@@ -10,8 +10,12 @@ import { chiaveCognome, componiData, etaSufficiente } from '@/lib/regole';
 
 export interface EventoCassa { data: string; etaMinima: number; prezzoCassa: number }
 
-export function SchermoCassa({ evento, elenco, metodo, setMetodo, onRegistra, onApri, onChiudi }: {
+/** Dati già noti di chi arriva da una prevendita non completata: lo staff sceglie solo il metodo e conferma. */
+export interface DatiIniziali { nome: string; cognome: string; dataNascita: string }
+
+export function SchermoCassa({ evento, elenco, metodo, setMetodo, iniziale, onRegistra, onApri, onChiudi }: {
   evento: EventoCassa;
+  iniziale?: DatiIniziali;
   elenco: VocePorta[];
   metodo: MetodoPagamento;
   setMetodo: (m: MetodoPagamento) => void;
@@ -19,9 +23,12 @@ export function SchermoCassa({ evento, elenco, metodo, setMetodo, onRegistra, on
   onApri: (v: VocePorta) => void;
   onChiudi: () => void;
 }) {
-  const [nome, setNome] = useState('');
-  const [cognome, setCognome] = useState('');
-  const [data, setData] = useState({ g: '', m: '', a: '' });
+  const [nome, setNome] = useState(iniziale?.nome ?? '');
+  const [cognome, setCognome] = useState(iniziale?.cognome ?? '');
+  const [data, setData] = useState(() => {
+    const [a = '', m = '', g = ''] = iniziale?.dataNascita.split('-') ?? [];
+    return { g, m, a };
+  });
   const [importo, setImporto] = useState(String(evento.prezzoCassa));
   const [errore, setErrore] = useState<string | null>(null);
   const [doppio, setDoppio] = useState<VocePorta | null>(null);
@@ -54,12 +61,14 @@ export function SchermoCassa({ evento, elenco, metodo, setMetodo, onRegistra, on
         </button>
         <h1 className="m-0 font-display text-[36px] font-black uppercase leading-none">Ingresso in cassa</h1>
       </div>
-      <span className="text-[14px] leading-5 text-osso-2">Per chi non è in lista. Niente email e niente QR: entra subito.</span>
+      <span className="text-[14px] leading-5 text-osso-2">
+        {iniziale ? 'Dati già inseriti dalla prevendita non completata: controlla il documento, scegli il metodo e conferma. Quella richiesta si chiude e non si può più pagare online.' : 'Per chi non è in lista. Niente email e niente QR: entra subito.'}
+      </span>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="mm-campo">
           <label className="mm-campo__etichetta" htmlFor="c-nome">Nome</label>
-          <input className="mm-campo__input" id="c-nome" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="off" autoCapitalize="words" autoFocus />
+          <input className="mm-campo__input" id="c-nome" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="off" autoCapitalize="words" autoFocus={!iniziale} />
         </div>
         <div className="mm-campo">
           <label className="mm-campo__etichetta" htmlFor="c-cognome">Cognome</label>

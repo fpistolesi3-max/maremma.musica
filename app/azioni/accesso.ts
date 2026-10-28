@@ -25,5 +25,5 @@ export async function verificaCodice(p: StatoAccesso, f: FormData): Promise<Stat
 
 export async function esci() {
   await chiudiSessione();
-  redirect('/');
+  redirect('/accedi');
 }
