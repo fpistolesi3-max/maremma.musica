@@ -148,7 +148,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   const suPieno = schermo.tipo === 'esito';
 
   return (
-    <div className={`flex min-h-dvh flex-col ${colori} transition-colors duration-cambio`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className={`mm-interno flex min-h-dvh flex-col ${colori} transition-colors duration-cambio`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {/* Testata con contatore ingressi */}
       <button type="button" onClick={() => setSchermo({ tipo: 'impostazioni' })} className="flex flex-none flex-col gap-[10px] border-0 bg-transparent px-4 pt-[14px] text-left text-current" aria-label="Impostazioni della porta">
         <span className="flex w-full items-center gap-[10px]">
