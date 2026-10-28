@@ -5,8 +5,8 @@ import { useEffect, useState, type CSSProperties, type MouseEvent, type ReactNod
 
 type Fase = 'riposo' | 'tocco' | 'carico' | 'ok';
 
-/** Sotto questa soglia l'utente vede solo la risposta al tocco; il cerchio compare se l'attesa dura di più. */
-const SOGLIA_MS = 280;
+/** Sotto questa soglia l'utente vede solo la risposta al tocco; il cerchio compare se l'attesa dura di più (150 ms: oltre il tocco, prima che sembri fermo). */
+const SOGLIA_MS = 150;
 
 type Props = {
   /** Con href è un collegamento (Link, o <a> se `esterno`); senza è un <button>. */

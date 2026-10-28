@@ -55,9 +55,18 @@
   transition: filter var(--durata-secca), background-color var(--durata-secca), color var(--durata-secca), transform var(--durata-secca);
 }
 .mm-btn:active { transform: translateY(1px); }
+/* Tocco: ogni pulsante pubblico si comprime subito (visibile col dito, dove l'hover non esiste). */
+.mm-btn:not(:where(.mm-interno *)):not(:disabled):not([aria-disabled="true"]):active { transform: scale(.95); transition-duration: 60ms; }
+.mm-btn--primario:not(:where(.mm-interno *)) { transition-property: filter, background-color, color, transform, box-shadow; }
+/* Sui link il colore di a:hover non deve vincere sul testo del pulsante. */
+a.mm-btn--primario:hover, a.mm-btn--primario:active { color: var(--su-arancio); }
 .mm-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .mm-btn--primario { background: var(--arancio); color: var(--su-arancio); }
 .mm-btn--primario:hover { filter: brightness(1.1); }
+.mm-btn--primario:not(:where(.mm-interno *)):not(:disabled):not([aria-disabled="true"]):not(.mm-morph):active { filter: brightness(1.15); box-shadow: 0 0 0 4px color-mix(in oklab, var(--arancio) 35%, transparent); }
+@media (hover: hover) {
+  .mm-btn--primario:not(:where(.mm-interno *)):not(.mm-morph):not(:disabled):not([aria-disabled="true"]):hover { transform: translateY(-2px); box-shadow: 0 10px 26px -10px rgba(213, 91, 35, .75); }
+}
 .mm-btn--linea { border-color: var(--osso); }
 .mm-btn--linea:hover { background: var(--osso); color: var(--notte); }
 .mm-btn--muto { padding: 0 var(--space-2); color: var(--osso-2); }
@@ -66,12 +75,11 @@
 .mm-btn:disabled, .mm-btn[aria-disabled="true"] { background: var(--notte-3); color: var(--osso-3); border-color: transparent; filter: none; cursor: not-allowed; }
 /* Effetto "forma che cambia": un riempimento osso sale da sotto con un velo di rimbalzo, il raggio si allarga e il testo si scurisce.
    Solo sui pulsanti d'azione pubblici (mm-btn--clip); mai su porta e admin. Nessun movimento di layout: tutto sta in un pseudo-elemento ritagliato. */
-.mm-btn--clip { position: relative; isolation: isolate; overflow: hidden; transition: border-radius 320ms cubic-bezier(.34,1.4,.64,1), color 200ms ease-out, transform var(--durata-secca); }
+.mm-btn--clip { position: relative; isolation: isolate; overflow: hidden; transition: border-radius 320ms cubic-bezier(.34,1.4,.64,1), color 300ms ease-out, transform var(--durata-secca); }
 .mm-btn--clip::before {
   content: ""; position: absolute; inset: -1px; z-index: -1; pointer-events: none; background: var(--osso);
   clip-path: inset(100% 0 0 0 round 0); transition: clip-path 320ms cubic-bezier(.34,1.3,.64,1);
 }
-.mm-btn--clip.mm-btn--linea::before { background: var(--arancio); }
 .mm-btn--clip.mm-btn--linea:hover { background: none; color: var(--osso); }
 .mm-btn--clip:not(:disabled):not([aria-disabled="true"]):active::before { clip-path: inset(0 round 0); transition-duration: 90ms; }
 .mm-btn--clip:not(:disabled):not([aria-disabled="true"]):active { color: var(--notte); }
@@ -107,8 +115,8 @@
 .mm-morph:disabled[data-fase="carico"], .mm-morph:disabled[data-fase="tocco"] { color: var(--su-arancio); }
 .mm-morph:hover, .mm-morph:disabled { filter: none; background: none; }
 .mm-morph__testo { display: inline-flex; align-items: center; gap: var(--space-2); transition: opacity 160ms ease-out 100ms, filter 160ms ease-out 100ms, transform 180ms ease-out 100ms; }
-.mm-morph[data-fase="tocco"] { transform: scale(.97); }
-.mm-morph[data-fase="tocco"] .mm-morph__testo { opacity: .5; transition-delay: 0ms; transition-duration: 100ms; }
+.mm-morph[data-fase="tocco"] { transform: scale(.95); }
+.mm-morph[data-fase="tocco"] .mm-morph__testo { opacity: .85; transition-delay: 0ms; transition-duration: 100ms; }
 .mm-morph[data-fase="carico"] .mm-morph__testo, .mm-morph[data-fase="ok"] .mm-morph__testo { opacity: 0; filter: blur(4px); transform: translateY(-6px); transition-delay: 0ms; transition-duration: 120ms; }
 .mm-morph__anello, .mm-morph__spunta { position: absolute; left: 50%; top: 50%; opacity: 0; pointer-events: none; transition: opacity 120ms ease-out; }
 .mm-morph__anello { width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 1.5px solid var(--linea-forte); border-top-color: var(--arancio); border-radius: 50%; }
@@ -118,12 +126,27 @@
 .mm-morph[data-fase="ok"]::before { background: var(--arancio); }
 @keyframes mm-gira { to { transform: rotate(360deg); } }
 @media (hover: hover) { .mm-morph[data-fase="riposo"]:not(:disabled):hover::before { filter: brightness(1.1); } }
-.mm-morph:active:not(:disabled) { transform: scale(.97); }
+.mm-morph:active:not(:disabled) { transform: scale(.95); }
+.mm-morph:active:not(:disabled)::before { filter: brightness(1.15); }
+.mm-morph[data-fase="tocco"]::before { filter: brightness(1.15); }
+.mm-morph:active:not(:disabled), .mm-morph[data-fase="tocco"] { box-shadow: 0 0 0 4px color-mix(in oklab, var(--arancio) 35%, transparent); }
+@media (hover: hover) {
+  .mm-morph[data-fase="riposo"]:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 10px 26px -10px rgba(213, 91, 35, .75); }
+}
+.mm-morph { transition: color 200ms ease-out, transform var(--durata-secca), box-shadow var(--durata-cambio); }
 @media (prefers-reduced-motion: reduce) {
   .mm-morph, .mm-morph::before, .mm-morph__testo, .mm-morph__anello, .mm-morph__spunta { transition: none !important; }
   .mm-morph__anello { animation: none !important; }
 }
-.mm-btn__freccia { font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; }
+/* Freccia: solo sui pulsanti che portano a un'altra pagina (mai su invio e pagamento). Scorre all'hover e al tocco. */
+.mm-btn__freccia { display: inline-block; font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; transition: transform var(--durata-cambio) cubic-bezier(.34, 1.4, .64, 1); }
+@media (hover: hover) { .mm-btn:not(:where(.mm-interno *)):not(:disabled):not([aria-disabled="true"]):hover .mm-btn__freccia { transform: translateX(4px); } }
+.mm-btn:not(:where(.mm-interno *)):not(:disabled):not([aria-disabled="true"]):active .mm-btn__freccia, .mm-morph[data-fase="tocco"] .mm-btn__freccia, .mm-morph[data-fase="carico"] .mm-btn__freccia { transform: translateX(6px); }
+@media (prefers-reduced-motion: reduce) {
+  .mm-btn:not(:where(.mm-interno *)), .mm-btn__freccia { transition: none; }
+  .mm-btn:not(:where(.mm-interno *)):not(:disabled):not([aria-disabled="true"]):active, .mm-btn--primario:not(:disabled):hover, .mm-morph:hover, .mm-morph:active { transform: none !important; }
+  .mm-btn__freccia { transform: none !important; }
+}
 
 /* ---------- TextField ---------- */
 .mm-campo { display: grid; gap: var(--space-2); min-width: 0; align-content: start; }

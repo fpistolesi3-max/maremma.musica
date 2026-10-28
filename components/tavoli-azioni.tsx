@@ -30,7 +30,7 @@ export function RimborsaTardivo({ id, nome, importo }: { id: string; nome: strin
   const [inCorso, avvia] = useTransition();
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <button type="button" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} disabled={inCorso || Boolean(msg.ok)}
+      <button type="button" className="mm-btn mm-btn--clip mm-btn--linea" style={{ minHeight: 44 }} disabled={inCorso || Boolean(msg.ok)}
         onClick={() => { if (confirm(`Restituire ${importo} a ${nome}? Il rimborso parte sul pagamento online e al cliente arriva un'email.`)) avvia(async () => setMsg(await rimborsaPagamentoTardivoAzione(id))); }}>Rimborsa {importo}</button>
       {msg.errore && <span role="alert" className="text-[13px] text-stop-testo">{msg.errore}</span>}
       {msg.ok && <span className="text-[13px] text-ok">{msg.ok}</span>}

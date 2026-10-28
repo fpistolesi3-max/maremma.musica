@@ -40,7 +40,7 @@ export default async function Accedi({ searchParams }: Props) {
         {altroRuolo && (
           <div role="alert" className="flex flex-col gap-3 border border-attesa p-4 text-[14px] leading-5 text-attesa">
             Sei entrato come {s!.utente.email}: questa pagina serve a un altro accesso.
-            <form action={esci}><button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 40 }}>Esci e cambia accesso</button></form>
+            <form action={esci}><button type="submit" className="mm-btn mm-btn--clip mm-btn--linea" style={{ minHeight: 40 }}>Esci e cambia accesso</button></form>
           </div>
         )}
         {errore && <p role="alert" className="m-0 border border-stop-testo px-4 py-3 text-[14px] leading-5 text-stop-testo">Il link è scaduto o è già stato usato. Chiedine uno nuovo.</p>}

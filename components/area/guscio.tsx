@@ -34,7 +34,7 @@ export function GuscioArea({ ruolo, email, children }: { ruolo: Ruolo; email: st
     </>
   );
   return (
-    <div className="mm-grana flex min-h-dvh flex-col md:flex-row">
+    <div className="mm-interno mm-grana flex min-h-dvh flex-col md:flex-row">
       <header className="flex flex-none items-center gap-3 border-b border-linea bg-vinile px-4 py-3 md:hidden">
         {marchio}
         <form action={esci}><button type="submit" className="mm-btn mm-btn--muto" style={{ minHeight: 40 }}>Esci</button></form>

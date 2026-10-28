@@ -84,7 +84,7 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
                     : ep.stato.tipo === 'piena' ? 'I posti in lista sono finiti. Tieni d’occhio Instagram: a volte se ne liberano.'
                       : 'La lista per questa serata è chiusa.'}
                 </p>
-                <Link href={`/e/${e.slug}`} className="mm-btn mm-btn--linea mm-btn--pieno">Torna alla serata</Link>
+                <Link href={`/e/${e.slug}`} className="mm-btn mm-btn--clip mm-btn--linea mm-btn--pieno">Torna alla serata</Link>
               </div>
             )}
           </div>

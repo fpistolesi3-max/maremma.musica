@@ -183,7 +183,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
                   ✓ Richiesta inserita: tavolo {appena.tavolo.nome} per {appena.prenotazione.nome} {appena.prenotazione.cognome}, fermo fino a {quandoScade(appena.prenotazione.scade)}. Al cliente arriva l&apos;email con il link.
                 </p>
               )}
-              {tavoli.aperte && tavoliOnline && tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--linea self-start">Prenota per un cliente</Link>}
+              {tavoli.aperte && tavoliOnline && tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--clip mm-btn--linea self-start">Prenota per un cliente</Link>}
               {tavoli.aperte && tavoliOnline ? (
                 <>
                   <span className="text-[14px] leading-5 text-osso-2">{tavoli.liberi > 0 ? 'Oppure manda questo link' : 'Manda questo link'}: chi prenota da qui finisce nei tuoi tavoli.</span>
