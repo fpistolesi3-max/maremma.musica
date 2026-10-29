@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (63 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, mappa), `npm run typecheck`,
+Altri comandi: `npm test` (78 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, mappa e cartina), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
