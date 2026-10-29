@@ -9,9 +9,9 @@ export const metadata = { title: 'PR' };
 
 type Props = { searchParams: Promise<{ serata?: string }> };
 
-/** Attività dei PR: chi porta gente, chi la fa entrare, quanti soldi hanno in mano. Admin e staff. */
+/** Attività dei PR: chi porta gente, chi la fa entrare, quanti soldi hanno in mano. Solo admin. */
 export default async function AttivitaPr({ searchParams }: Props) {
-  const s = await richiedi(['admin', 'staff'], '/gestione/pr');
+  const s = await richiedi(['admin'], '/gestione/pr');
   const { serata } = await searchParams;
   const p = await panoramicaPr(s, (serata as string) ?? null);
   const q = p.evento ? `?serata=${p.evento.id}` : '?serata=tutte';

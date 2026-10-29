@@ -111,20 +111,21 @@ test('porta: categoria da confermare, "Non rientra" salvato, solo lo staff, si p
   assert.equal((await m.porta.rifiutaIngresso(staff, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora })).esito, 'gia_entrato', 'già entrato: nessun rifiuto');
 });
 
-test('attività PR: admin e staff sì (staff senza email dei PR), i PR no', async () => {
+test('attività PR e canali: solo admin (lo staff vede solo la porta), i PR no', async () => {
   const admin = await m.gestione.panoramicaPr(await sessione('admin@maremmamusica.test'), 'tutte');
-  const staff = await m.gestione.panoramicaPr(await sessione('porta@maremmamusica.test'), 'tutte');
   assert.ok(admin.righe.some((r) => r.email), 'l’admin vede i contatti');
-  assert.ok(staff.righe.every((r) => r.email === null), 'lo staff no');
-  assert.deepEqual(staff.righe.map((r) => r.inLista), admin.righe.map((r) => r.inLista));
   const d = await m.archivio.leggi();
   const attesi = d.iscrizioni.filter((i) => i.prId && i.metodoPagamento === 'online' && ['in_lista', 'pagato', 'entrato'].includes(i.stato)).reduce((t, i) => t + i.importo, 0);
-  assert.equal(staff.totali.incassatoOnline, attesi, 'prevendita dei PR pagata online');
-  assert.ok(!('daRitirare' in staff.totali), 'niente più soldi da ritirare dai PR');
-  await assert.rejects(m.gestione.panoramicaPr(await sessione('test-pr@maremmamusica.test'), null), /non_autorizzato/);
-  await assert.rejects(m.gestione.dettaglioPr(await sessione('zarro@maremmamusica.test'), 'test-pr', null), /non_autorizzato/);
-  const det = await m.gestione.dettaglioPr(await sessione('porta@maremmamusica.test'), 'zarro-pollicino', 'tutte');
-  assert.ok(det && det.email === null && det.attivita.length > 0);
+  assert.equal(admin.totali.incassatoOnline, attesi, 'prevendita dei PR pagata online');
+  assert.ok(!('daRitirare' in admin.totali), 'niente più soldi da ritirare dai PR');
+  const det = await m.gestione.dettaglioPr(await sessione('admin@maremmamusica.test'), 'zarro-pollicino', 'tutte');
+  assert.ok(det && det.attivita.length > 0);
+  for (const chi of ['porta@maremmamusica.test', 'test-pr@maremmamusica.test', 'zarro@maremmamusica.test']) {
+    const s = await sessione(chi);
+    await assert.rejects(m.gestione.panoramicaPr(s, 'tutte'), /non_autorizzato/, chi);
+    await assert.rejects(m.gestione.dettaglioPr(s, 'zarro-pollicino', 'tutte'), /non_autorizzato/, chi);
+    await assert.rejects(m.gestione.canaliSerata(s, 'tutte'), /non_autorizzato/, chi);
+  }
 });
 
 test('prevendita online: posto fermo, pagamento, ritardo da rimborsare, porta, permessi', async () => {
@@ -213,7 +214,7 @@ test('cassa per serata: spenta arriva alla porta, il prezzo resta, solo staff e 
   await m.admin.salvaEvento(admin, ev.id, { ...dati, cassaAttiva: true });
 });
 
-test('canali: chi arriva senza PR è contato per canale, staff lo vede, il PR no', async () => {
+test('canali: chi arriva senza PR è contato per canale, solo l’admin li vede; alla porta resta il canale di ognuno', async () => {
   const base = { slug: 'halloween-party', dataNascita: '1995-03-03', marketing: false, handlePr: null };
   const ig = await m.pubblico.creaIscrizione({ ...base, nome: 'Ada', cognome: 'Social', email: 'ada@esempio.it', canale: 'instagram' });
   const tt = await m.pubblico.creaIscrizione({ ...base, nome: 'Bea', cognome: 'Video', email: 'bea@esempio.it', canale: 'tiktok' });
@@ -223,7 +224,7 @@ test('canali: chi arriva senza PR è contato per canale, staff lo vede, il PR no
   for (const r of [ig, tt, nessuno]) if (r.ok) await m.prevendita.confermaPagamentoIscrizione(r.iscrizione.id, `pi_${r.iscrizione.id}`);
   assert.equal(nessuno.ok && nessuno.iscrizione.canale, 'diretto');
   const staff = await sessione('porta@maremmamusica.test');
-  const c = await m.gestione.canaliSerata(staff, null);
+  const c = await m.gestione.canaliSerata(await sessione('admin@maremmamusica.test'), null);
   const conta = (k: string) => c.senzaPr.canali.find((r) => r.canale === k)?.inLista ?? 0;
   const d = await m.archivio.leggi();
   const atteso = (k: string) => d.iscrizioni.filter((i) => !i.prId && i.eventoId === c.evento!.id && i.canale === k && ['in_lista', 'pagato', 'entrato'].includes(i.stato)).length;
@@ -231,6 +232,7 @@ test('canali: chi arriva senza PR è contato per canale, staff lo vede, il PR no
   assert.ok(conta('tiktok') >= 1);
   assert.ok(c.senzaPr.canali.every((r) => r.canale), 'ogni iscrizione ha un canale');
   await assert.rejects(m.gestione.canaliSerata(await sessione('test-pr@maremmamusica.test'), null), /non_autorizzato/);
+  await assert.rejects(m.gestione.canaliSerata(staff, null), /non_autorizzato/, 'lo staff vede solo la porta');
   const voce = (await m.porta.elencoPorta(staff, c.evento!.id)).find((v) => ig.ok && v.id === ig.iscrizione.id)!;
   assert.equal(voce.canale, 'instagram', 'alla porta si vede da dove è arrivato');
 });

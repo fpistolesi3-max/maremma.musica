@@ -22,7 +22,7 @@ const GIORNI = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
 /** Scheda di un PR: numeri per serata, iscritti al giorno, lista e attività recente. */
 export default async function DettaglioPr({ params, searchParams }: Props) {
   const { handle } = await params;
-  const s = await richiedi(['admin', 'staff'], `/gestione/pr/${handle}`);
+  const s = await richiedi(['admin'], `/gestione/pr/${handle}`);
   const { serata } = await searchParams;
   const x = await dettaglioPr(s, handle, (serata as string) ?? null);
   if (!x) notFound();

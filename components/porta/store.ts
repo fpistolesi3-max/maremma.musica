@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { MetodoPagamento } from '@/lib/dati/tipi';
-import { stessaPersona, type DatiCassa, type EsitoPorta, type VocePorta } from '@/lib/porta-logica';
+import { ruoloTelefonoValido, stessaPersona, type DatiCassa, type EsitoPorta, type RuoloTelefono, type VocePorta } from '@/lib/porta-logica';
 
 // Stato del telefono della porta, salvato in localStorage: l'elenco resta anche senza campo
 // e gli ingressi fatti offline aspettano in coda finché torna la connessione.
@@ -13,6 +13,7 @@ export interface Movimento { idLocale: string; voceId: string; chiave: string; m
 interface StatoPorta {
   eventoId: string | null;
   porta: string;
+  ruolo: RuoloTelefono;           // che cosa fa questo telefono: scanner, cassa o tutti e due
   elenco: VocePorta[];
   salvatoAlle: string | null;     // ultimo elenco scaricato
   cassa: boolean | null;          // la serata ha la cassa alla porta (dall'ultima sincronizzazione); null = non ancora saputo
@@ -22,6 +23,7 @@ interface StatoPorta {
   serveAccesso: boolean;         // sessione scaduta: rientrare con il link
   scegliEvento: (id: string) => void;
   scegliPorta: (p: string) => void;
+  scegliRuolo: (r: RuoloTelefono) => void;
   applicaLocale: (voce: VocePorta, m: Movimento) => void;
   aggiungiCassa: (voce: VocePorta, m: Movimento) => void;
   sincronizza: () => Promise<{ esiti: { idLocale: string; esito: EsitoPorta }[] } | null>;
@@ -47,6 +49,7 @@ export const usePorta = create<StatoPorta>()(
     (set, get) => ({
       eventoId: null,
       porta: 'P1',
+      ruolo: 'tutti',
       elenco: [],
       salvatoAlle: null,
       cassa: null,
@@ -56,6 +59,7 @@ export const usePorta = create<StatoPorta>()(
       serveAccesso: false,
       scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, cassa: null, coda: [], conflitti: 0 }); },
       scegliPorta: (p) => set({ porta: p }),
+      scegliRuolo: (r) => set({ ruolo: ruoloTelefonoValido(r) }),
       aggiungiCassa: (voce, m) => {
         // Chi aveva una prevendita non completata e passa dalla cassa compare una volta sola: la richiesta sparisce subito anche qui
         // (il server la chiude alla sincronizzazione).
@@ -105,7 +109,7 @@ export const usePorta = create<StatoPorta>()(
     {
       name: 'mm-porta',
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ eventoId: s.eventoId, porta: s.porta, elenco: s.elenco, salvatoAlle: s.salvatoAlle, cassa: s.cassa, coda: s.coda, conflitti: s.conflitti }),
+      partialize: (s) => ({ eventoId: s.eventoId, porta: s.porta, ruolo: s.ruolo, elenco: s.elenco, salvatoAlle: s.salvatoAlle, cassa: s.cassa, coda: s.coda, conflitti: s.conflitti }),
     },
   ),
 );

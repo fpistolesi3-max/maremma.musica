@@ -5,7 +5,7 @@ import type { MetodoPagamento } from '@/lib/dati/tipi';
 import type { DatiCassa, VocePorta } from '@/lib/porta-logica';
 import { chiaveCognome, componiData, etaSufficiente } from '@/lib/regole';
 
-// Ingresso in cassa (solo nelle serate che ce l'hanno): chi arriva senza prevendita paga e viene registrato dallo staff.
+// Ingresso senza prevendita, alla cassa (solo nelle serate che ce l'hanno): chi arriva senza prevendita paga e viene registrato dallo staff.
 // Solo nome, cognome e data di nascita (età minima e doppioni): niente email, niente QR, niente attese.
 
 export interface EventoCassa { data: string; etaMinima: number; prezzoCassa: number }
@@ -13,8 +13,10 @@ export interface EventoCassa { data: string; etaMinima: number; prezzoCassa: num
 /** Dati già noti di chi arriva da una prevendita non completata: lo staff sceglie solo il metodo e conferma. */
 export interface DatiIniziali { nome: string; cognome: string; dataNascita: string }
 
-export function SchermoCassa({ evento, elenco, metodo, setMetodo, iniziale, onRegistra, onApri, onChiudi }: {
+export function SchermoCassa({ evento, elenco, metodo, setMetodo, iniziale, principale = false, onRegistra, onApri, onChiudi, onCerca, onScanner }: {
   evento: EventoCassa;
+  /** Telefono da cassa: questo è la sua schermata iniziale, senza freccia indietro ma con "Cerca per nome" e lo scanner a portata di mano. */
+  principale?: boolean;
   iniziale?: DatiIniziali;
   elenco: VocePorta[];
   metodo: MetodoPagamento;
@@ -22,6 +24,8 @@ export function SchermoCassa({ evento, elenco, metodo, setMetodo, iniziale, onRe
   onRegistra: (dati: DatiCassa) => void;
   onApri: (v: VocePorta) => void;
   onChiudi: () => void;
+  onCerca?: () => void;
+  onScanner?: () => void;
 }) {
   const [nome, setNome] = useState(iniziale?.nome ?? '');
   const [cognome, setCognome] = useState(iniziale?.cognome ?? '');
@@ -54,15 +58,17 @@ export function SchermoCassa({ evento, elenco, metodo, setMetodo, iniziale, onRe
   const cifre = (v: string, n: number) => v.replace(/\D/g, '').slice(0, n);
 
   return (
-    <form onSubmit={registra} className="flex flex-grow flex-col gap-4 px-4 pb-7 pt-5" noValidate>
+    <form onSubmit={registra} className="flex flex-grow flex-col gap-4 px-4 pb-5 pt-4" noValidate>
       <div className="flex items-center gap-2">
-        <button type="button" aria-label="Torna allo scanner" onClick={onChiudi} className="grid h-11 w-11 flex-none place-items-center border-0 bg-transparent p-0 text-osso">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
-        </button>
-        <h1 className="m-0 font-display text-[36px] font-black uppercase leading-none">Ingresso in cassa</h1>
+        {!principale && (
+          <button type="button" aria-label="Indietro" onClick={onChiudi} className="grid h-11 w-11 flex-none place-items-center border-0 bg-transparent p-0 text-osso">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          </button>
+        )}
+        <h1 className="m-0 font-display text-[32px] font-black uppercase leading-[.95]">Ingresso senza prevendita</h1>
       </div>
       <span className="text-[14px] leading-5 text-osso-2">
-        {iniziale ? 'Dati già inseriti dalla prevendita non completata: controlla il documento, scegli il metodo e conferma. Quella richiesta si chiude e non si può più pagare online.' : 'Per chi non è in lista. Niente email e niente QR: entra subito.'}
+        {iniziale ? 'Dati già inseriti dalla prevendita non completata: controlla il documento, scegli il metodo e conferma. Quella richiesta si chiude e non si può più pagare online.' : 'Per chi arriva senza prevendita e paga alla porta. Niente email e niente QR: entra subito.'}
       </span>
 
       <div className="grid grid-cols-2 gap-3">
@@ -116,6 +122,12 @@ export function SchermoCassa({ evento, elenco, metodo, setMetodo, iniziale, onRe
       <button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 64, fontSize: 17 }}>
         Incassato · fai entrare
       </button>
+      {principale && (onCerca || onScanner) && (
+        <div className="flex gap-[10px]">
+          {onCerca && <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 52 }} onClick={onCerca}>Cerca per nome</button>}
+          {onScanner && <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 52 }} onClick={onScanner}>Scanner</button>}
+        </div>
+      )}
     </form>
   );
 }

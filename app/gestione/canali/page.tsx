@@ -12,10 +12,10 @@ type Props = { searchParams: Promise<{ serata?: string }> };
 
 /**
  * Chi si mette in lista senza passare da un PR: da quale social o link arriva, quanti entrano.
- * L'admin lo usa per capire quanto rendono i social della crew; lo staff lo vede alla porta.
+ * L'admin lo usa per capire quanto rendono i social della crew.
  */
 export default async function Canali({ searchParams }: Props) {
-  const s = await richiedi(['admin', 'staff'], '/gestione/canali');
+  const s = await richiedi(['admin'], '/gestione/canali');
   const { serata } = await searchParams;
   const c = await canaliSerata(s, (serata as string) ?? null);
   const tot = c.senzaPr.numeri.inLista + c.conPr.numeri.inLista;

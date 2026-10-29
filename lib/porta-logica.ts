@@ -45,6 +45,29 @@ export interface DatiCassa { nome: string; cognome: string; dataNascita: string;
 export const stessaPersona = (a: Pick<VocePorta, 'cognome' | 'dataNascita'>, b: Pick<VocePorta, 'cognome' | 'dataNascita'>) =>
   a.dataNascita === b.dataNascita && chiaveCognome(a.cognome) === chiaveCognome(b.cognome);
 
+/** Che cosa fa questo telefono alla porta: solo scanner, solo cassa (ingresso senza prevendita) o tutti e due. Si salva sul telefono. */
+export type RuoloTelefono = 'scanner' | 'cassa' | 'tutti';
+export const RUOLI_TELEFONO: { ruolo: RuoloTelefono; testo: string }[] = [
+  { ruolo: 'scanner', testo: 'Scanner' },
+  { ruolo: 'cassa', testo: 'Cassa' },
+  { ruolo: 'tutti', testo: 'Tutti e due' },
+];
+
+/** Valore salvato sul telefono → ruolo valido (telefoni che non l'hanno mai scelto: "Tutti e due"). */
+export const ruoloTelefonoValido = (r: unknown): RuoloTelefono => (r === 'scanner' || r === 'cassa' || r === 'tutti' ? r : 'tutti');
+
+/** Ruolo che vale davvero stasera: senza cassa, "Cassa" si comporta da "Scanner". */
+export const ruoloEffettivo = (ruolo: RuoloTelefono, cassaAttiva: boolean): RuoloTelefono => (ruolo === 'cassa' && !cassaAttiva ? 'scanner' : ruolo);
+
+/** Il telefono offre il pulsante "Ingresso senza prevendita"? Solo con la cassa accesa e se non è un telefono da scanner. */
+export const offreCassa = (ruolo: RuoloTelefono, cassaAttiva: boolean) => cassaAttiva && ruoloEffettivo(ruolo, cassaAttiva) !== 'scanner';
+
+/** Un telefono da scanner, con la cassa accesa, non registra niente: manda la persona alla cassa. */
+export const mandaAllaCassa = (ruolo: RuoloTelefono, cassaAttiva: boolean) => cassaAttiva && ruolo === 'scanner';
+
+/** La schermata iniziale del telefono è il modulo "Ingresso senza prevendita" solo per un telefono da cassa con la cassa accesa. */
+export const apreDallaCassa = (ruolo: RuoloTelefono, cassaAttiva: boolean) => ruoloEffettivo(ruolo, cassaAttiva) === 'cassa';
+
 /** Serata di un biglietto che non è quella aperta sul telefono. */
 export interface SerataBiglietto { id: string; nome: string; data: string }
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
-import { categoriaDaControllare, cercaPerNome, decidiIngresso, trovaVoce, type VocePorta } from './porta-logica';
+import { apreDallaCassa, categoriaDaControllare, cercaPerNome, decidiIngresso, mandaAllaCassa, offreCassa, ruoloEffettivo, ruoloTelefonoValido, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro, isoRoma, spostaGiorni, giorniTra } from './formato';
 import type { Evento, Iscrizione, Lotto } from './dati/tipi';
 import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
@@ -307,4 +307,28 @@ test('coordinate da un link di Google Maps', () => {
   assert.equal(coordinateDaLinkMaps('https://maps.app.goo.gl/AbCdEf'), null, 'link corto: non si può leggere');
   assert.equal(coordinateDaLinkMaps('https://www.google.com/maps/@142.9,10.9,17z'), null, 'latitudine impossibile');
   assert.equal(coordinateDaLinkMaps(''), null);
+});
+
+test('ruolo del telefono: scanner, cassa o tutti e due; senza cassa "Cassa" fa lo scanner', () => {
+  assert.equal(ruoloTelefonoValido(undefined), 'tutti', 'telefono mai configurato');
+  assert.equal(ruoloTelefonoValido('boh'), 'tutti');
+  assert.equal(ruoloTelefonoValido('scanner'), 'scanner');
+  assert.equal(ruoloTelefonoValido('cassa'), 'cassa');
+  // Con la cassa accesa
+  assert.equal(offreCassa('scanner', true), false, 'lo scanner non ha il pulsante cassa');
+  assert.equal(mandaAllaCassa('scanner', true), true, 'lo scanner manda alla cassa');
+  assert.equal(offreCassa('tutti', true), true);
+  assert.equal(offreCassa('cassa', true), true);
+  assert.equal(apreDallaCassa('cassa', true), true, 'il telefono da cassa parte dal modulo');
+  assert.equal(apreDallaCassa('tutti', true), false);
+  assert.equal(apreDallaCassa('scanner', true), false);
+  // Senza cassa stasera: nessun pulsante, nessun "mandalo alla cassa", "Cassa" si comporta da scanner
+  for (const r of ['scanner', 'cassa', 'tutti'] as const) {
+    assert.equal(offreCassa(r, false), false, r);
+    assert.equal(mandaAllaCassa(r, false), false, r);
+    assert.equal(apreDallaCassa(r, false), false, r);
+  }
+  assert.equal(ruoloEffettivo('cassa', false), 'scanner');
+  assert.equal(ruoloEffettivo('cassa', true), 'cassa');
+  assert.equal(ruoloEffettivo('tutti', false), 'tutti');
 });
