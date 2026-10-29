@@ -424,11 +424,11 @@ function Esito({ esito, senzaTelefono, online, salvatoAlle, onRiprova, onCambiaS
       <>
         <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
           {X}
-          <span className="font-mono text-[13px] font-medium leading-[18px]">PREVENDITA SCADUTA ALLE {oraDi(esito.limite)} · NON VALE PIÙ PER ENTRARE</span>
-          <span className="font-display text-[88px] font-black uppercase leading-[.85]">Prevendita<br />scaduta</span>
+          <span className="font-mono text-[13px] font-medium leading-[18px]">ORARIO LIMITE {oraDi(esito.limite)} SUPERATO · INGRESSO NON REGISTRATO</span>
+          <span className="font-display text-[64px] font-black uppercase leading-[.85]">Prevendita<br />non valida</span>
           <div className={linea} />
           <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
-          <span className="text-[17px] font-medium leading-6">Il QR è valido, ma l’orario limite è passato: l’ingresso non è registrato. Se la crew lo fa entrare, l’ingresso si paga alla porta, fuori dal sito.</span>
+          <span className="text-[17px] font-medium leading-6">Orario limite superato, prevendita non valida.</span>
         </div>
         <div className="flex flex-none flex-col gap-2 px-4 pb-7">
           <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onChiudi}>{indietro}</button>
