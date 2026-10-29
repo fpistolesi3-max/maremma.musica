@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
-import { apreDallaCassa, categoriaDaControllare, cercaPerNome, decidiIngresso, mandaAllaCassa, offreCassa, ruoloEffettivo, ruoloTelefonoValido, trovaVoce, type VocePorta } from './porta-logica';
+import { categoriaDaControllare, cercaPerNome, decidiIngresso, proposteRiuso, rimandoCassa, riepilogoCassa, schedaEffettiva, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro, isoRoma, spostaGiorni, giorniTra } from './formato';
 import type { Evento, Iscrizione, Lotto } from './dati/tipi';
 import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
@@ -309,26 +309,33 @@ test('coordinate da un link di Google Maps', () => {
   assert.equal(coordinateDaLinkMaps(''), null);
 });
 
-test('ruolo del telefono: scanner, cassa o tutti e due; senza cassa "Cassa" fa lo scanner', () => {
-  assert.equal(ruoloTelefonoValido(undefined), 'tutti', 'telefono mai configurato');
-  assert.equal(ruoloTelefonoValido('boh'), 'tutti');
-  assert.equal(ruoloTelefonoValido('scanner'), 'scanner');
-  assert.equal(ruoloTelefonoValido('cassa'), 'cassa');
-  // Con la cassa accesa
-  assert.equal(offreCassa('scanner', true), false, 'lo scanner non ha il pulsante cassa');
-  assert.equal(mandaAllaCassa('scanner', true), true, 'lo scanner manda alla cassa');
-  assert.equal(offreCassa('tutti', true), true);
-  assert.equal(offreCassa('cassa', true), true);
-  assert.equal(apreDallaCassa('cassa', true), true, 'il telefono da cassa parte dal modulo');
-  assert.equal(apreDallaCassa('tutti', true), false);
-  assert.equal(apreDallaCassa('scanner', true), false);
-  // Senza cassa stasera: nessun pulsante, nessun "mandalo alla cassa", "Cassa" si comporta da scanner
-  for (const r of ['scanner', 'cassa', 'tutti'] as const) {
-    assert.equal(offreCassa(r, false), false, r);
-    assert.equal(mandaAllaCassa(r, false), false, r);
-    assert.equal(apreDallaCassa(r, false), false, r);
-  }
-  assert.equal(ruoloEffettivo('cassa', false), 'scanner');
-  assert.equal(ruoloEffettivo('cassa', true), 'cassa');
-  assert.equal(ruoloEffettivo('tutti', false), 'tutti');
+test('scheda della porta: la cassa solo se stasera c’è; chi non ha la prevendita va alla cassa', () => {
+  assert.equal(schedaEffettiva('cassa', true), 'cassa', 'ricorda l’ultima scheda');
+  assert.equal(schedaEffettiva('scanner', true), 'scanner');
+  assert.equal(schedaEffettiva('cassa', false), 'scanner', 'senza cassa si resta sullo scanner');
+  assert.equal(schedaEffettiva(undefined, true), 'scanner', 'telefono mai usato');
+  assert.equal(schedaEffettiva('boh', true), 'scanner');
+  assert.match(rimandoCassa(true), /va alla cassa/);
+  assert.match(rimandoCassa(false), /niente cassa.*non entra/);
+});
+
+test('cassa: riuso dei dati di una prevendita non completata e riepilogo degli ultimi ingressi', () => {
+  const v = (o: Partial<VocePorta>): VocePorta => ({ id: 'x', token: '', codice: '', nome: 'A', cognome: 'B', dataNascita: '2000-01-01', stato: 'pagato', importo: 0, oraCheckIn: null, porta: null, lista: 'L', canale: 'diretto', origine: 'lista', ...o });
+  const elenco = [
+    v({ id: '1', nome: 'Anna', cognome: 'Rossi', stato: 'in_attesa' }),
+    v({ id: '2', nome: 'Rosa', cognome: 'Rossini', stato: 'in_attesa' }),
+    v({ id: '3', nome: 'Rino', cognome: 'Rossi', stato: 'pagato' }),
+    v({ id: '4', nome: 'Gigi', cognome: "D'Alì", stato: 'in_attesa' }),
+    v({ id: 'c1', nome: 'Cassa', cognome: 'Uno', origine: 'cassa', stato: 'entrato', importo: 15, metodo: 'porta_contanti', oraCheckIn: '2026-10-31T22:00:00Z' }),
+    v({ id: 'c2', nome: 'Cassa', cognome: 'Due', origine: 'cassa', stato: 'entrato', importo: 15, metodo: 'porta_pos', oraCheckIn: '2026-10-31T23:00:00Z' }),
+    v({ id: 'c3', nome: 'Cassa', cognome: 'Tre', origine: 'cassa', stato: 'entrato', importo: 10, metodo: 'porta_contanti', oraCheckIn: '2026-10-31T21:00:00Z' }),
+  ];
+  assert.deepEqual(proposteRiuso(elenco, 'ro').map((x) => x.id), ['1', '2'], 'solo non completate, per inizio cognome');
+  assert.deepEqual(proposteRiuso(elenco, 'Rossi').map((x) => x.id), ['1', '2']);
+  assert.deepEqual(proposteRiuso(elenco, 'rossin').map((x) => x.id), ['2']);
+  assert.deepEqual(proposteRiuso(elenco, 'r'), [], 'una lettera è troppo poco');
+  assert.deepEqual(proposteRiuso(elenco, 'dali').map((x) => x.id), ['4'], 'senza accenti e apostrofi');
+  const r = riepilogoCassa(elenco, 2);
+  assert.deepEqual(r.ultimi.map((x) => x.id), ['c2', 'c1'], 'dal più recente');
+  assert.deepEqual([r.ingressi, r.contanti, r.pos], [3, 25, 15], 'i totali contano tutti gli ingressi, non solo gli ultimi');
 });

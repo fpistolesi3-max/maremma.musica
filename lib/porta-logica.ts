@@ -18,6 +18,7 @@ export interface VocePorta {
   rifiuto?: RifiutoIngresso | null; // "Non rientra" già dato dallo staff (si può comunque far entrare)
   canale: string;             // da dove si è iscritto (instagram, diretto…): utile quando non c'è un PR
   origine: 'lista' | 'cassa' | 'tavolo'; // cassa = registrato alla porta, senza QR
+  metodo?: MetodoPagamento | null; // solo per la cassa: contanti o POS
   /**
    * Solo per i tavoli: un QR per tutto il gruppo. Ogni passaggio fa entrare una persona finché ci sono posti;
    * `pagato` falso = prenotazione ancora in attesa del pagamento anticipato (non si entra).
@@ -45,28 +46,33 @@ export interface DatiCassa { nome: string; cognome: string; dataNascita: string;
 export const stessaPersona = (a: Pick<VocePorta, 'cognome' | 'dataNascita'>, b: Pick<VocePorta, 'cognome' | 'dataNascita'>) =>
   a.dataNascita === b.dataNascita && chiaveCognome(a.cognome) === chiaveCognome(b.cognome);
 
-/** Che cosa fa questo telefono alla porta: solo scanner, solo cassa (ingresso senza prevendita) o tutti e due. Si salva sul telefono. */
-export type RuoloTelefono = 'scanner' | 'cassa' | 'tutti';
-export const RUOLI_TELEFONO: { ruolo: RuoloTelefono; testo: string }[] = [
-  { ruolo: 'scanner', testo: 'Scanner' },
-  { ruolo: 'cassa', testo: 'Cassa' },
-  { ruolo: 'tutti', testo: 'Tutti e due' },
-];
+/** Le due postazioni della porta: lo scanner (chi ha la prevendita) e la cassa (chi arriva senza e paga lì). L'ultima usata si salva sul telefono. */
+export type Scheda = 'scanner' | 'cassa';
 
-/** Valore salvato sul telefono → ruolo valido (telefoni che non l'hanno mai scelto: "Tutti e due"). */
-export const ruoloTelefonoValido = (r: unknown): RuoloTelefono => (r === 'scanner' || r === 'cassa' || r === 'tutti' ? r : 'tutti');
+/** Scheda che vale davvero: senza cassa stasera (o valore sconosciuto) si resta sullo scanner. */
+export const schedaEffettiva = (scheda: unknown, cassaAttiva: boolean): Scheda => (scheda === 'cassa' && cassaAttiva ? 'cassa' : 'scanner');
 
-/** Ruolo che vale davvero stasera: senza cassa, "Cassa" si comporta da "Scanner". */
-export const ruoloEffettivo = (ruolo: RuoloTelefono, cassaAttiva: boolean): RuoloTelefono => (ruolo === 'cassa' && !cassaAttiva ? 'scanner' : ruolo);
+/** Testo sotto un ingresso negato dallo scanner: chi non ha una prevendita valida non passa di qui, va alla cassa (se c'è). */
+export const rimandoCassa = (cassaAttiva: boolean) =>
+  cassaAttiva ? 'Non ha una prevendita valida: va alla cassa.' : 'Stasera niente cassa: senza prevendita non entra.';
 
-/** Il telefono offre il pulsante "Ingresso senza prevendita"? Solo con la cassa accesa e se non è un telefono da scanner. */
-export const offreCassa = (ruolo: RuoloTelefono, cassaAttiva: boolean) => cassaAttiva && ruoloEffettivo(ruolo, cassaAttiva) !== 'scanner';
+/**
+ * Prevendite non completate (in_attesa) il cui cognome inizia con quello che si sta scrivendo in cassa: la cassa le propone
+ * per riusare i dati (alla registrazione quella richiesta si chiude). Servono almeno 2 lettere; al massimo 3 proposte.
+ */
+export function proposteRiuso(elenco: VocePorta[], cognome: string): VocePorta[] {
+  const k = chiaveCognome(cognome);
+  if (k.length < 2) return [];
+  return elenco.filter((v) => v.stato === 'in_attesa' && v.origine !== 'cassa' && chiaveCognome(v.cognome).startsWith(k)).slice(0, 3);
+}
 
-/** Un telefono da scanner, con la cassa accesa, non registra niente: manda la persona alla cassa. */
-export const mandaAllaCassa = (ruolo: RuoloTelefono, cassaAttiva: boolean) => cassaAttiva && ruolo === 'scanner';
-
-/** La schermata iniziale del telefono è il modulo "Ingresso senza prevendita" solo per un telefono da cassa con la cassa accesa. */
-export const apreDallaCassa = (ruolo: RuoloTelefono, cassaAttiva: boolean) => ruoloEffettivo(ruolo, cassaAttiva) === 'cassa';
+/** Ultimi ingressi in cassa della serata (tutte le porte), dal più recente, con il totale incassato in contanti e con POS. */
+export function riepilogoCassa(elenco: VocePorta[], quanti = 8) {
+  const dentro = elenco.filter((v) => v.origine === 'cassa' && v.stato === 'entrato')
+    .sort((a, b) => (b.oraCheckIn ?? '').localeCompare(a.oraCheckIn ?? ''));
+  const somma = (m: MetodoPagamento) => dentro.filter((v) => v.metodo === m).reduce((t, v) => t + v.importo, 0);
+  return { ultimi: dentro.slice(0, quanti), ingressi: dentro.length, contanti: somma('porta_contanti'), pos: somma('porta_pos') };
+}
 
 /** Serata di un biglietto che non è quella aperta sul telefono. */
 export interface SerataBiglietto { id: string; nome: string; data: string }
