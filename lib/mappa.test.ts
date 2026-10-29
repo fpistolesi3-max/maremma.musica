@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { etichettaMappa, linkIndicazioni, sceltaMappa, stileNotte, usaAppleMaps } from './mappa';
+import { etichettaMappa, linkIndicazioni, sceltaMappa, stileLocandina, usaAppleMaps } from './mappa';
 import { luogoVisibile } from './luogo';
 
 const scirea = { lat: 43.1512, lng: 10.7713, location: 'Campo G. Scirea', comune: 'Monteverdi M.mo' };
@@ -46,19 +46,18 @@ test('etichetta per gli screen reader', () => {
   assert.equal(etichettaMappa({ location: null, comune: null }), 'Mappa del luogo della serata');
 });
 
-test('stile notte: ricolora i livelli noti e lascia in pace gli altri', () => {
+test('stile locandina: ricolora i livelli noti, lascia in pace gli altri e non modifica l’originale', () => {
   const stile = {
     version: 8,
     layers: [
       { id: 'background', type: 'background', paint: { 'background-color': 'rgb(12,12,12)' } },
-      { id: 'place_town', type: 'symbol', paint: { 'text-color': 'rgb(101,101,101)', 'text-halo-blur': 1 }, layout: { 'text-font': ['Noto Sans Regular'] } },
+      { id: 'water', type: 'fill', paint: { 'fill-color': 'rgb(1,1,1)', 'fill-antialias': true } },
       { id: 'altro', type: 'line', paint: { 'line-color': 'red' } },
     ],
   };
-  const n = stileNotte(stile);
-  assert.equal(n.layers[0].paint?.['background-color'], '#0a0d11');
-  assert.equal(n.layers[1].paint?.['text-halo-blur'], 1, 'tiene il resto del paint');
-  assert.deepEqual(n.layers[1].layout, stile.layers[1].layout);
+  const n = stileLocandina(stile);
+  assert.equal(n.layers[0].paint?.['background-color'], '#151a21');
+  assert.equal(n.layers[1].paint?.['fill-antialias'], true, 'tiene il resto del paint');
   assert.deepEqual(n.layers[2], stile.layers[2]);
-  assert.equal(stile.layers[0].paint['background-color'], 'rgb(12,12,12)', 'non modifica l\'originale');
+  assert.equal(stile.layers[0].paint['background-color'], 'rgb(12,12,12)', 'non modifica l’originale');
 });

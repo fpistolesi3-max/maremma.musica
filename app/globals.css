@@ -403,3 +403,25 @@ a.mm-btn--primario:hover, a.mm-btn--primario:active { color: var(--su-arancio); 
   .mm-schede .mm-num { text-align: left; }
   .mm-schede .mm-classifica__nome { white-space: normal; }
 }
+
+/* Mappe di "Come arrivare": le misure seguono la larghezza del riquadro (non quella dello schermo), perché a 1280 px il riquadro è stretto quanto su telefono. */
+.mm-cq { container-type: inline-size; }
+.cq-paese { font-size: 11px; }
+.cq-luogo { font-size: 8px; }
+.cq-titolo { font-size: 22px; }
+.cq-et { max-width: 290px; }
+.cq-et-titolo { font-size: 17px; }
+.cq-et-sotto { font-size: 9px; }
+.cq-largo-flex, .cq-largo-block, .cq-largo-inline { display: none; }
+@container (min-width: 560px) {
+  .cq-paese { font-size: 14px; }
+  .cq-luogo { font-size: 10px; }
+  .cq-titolo { font-size: 34px; }
+  .cq-et { max-width: 360px; }
+  .cq-et-titolo { font-size: 26px; }
+  .cq-et-sotto { font-size: 10px; }
+  .cq-largo-flex { display: flex; }
+  .cq-largo-block { display: block; }
+  .cq-largo-inline { display: inline; }
+  .cq-stretto { display: none; }
+}
