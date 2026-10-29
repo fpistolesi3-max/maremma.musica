@@ -37,7 +37,7 @@ function voceTavolo(d: Readonly<Archivio>, p: PrenotazioneTavolo): VocePorta {
   };
 }
 
-function vociEvento(d: Readonly<Archivio>, eventoId: string): VocePorta[] {
+export function vociEvento(d: Readonly<Archivio>, eventoId: string): VocePorta[] {
   // Le prevendite scadute senza pagare non sono mai state in lista: alla porta non servono.
   return [
     ...d.iscrizioni.filter((i) => i.eventoId === eventoId && i.stato !== 'scaduta' && !iscrizioneScaduta(i)).map((i) => voce(d, i)),
@@ -54,7 +54,7 @@ export async function eventiPorta(s: Sessione) {
     .sort((a, b) => a.data.localeCompare(b.data))
     .map((e) => ({
       id: e.id, nome: e.nome, data: e.data, numero: e.numero, etaMinima: e.etaMinima,
-      limite: limiteIngresso(e), senzaTelefono: e.senzaTelefono,
+      limite: limiteIngresso(e), capienza: e.capienza ?? null, senzaTelefono: e.senzaTelefono,
     }));
 }
 

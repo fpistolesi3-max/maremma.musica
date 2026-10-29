@@ -43,6 +43,34 @@ export default async function SerataLive({ params }: Props) {
           </MenuAltro>
         </>}
       />
+      <section aria-label="Entrati" className="flex flex-col gap-3 border-b border-linea px-4 py-6 md:px-12">
+        {l.conteggio.dopoLimite && l.prevenditaFinoAlle && (
+          <span className="font-mono text-[12px] font-semibold leading-4 tracking-[.04em] text-attesa">DALLE {ora(l.prevenditaFinoAlle)} LE PREVENDITE NON VALGONO PIÙ</span>
+        )}
+        <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">ENTRATI</span>
+            <span className="font-display text-[72px] font-black leading-[.85] text-ok md:text-[96px]">{l.conteggio.entrati}</span>
+          </div>
+          {l.capienza != null && l.conteggio.liberi != null && (
+            l.conteggio.dopoLimite ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">PUOI FAR ENTRARE ANCORA</span>
+                <span className="font-display text-[72px] font-black leading-[.85] text-arancio md:text-[96px]">{l.conteggio.liberi}</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">CAPIENZA {l.capienza} · LIBERI</span>
+                <span className="font-display text-[72px] font-black leading-[.85] md:text-[96px]">{l.conteggio.liberi}</span>
+              </div>
+            )
+          )}
+        </div>
+        {l.capienza != null && l.conteggio.dopoLimite && <span className="font-mono text-[12px] leading-4 text-osso-2">CAPIENZA {l.capienza} · ENTRATI {l.conteggio.entrati} · LIBERI {l.conteggio.liberi}</span>}
+        <span className="font-mono text-[11px] leading-4 text-osso-3">
+          ENTRATI = SCAN DI PREVENDITE E TAVOLI{!l.conteggio.dopoLimite && l.conteggio.attesi > 0 ? ` · ATTESI ANCORA FUORI ${l.conteggio.attesi}` : ''}. GLI INGRESSI PAGATI ALLA PORTA{l.prevenditaFinoAlle ? ` DOPO LE ${ora(l.prevenditaFinoAlle)}` : ''} SONO FUORI DAL SITO E NON SI CONTANO.
+        </span>
+      </section>
       <div className="grid grid-cols-2 border-b border-linea lg:grid-cols-4">
         <Numero etichetta="In lista" valore={String(l.inLista)} />
         <Numero etichetta="Entrati" valore={String(l.entrati)} colore="text-ok"

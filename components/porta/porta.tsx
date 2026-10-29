@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePorta, nuovoId } from './store';
 import { Fotocamera } from './fotocamera';
-import { categoriaDaControllare, cercaPerNome, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
+import { categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
 import { etichettaCanale } from '@/lib/canali';
 
 // Scanner della porta (mockup Porta 1–5). Tutto il controllo avviene sul telefono con l'elenco salvato:
 // funziona anche senza campo, e gli ingressi si sincronizzano appena torna la connessione.
 
-interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; limite: string | null; senzaTelefono: boolean }
+interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; limite: string | null; capienza: number | null; senzaTelefono: boolean }
 
 type Schermo =
   | { tipo: 'scanner' }
@@ -73,6 +73,9 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   const contate = st.elenco.filter((v) => v.origine !== 'cassa' && (!v.tavolo || v.tavolo.pagato) && v.stato !== 'in_attesa');
   const totale = contate.reduce((n, v) => n + personeVoce(v), 0);
   const entrati = contate.reduce((n, v) => n + entratiVoce(v), 0);
+
+  // Dopo l'orario limite le prevendite non valgono più: la testata dice quanti posti restano (se la serata ha la capienza). Tutto dai dati del telefono.
+  const { liberi, dopoLimite } = conteggioPorta(st.elenco, { capienza: evento?.capienza, limite, ora: new Date().toISOString() });
 
   const mostra = useCallback((esito: EsitoPorta) => {
     clearTimeout(ritorno.current);
@@ -175,8 +178,9 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
       <button type="button" onClick={() => setSchermo({ tipo: 'impostazioni' })} className="flex flex-none flex-col gap-[10px] border-0 bg-transparent px-4 pt-[14px] text-left text-current" aria-label="Impostazioni della porta">
         <span className="flex w-full items-center gap-[10px]">
           <span className="min-w-0 flex-grow truncate text-[11px] font-semibold leading-none tracking-logo">{st.porta.replace('P', 'PORTA ')} · {(evento?.nome ?? 'SCEGLI LA SERATA').toUpperCase()}</span>
-          <span className="flex-none font-mono text-[12px] font-medium leading-none" aria-label={`In lista ${entrati} entrati su ${totale}`}>
+          <span className="flex-none font-mono text-[12px] font-medium leading-none" aria-label={`In lista ${entrati} entrati su ${totale}${dopoLimite && liberi != null ? `, liberi ${liberi}` : ''}`}>
             LISTA {entrati}<span className={suPieno ? 'opacity-50' : 'text-osso-3'}>/{totale}</span>
+            {dopoLimite && liberi != null && <span className={suPieno ? 'opacity-70' : 'text-osso-2'}> · LIBERI {liberi}</span>}
           </span>
         </span>
         <span className={`block h-[3px] w-full ${suPieno ? 'bg-[rgba(5,5,5,.18)]' : 'bg-notte-3'}`}>

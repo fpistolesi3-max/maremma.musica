@@ -43,6 +43,26 @@ export function entratiVoce(v: VocePorta) {
  */
 export const oltreLimite = (limite: string | null | undefined, ora: string) => Boolean(limite) && Date.parse(ora) >= Date.parse(limite as string);
 
+/**
+ * Quante persone sono dentro e quante ne restano. `entrati`: prevendite entrate + persone entrate con i QR dei tavoli (ogni passaggio
+ * una persona; comprese le voci storiche della cassa, che sono gente dentro). `attesi`: prevendite pagate non ancora entrate (dopo il
+ * limite non contano più) + posti dei tavoli pagati non ancora usati. `liberi` = capienza − entrati (mai sotto zero), solo se la
+ * capienza c'è. Gli ingressi pagati alla porta fuori dal sito non si possono contare.
+ */
+export function conteggioPorta(elenco: VocePorta[], o: { capienza?: number | null; limite?: string | null; ora: string }) {
+  const dopoLimite = oltreLimite(o.limite, o.ora);
+  let entrati = 0;
+  let attesi = 0;
+  for (const v of elenco) {
+    entrati += entratiVoce(v);
+    if (v.tavolo) {
+      if (v.tavolo.pagato) attesi += Math.max(0, personeVoce(v) - v.tavolo.entrati);
+    } else if (!dopoLimite && (v.stato === 'pagato' || v.stato === 'in_lista')) attesi += 1;
+  }
+  const liberi = o.capienza != null && o.capienza > 0 ? Math.max(0, o.capienza - entrati) : null;
+  return { entrati, attesi, liberi, dopoLimite };
+}
+
 /** Serata di un biglietto che non è quella aperta sul telefono. */
 export interface SerataBiglietto { id: string; nome: string; data: string }
 

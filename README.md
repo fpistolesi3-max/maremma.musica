@@ -146,6 +146,15 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   offline prima del limite e sincronizzato dopo vale, uno fatto dopo no. **I QR dei tavoli non hanno il limite** (da confermare col
   proprietario). Il cliente lo legge nella pagina della serata (riquadro Ingresso e domande), sotto il modulo di prevendita, nella pagina del
   biglietto e nell'email del biglietto ("Valida per entrare entro le 01:00.", `testoLimite`).
+- **Capienza e conteggio degli entrati** (`Evento.capienza`, facoltativa, numero di persone, nella sezione *Porta* accanto all'orario limite; le
+  serate vecchie restano senza). `conteggioPorta` in `lib/porta-logica.ts` (pura, con test) dà: `entrati` = prevendite entrate + persone
+  entrate con i QR dei tavoli (ogni passaggio una persona; contano anche gli ingressi in cassa storici, che sono gente dentro), `attesi` =
+  prevendite pagate non ancora entrate (dopo il limite non contano più) + posti dei tavoli pagati non ancora usati, `liberi` = capienza meno
+  entrati (mai sotto zero, solo se la capienza c'è). In cima alla serata live dell'admin un riquadro grande: "Entrati N" e, con la capienza,
+  "Capienza C · Liberi L"; dopo l'orario limite diventa "Dalle 01:00 le prevendite non valgono più · Entrati N · Puoi far entrare ancora L"
+  (L in evidenza); senza capienza solo "Entrati N". Una nota sotto dice che gli ingressi pagati alla porta dopo il limite sono fuori dal sito e
+  non si contano. Alla porta la testata resta "Lista entrati/attesi" e dopo il limite aggiunge "Liberi L" se c'è la capienza, calcolato
+  dall'elenco salvato sul telefono (funziona offline). I tavoli non hanno il limite, ma le loro persone contano negli entrati.
 - QR di un'altra serata: se il QR è firmato ma non è in elenco, il telefono chiede al server di quale serata è
   (`/api/door?biglietto=…`, `serataDelBiglietto`: la serata si ricava dall'iscrizione o dal tavolo e la firma si verifica con quella
   serata, quindi un QR falso non dice niente) e mostra "Biglietto di <serata> (<data>). Cambia serata →": un tocco passa alla serata

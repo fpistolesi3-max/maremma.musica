@@ -950,3 +950,24 @@ test('tavoli in serie: tutto o niente, posti obbligatori, solo admin', async () 
   // Un tavolo singolo senza posti non si salva più
   await assert.rejects(m.admin.salvaTavolo(admin, { eventoId: ev.id, nome: 'X1', zona: null, posti: null, spesaMinima: 0, stato: 'libero', nota: null, visibileDaPr: true, prAbilitati: null, ordine: 9 }), /posti/);
 });
+
+test('capienza: facoltativa, arriva alla porta e alla serata live con gli entrati e i posti liberi', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const staff = await sessione('porta@maremmamusica.test');
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  assert.equal(ev.capienza, undefined, 'le serate vecchie non hanno la capienza');
+  const prima = (await m.admin.serataLive(admin, ev.id))!;
+  assert.equal(prima.capienza, null);
+  assert.equal(prima.conteggio.liberi, null, 'senza capienza non ci sono posti liberi');
+  assert.equal((await m.porta.eventiPorta(staff)).find((e) => e.id === ev.id)!.capienza, null);
+
+  const { id: _id, createdAt: _c, updatedAt: _u, piantinaUrl: _p, ...dati } = ev;
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, capienza: 300 });
+  const live = (await m.admin.serataLive(admin, ev.id))!;
+  assert.equal(live.capienza, 300);
+  assert.equal(live.conteggio.liberi, 300 - live.conteggio.entrati);
+  const passaggiTavoli = (await m.archivio.leggi()).prenotazioni.filter((p) => p.eventoId === ev.id).reduce((t, p) => t + p.ingressi.length, 0);
+  assert.equal(live.conteggio.entrati, live.entrati + passaggiTavoli, 'entrati = scan di prevendite + passaggi dei QR dei tavoli (una persona ciascuno)');
+  assert.equal((await m.porta.eventiPorta(staff)).find((e) => e.id === ev.id)!.capienza, 300);
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, capienza: null });
+});

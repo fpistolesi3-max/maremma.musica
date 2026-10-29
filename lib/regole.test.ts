@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps, limitePrevendita, limiteIngresso, testoLimite, istanteDopoApertura } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
-import { categoriaDaControllare, cercaPerNome, decidiIngresso, oltreLimite, trovaVoce, type VocePorta } from './porta-logica';
+import { categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, oltreLimite, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro, isoRoma, spostaGiorni, giorniTra } from './formato';
 import type { Evento, Iscrizione, Lotto } from './dati/tipi';
 import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
@@ -343,4 +343,25 @@ test('porta: dopo l’orario limite la prevendita non entra (pagata, gratis o no
   assert.equal(oltreLimite(undefined, dopo.ora), false);
   assert.equal(oltreLimite(limite, '2026-11-01T01:00:00+01:00'), true, 'si confrontano gli istanti, non le ore scritte');
   assert.equal(oltreLimite(limite, '2026-11-01T00:59:00+01:00'), false);
+});
+
+test('conteggio della porta: entrati con scan di prevendite e tavoli, attesi, posti liberi dopo il limite', () => {
+  const v = (o: Partial<VocePorta>): VocePorta => ({ id: 'x', token: '', codice: '', nome: 'A', cognome: 'B', dataNascita: '2000-01-01', stato: 'pagato', importo: 10, oraCheckIn: null, porta: null, lista: 'L', canale: 'diretto', origine: 'lista', ...o });
+  const tavolo = (entrati: number, persone: number, pagato = true) => v({ origine: 'tavolo', stato: pagato ? 'pagato' : 'in_lista', tavolo: { nome: 'T', persone, entrati, pagato } });
+  const elenco = [
+    v({ id: '1', stato: 'entrato' }), v({ id: '2', stato: 'entrato' }),   // 2 entrati con prevendita
+    v({ id: '3' }), v({ id: '4', stato: 'in_lista', importo: 0 }),         // 2 attesi
+    v({ id: '5', stato: 'in_attesa' }), v({ id: '6', stato: 'annullato' }), // non contano
+    tavolo(3, 6), tavolo(0, 4), tavolo(0, 8, false),                       // 3 entrati, 3 + 4 attesi; il tavolo non pagato non conta
+    v({ id: 'c', origine: 'cassa', stato: 'entrato' }),                    // storico: è dentro
+  ];
+  const limite = '2026-11-01T00:00:00.000Z';
+  const prima = conteggioPorta(elenco, { capienza: 300, limite, ora: '2026-10-31T23:00:00Z' });
+  assert.deepEqual(prima, { entrati: 6, attesi: 2 + 3 + 4, liberi: 294, dopoLimite: false });
+  const dopo = conteggioPorta(elenco, { capienza: 300, limite, ora: '2026-11-01T00:30:00Z' });
+  assert.deepEqual(dopo, { entrati: 6, attesi: 3 + 4, liberi: 294, dopoLimite: true }, 'dopo il limite le prevendite non contano più come attese, i tavoli sì');
+  assert.equal(conteggioPorta(elenco, { limite, ora: '2026-11-01T00:30:00Z' }).liberi, null, 'senza capienza non ci sono posti liberi');
+  assert.equal(conteggioPorta(elenco, { capienza: null, ora: '2026-11-01T00:30:00Z' }).liberi, null);
+  assert.equal(conteggioPorta(elenco, { capienza: 4, limite, ora: '2026-11-01T00:30:00Z' }).liberi, 0, 'mai sotto zero');
+  assert.deepEqual(conteggioPorta([], { capienza: 100, ora: '2026-10-31T23:00:00Z' }), { entrati: 0, attesi: 0, liberi: 100, dopoLimite: false });
 });

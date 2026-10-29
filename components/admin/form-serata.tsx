@@ -15,6 +15,8 @@ export interface ValoriSerata {
   tipoIngresso: 'libero' | 'lista'; prezzoLista: string; senzaTelefono: boolean; inCopertina: boolean; etaMinima: string;
   /** "01:00": fino a quando la prevendita vale per entrare (ora di Roma; dopo la mezzanotte = la notte della serata). */
   prevenditaFinoAlle: string;
+  /** Numero di persone, vuoto = non indicata. */
+  capienza: string;
   locandinaUrl: string; pubblicato: boolean; prAbilitati: string[] | null;
 }
 
@@ -148,7 +150,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [], manca = [], pr
           )}
         </Sezione>
 
-        <Sezione id="porta" n="03" titolo="Porta" nota="ORARIO LIMITE E INGRESSO SENZA TELEFONO" forza={conErrore('prevenditaFinoAlle')}>
+        <Sezione id="porta" n="03" titolo="Porta" nota="ORARIO LIMITE, CAPIENZA E INGRESSO SENZA TELEFONO" forza={conErrore('prevenditaFinoAlle', 'capienza')}>
           <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
             <label className="flex items-center gap-[10px] text-[15px]">
               <input type="checkbox" name="senzaTelefono" checked={senzaTel} onChange={(e) => setSenzaTel(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />
@@ -158,16 +160,18 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [], manca = [], pr
               {senzaTel ? 'Il cliente compra online come sempre ma alla porta non mostra il QR: lo staff cerca il cognome e controlla nome e data di nascita sul documento.' : 'Spento: alla porta si scansiona il QR del biglietto.'}
             </span>
           </div>
-          {tipo === 'lista' ? (
-            <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Campo nome="prevenditaFinoAlle" etichetta="Prevendita valida fino alle" tipo="time" v={v.prevenditaFinoAlle} errore={c.prevenditaFinoAlle} />
-              </div>
-              <span className="mm-campo__aiuto">
-                Dopo quest&apos;ora il QR di una prevendita non fa più entrare, anche se è pagato (lo controlla il telefono dello staff e lo rifà il server). Un orario dopo la mezzanotte vale per la notte della serata. I tavoli non hanno limite.
-              </span>
+          <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
+            <div className="grid gap-4 sm:grid-cols-3">
+              {tipo === 'lista'
+                ? <Campo nome="prevenditaFinoAlle" etichetta="Prevendita valida fino alle" tipo="time" v={v.prevenditaFinoAlle} errore={c.prevenditaFinoAlle} />
+                : <input type="hidden" name="prevenditaFinoAlle" value={v.prevenditaFinoAlle} />}
+              <Campo nome="capienza" etichetta="Capienza del locale (facoltativa)" v={v.capienza} inputMode="numeric" errore={c.capienza} />
             </div>
-          ) : <input type="hidden" name="prevenditaFinoAlle" value={v.prevenditaFinoAlle} />}
+            <span className="mm-campo__aiuto">
+              {tipo === 'lista' ? 'Dopo l\'orario limite il QR di una prevendita non fa più entrare, anche se è pagato (lo controlla il telefono dello staff e lo rifà il server); un orario dopo la mezzanotte vale per la notte della serata. I tavoli non hanno limite. ' : ''}
+              Con la capienza, la serata live dice quanti posti restano (capienza meno chi è entrato con gli scan).
+            </span>
+          </div>
         </Sezione>
 
         <Sezione id="copertina" n="04" titolo="Copertina e locandina" nota={anteprima ? 'LOCANDINA CARICATA' : 'LOCANDINA DA CARICARE'} forza={conErrore('locandina')}>

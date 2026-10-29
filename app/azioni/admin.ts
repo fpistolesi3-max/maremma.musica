@@ -59,6 +59,10 @@ export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAz
   // Fino a che ora la prevendita vale per entrare (ora di Roma, hh:mm): vuoto = il default (01:00).
   const limite = t(f, 'prevenditaFinoAlle') || LIMITE_PREVENDITA_DEFAULT;
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(limite)) campi.prevenditaFinoAlle = 'Orario hh:mm';
+  // Capienza del locale: facoltativa, un numero intero di persone.
+  const capienzaScritta = t(f, 'capienza');
+  const capienza = capienzaScritta === '' ? null : Number(capienzaScritta);
+  if (capienza != null && (!Number.isInteger(capienza) || capienza < 1 || capienza > 100000)) campi.capienza = 'Scrivi un numero di persone';
   if (!id && tipo !== 'libero' && (prezzo == null || Number.isNaN(prezzo) || prezzo < 0)) campi.prezzoLista = 'Scrivi il prezzo del primo tipo';
   if (Number.isNaN(eta) || eta < 0 || eta > 99) campi.etaMinima = 'Età non valida';
   if (Object.keys(campi).length) return { errore: 'Controlla i campi segnati.', campi };
@@ -90,6 +94,7 @@ export async function salvaSerata(_p: EsitoAzione, f: FormData): Promise<EsitoAz
     prezzoLista: tipo === 'libero' ? 0 : prezzo ?? 0, etaMinima: eta,
     // Salvato come istante: la prima volta che a Roma l'orologio segna quell'ora dopo l'apertura porte (01:00 → la notte della serata).
     prevenditaFinoAlle: istanteDopoApertura(data, limite),
+    capienza,
     senzaTelefono: f.get('senzaTelefono') === 'on',
     inCopertina: f.get('inCopertina') === 'on',
     // Il primo salvataggio è sempre una bozza: si pubblica dopo, con l'elenco "Cosa manca".

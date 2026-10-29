@@ -5,6 +5,8 @@ import type { Archivio, Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } fro
 import { tipiDelModello, type NomeModello } from '../tipi-modelli';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
+import { vociEvento } from './porta';
+import { conteggioPorta } from '../porta-logica';
 import { eventoPassato, etaSufficiente, giaIscritto, isAttiva, limiteIngresso, tienePosto, prenotazioneAttiva, prenotazioneScaduta, prezzoDaTipi, prezzoVendibile, nomiInSerie, EMAIL_RE, HANDLE_RE } from '../regole';
 import { nascita, ora as oraDi, dataCompleta, giorniTra, isoRoma, slugDa, spostaGiorni } from '../formato';
 import { usatiPerLotto } from './pubblico';
@@ -139,6 +141,9 @@ export async function serataLive(s: Sessione, eventoId: string) {
     entratiDaLista: entrati.filter((i) => i.origine !== 'cassa').length,
     portaStorico: { ingressi: storico.length, incassato: incassatoStorico },
     prevenditaFinoAlle: limiteIngresso(evento),
+    // Chi è dentro adesso (scan di prevendite e tavoli) e quanti posti restano: dopo il limite le prevendite non contano più come attese.
+    capienza: evento.capienza ?? null,
+    conteggio: conteggioPorta(vociEvento(d, eventoId), { capienza: evento.capienza, limite: limiteIngresso(evento), ora: new Date().toISOString() }),
     prevendita: {
       pagate: online.length, incassato: incassatoOnline,
       inAttesa: iscr.filter((i) => tienePosto(i) && i.stato === 'in_attesa').length,

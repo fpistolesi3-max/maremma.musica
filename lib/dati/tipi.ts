@@ -41,6 +41,8 @@ export interface Evento {
    * cassa possono avere ancora `cassaAttiva` e `prezzoCassa` nella riga: non si leggono più e non vanno tolti.
    */
    prevenditaFinoAlle?: string | null;
+  /** Quante persone entrano nel locale (facoltativo). Serve a dire quanti posti restano dopo l'orario limite. Assente nelle serate vecchie. */
+  capienza?: number | null;
   etaMinima: number;
   pubblicato: boolean;
   prAbilitati: string[] | null;   // null = tutti i PR attivi
