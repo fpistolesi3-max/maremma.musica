@@ -103,3 +103,11 @@ export function MappaSerata({ lat, lng, location, comune, etichetta }: Props) {
     </div>
   );
 }
+
+/** "Apri in Maps" sopra la mappa: stessa regola delle indicazioni (Apple Maps su iOS, Google altrove), anche senza mappa vera. */
+export function ApriInMaps({ lat, lng, location, comune }: { lat: number | null; lng: number | null; location: string | null; comune: string | null }) {
+  const [apple, setApple] = useState(false);
+  useEffect(() => setApple(usaAppleMaps(navigator.userAgent, navigator.maxTouchPoints)), []);
+  const href = linkIndicazioni({ lat, lng, location, comune }, apple);
+  return href ? <a href={href} className="link-sottolineato self-start py-3" target="_blank" rel="noopener noreferrer">Apri in Maps →</a> : null;
+}

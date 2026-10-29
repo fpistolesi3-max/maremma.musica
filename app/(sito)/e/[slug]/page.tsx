@@ -8,7 +8,7 @@ import { chipLista, prezzoVendibile, testoPrezzoTipi, tipiVista } from '@/lib/re
 import { dataPunti, esceTra, euro, giornoSett, giornoSettLungo, meseCorto, meseLungo, numeroEvento, orari, giorno2 } from '@/lib/formato';
 import { BottoneLista, Locandina, PuoIscriversi } from '@/components/evento';
 import { Disco, Freccia } from '@/components/ui';
-import { MappaSerata } from '@/components/mappa-serata';
+import { ApriInMaps, MappaSerata } from '@/components/mappa-serata';
 import { sceltaMappa } from '@/lib/mappa';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +32,6 @@ export default async function PaginaEvento({ params }: Props) {
   const e = ep.evento;
   const visibile = locationVisibile(e);
   const coordinate = visibile && e.lat != null && e.lng != null ? `${e.lat.toFixed(4)} N ${e.lng.toFixed(4)} E` : null;
-  const maps = visibile && (e.lat != null ? `https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}` : e.location || e.comune ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([e.location, e.comune].filter(Boolean).join(', '))}` : null);
   const usati = usatiPerLotto(await leggi(), e.id);
   const chip = chipLista(ep.stato);
   const tipi = tipiVista(e, ep.lotti, usati, {});
@@ -145,7 +144,7 @@ export default async function PaginaEvento({ params }: Props) {
           <p className="m-0 text-[16px] leading-6 text-osso-2 md:text-[17px] md:leading-[26px]">
             {visibile ? (e.infoArrivo ?? 'Parcheggio e navetta: te li diciamo qui appena confermati.') : 'La location è segreta: la trovi qui 48 ore prima della serata.'}
           </p>
-          {maps && <a href={maps} className="link-sottolineato self-start py-3" target="_blank" rel="noopener noreferrer">Apri in Maps →</a>}
+          {visibile && <ApriInMaps lat={e.lat} lng={e.lng} location={e.location} comune={e.comune} />}
         </div>
         {e.lat != null && e.lng != null && sceltaMappa(e, visibile) === 'mappa' ? (
           <MappaSerata lat={e.lat} lng={e.lng} location={e.location} comune={e.comune} etichetta={(e.location ?? e.comune ?? coordinate ?? '').toUpperCase()} />
