@@ -12,9 +12,9 @@ export interface ValoriSerata {
   lineup: string; highlight: string; dressCode: string; descrizione: string;
   location: string; comune: string; lat: string; lng: string; locationSegreta: boolean; infoArrivo: string;
   /** Solo per la serata nuova: è il prezzo del primo tipo. Poi il prezzo si decide nei tipi di prevendita. */
-  tipoIngresso: 'libero' | 'lista'; prezzoLista: string; cassaAttiva: boolean; senzaTelefono: boolean; inCopertina: boolean; prezzoCassa: string; etaMinima: string;
-  /** Prezzo del primo tipo (per ordine): precompila il prezzo in cassa se non è stato scelto. */
-  prezzoPrimoTipo: string;
+  tipoIngresso: 'libero' | 'lista'; prezzoLista: string; senzaTelefono: boolean; inCopertina: boolean; etaMinima: string;
+  /** "01:00": fino a quando la prevendita vale per entrare (ora di Roma; dopo la mezzanotte = la notte della serata). */
+  prevenditaFinoAlle: string;
   locandinaUrl: string; pubblicato: boolean; prAbilitati: string[] | null;
 }
 
@@ -35,15 +35,11 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [], manca = [], pr
 }) {
   const [stato, invia, inCorso] = useActionState(salvaSerata, {} as EsitoAzione);
   const [tipo, setTipo] = useState(v.tipoIngresso);
-  const [cassa, setCassa] = useState(v.cassaAttiva);
   const [senzaTel, setSenzaTel] = useState(v.senzaTelefono);
   const [copertina, setCopertina] = useState(v.inCopertina);
   const [tutti, setTutti] = useState(v.prAbilitati === null);
   const [anteprima, setAnteprima] = useState(v.locandinaUrl);
   const [prezzoPrimo, setPrezzoPrimo] = useState(v.prezzoLista);
-  // Il prezzo in cassa parte da quello del primo tipo e lo segue finché non lo si scrive a mano.
-  const [cassaScelto, setCassaScelto] = useState(v.prezzoCassa);
-  const cassaValore = cassaScelto !== '' ? cassaScelto : v.id ? v.prezzoPrimoTipo : prezzoPrimo;
   const [linkMaps, setLinkMaps] = useState('');
   const [lat, setLat] = useState(v.lat);
   const [lng, setLng] = useState(v.lng);
@@ -60,8 +56,8 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [], manca = [], pr
 
   const coordinate = coordinateDaLinkMaps(linkMaps);
   const nuova = !v.id;
-  // Quello che si vede nel modulo conta più di quello salvato: la locandina scelta e il prezzo in cassa scritto.
-  const mancaOra = manca.filter((m) => !(m.id === 'locandina' && anteprima) && !(m.id === 'cassa' && (!cassa || cassaValore !== '')));
+  // Quello che si vede nel modulo conta più di quello salvato: la locandina scelta.
+  const mancaOra = manca.filter((m) => !(m.id === 'locandina' && anteprima));
 
   /** Salva i tipi e i tavoli cambiati e poi i dati della serata: un solo gesto per tutta la pagina. */
   async function salvaTutto(cosa: 'bozza' | 'pubblica' | '') {
@@ -152,7 +148,7 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [], manca = [], pr
           )}
         </Sezione>
 
-        <Sezione id="porta" n="03" titolo="Porta" nota="CASSA E INGRESSO SENZA TELEFONO" forza={conErrore('prezzoCassa')}>
+        <Sezione id="porta" n="03" titolo="Porta" nota="ORARIO LIMITE E INGRESSO SENZA TELEFONO" forza={conErrore('prevenditaFinoAlle')}>
           <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
             <label className="flex items-center gap-[10px] text-[15px]">
               <input type="checkbox" name="senzaTelefono" checked={senzaTel} onChange={(e) => setSenzaTel(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />
@@ -162,26 +158,16 @@ export function FormSerata({ v, pr, children, copiaTavoliDa = [], manca = [], pr
               {senzaTel ? 'Il cliente compra online come sempre ma alla porta non mostra il QR: lo staff cerca il cognome e controlla nome e data di nascita sul documento.' : 'Spento: alla porta si scansiona il QR del biglietto.'}
             </span>
           </div>
-          <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
-            <label className="flex items-center gap-[10px] text-[15px]">
-              <input type="checkbox" name="cassaAttiva" checked={cassa} onChange={(e) => setCassa(e.target.checked)} className="h-[18px] w-[18px] accent-[var(--arancio)]" />
-              Ingresso in cassa alla porta
-            </label>
-            <span className="mm-campo__aiuto">
-              {cassa ? 'Chi non ha la prevendita entra pagando alla porta, anche in contanti.' : 'Spento: ingresso solo in prevendita. Alla porta non si vendono ingressi; lo dicono la pagina della serata e le email.'}
-            </span>
-            {cassa && tipo === 'lista' && (
+          {tipo === 'lista' ? (
+            <div className="flex flex-col gap-3 border border-linea bg-notte-2 px-[14px] py-3">
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className={`mm-campo ${c.prezzoCassa ? 'mm-campo--errore' : ''}`}>
-                  <label className="mm-campo__etichetta" htmlFor="f-prezzoCassa">Prezzo in cassa (€)</label>
-                  <input className="mm-campo__input" id="f-prezzoCassa" name="prezzoCassa" inputMode="decimal" value={cassaValore} onChange={(e) => setCassaScelto(e.target.value)} aria-invalid={Boolean(c.prezzoCassa)} aria-describedby="f-prezzoCassa-a" />
-                  <span className="mm-campo__aiuto" id="f-prezzoCassa-a">{c.prezzoCassa ?? (cassaScelto === '' ? 'Parte dal prezzo del primo tipo: cambialo se alla porta costa di più.' : 'Quanto si paga alla porta senza prevendita.')}</span>
-                </div>
+                <Campo nome="prevenditaFinoAlle" etichetta="Prevendita valida fino alle" tipo="time" v={v.prevenditaFinoAlle} errore={c.prevenditaFinoAlle} />
               </div>
-            )}
-            {/* Spenta la cassa il prezzo resta salvato: se la si riaccende torna com'era. */}
-            {!cassa && tipo === 'lista' && <input type="hidden" name="prezzoCassa" value={cassaValore} />}
-          </div>
+              <span className="mm-campo__aiuto">
+                Dopo quest&apos;ora il QR di una prevendita non fa più entrare, anche se è pagato (lo controlla il telefono dello staff e lo rifà il server). Un orario dopo la mezzanotte vale per la notte della serata. I tavoli non hanno limite.
+              </span>
+            </div>
+          ) : <input type="hidden" name="prevenditaFinoAlle" value={v.prevenditaFinoAlle} />}
         </Sezione>
 
         <Sezione id="copertina" n="04" titolo="Copertina e locandina" nota={anteprima ? 'LOCANDINA CARICATA' : 'LOCANDINA DA CARICARE'} forza={conErrore('locandina')}>

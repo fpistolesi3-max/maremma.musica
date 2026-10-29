@@ -112,7 +112,7 @@ export async function creaIscrizione(input: {
       pagamentoOnline: daPagare ? { sessione: null, pagamento: null, daRimborsare: false } : null,
       oraCheckIn: null, porta: null, consensoPrivacyAt: adesso.toISOString(), consensoMarketing: input.marketing,
       annullatoAt: null, createdAt: adesso.toISOString(),
-      canale: input.canale || 'diretto', consegnaId: null, origine: 'lista', rifCassa: null,
+      canale: input.canale || 'diretto', consegnaId: null, origine: 'lista',
     };
     d.iscrizioni.push(iscrizione);
     return { ok: true, iscrizione };

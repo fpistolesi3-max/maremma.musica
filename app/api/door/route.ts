@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sessioneCorrente } from '@/lib/sessione';
-import { cassaAttivaPorta, checkIn, elencoPorta, registraCassa, rifiutaIngresso, segnaPorta, serataDelBiglietto } from '@/lib/dati/porta';
-import type { MetodoPagamento } from '@/lib/dati/tipi';
-import type { DatiCassa, EsitoPorta } from '@/lib/porta-logica';
+import { checkIn, elencoPorta, limitePorta, rifiutaIngresso, segnaPorta, serataDelBiglietto } from '@/lib/dati/porta';
+import type { EsitoPorta } from '@/lib/porta-logica';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,10 +19,10 @@ export async function GET(req: Request) {
   if (biglietto) return NextResponse.json({ serata: await serataDelBiglietto(s, biglietto) }, { headers: { 'Cache-Control': 'no-store' } });
   const eventoId = params.get('evento');
   if (!eventoId) return NextResponse.json({ errore: 'evento' }, { status: 400 });
-  return NextResponse.json({ elenco: await elencoPorta(s, eventoId), cassa: await cassaAttivaPorta(s, eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ elenco: await elencoPorta(s, eventoId), limite: await limitePorta(s, eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
-interface Movimento { idLocale: string; chiave: string; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa; conferma?: boolean; rifiuto?: boolean }
+interface Movimento { idLocale: string; chiave: string; ora: string; conferma?: boolean; rifiuto?: boolean }
 
 /**
  * POST /api/door → applica gli ingressi registrati sul telefono (anche offline, con l'orario vero)
@@ -37,14 +36,11 @@ export async function POST(req: Request) {
   const porta = String(corpo.porta ?? 'P1').slice(0, 8);
   const esiti: { idLocale: string; esito: EsitoPorta }[] = [];
   for (const m of corpo.movimenti.slice(0, 500)) {
-    const metodo: MetodoPagamento = m.metodo === 'porta_pos' ? 'porta_pos' : 'porta_contanti';
-    const esito = m.cassa
-      ? await registraCassa(s, corpo.eventoId, String(m.idLocale), m.cassa, { metodo, porta, ora: m.ora })
-      : m.rifiuto
-        ? await rifiutaIngresso(s, corpo.eventoId, String(m.chiave), { porta, ora: m.ora })
-        : await checkIn(s, corpo.eventoId, String(m.chiave), { metodo, porta, ora: m.ora, confermato: m.conferma === true }, String(m.idLocale));
+    const esito = m.rifiuto
+      ? await rifiutaIngresso(s, corpo.eventoId, String(m.chiave), { porta, ora: m.ora })
+      : await checkIn(s, corpo.eventoId, String(m.chiave), { porta, ora: m.ora, confermato: m.conferma === true }, String(m.idLocale));
     esiti.push({ idLocale: m.idLocale, esito });
   }
   await segnaPorta(porta, corpo.eventoId);
-  return NextResponse.json({ esiti, elenco: await elencoPorta(s, corpo.eventoId), cassa: await cassaAttivaPorta(s, corpo.eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ esiti, elenco: await elencoPorta(s, corpo.eventoId), limite: await limitePorta(s, corpo.eventoId), ora: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
 }

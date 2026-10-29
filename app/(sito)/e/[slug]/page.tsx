@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { eventoPerSlug, locationVisibile, usatiPerLotto } from '@/lib/dati/pubblico';
 import { leggi } from '@/lib/dati/archivio';
 import { tavoliPubblici } from '@/lib/dati/tavoli';
-import { chipLista, prezzoVendibile, testoPrezzoTipi, tipiVista } from '@/lib/regole';
+import { chipLista, prezzoVendibile, testoLimite, testoPrezzoTipi, tipiVista } from '@/lib/regole';
 import { dataPunti, esceTra, euro, giornoSett, giornoSettLungo, meseCorto, meseLungo, numeroEvento, orari, giorno2 } from '@/lib/formato';
 import { BottoneLista, Locandina, PuoIscriversi } from '@/components/evento';
 import { Disco, Freccia } from '@/components/ui';
@@ -45,7 +45,7 @@ export default async function PaginaEvento({ params }: Props) {
     { d: 'Ho perso il QR, come lo recupero?', r: 'Vai su “Il mio QR” e scrivi l’email che hai usato per iscriverti: ti rimandiamo il link al biglietto. Alla porta basta anche il codice di 8 caratteri scritto sotto il QR.' },
     { d: 'Devo stampare il QR?', r: 'No, basta mostrarlo dal telefono con la luminosità al massimo. Porta un documento: il nome deve combaciare con il QR.' },
     { d: 'Come si paga?', r: e.tipoIngresso === 'libero' ? 'L’ingresso è libero: il QR serve solo a passare prima.'
-      : `Prevendita online: ${prezzo}, con carta, Apple Pay o Google Pay. Il QR arriva subito dopo il pagamento. ${e.cassaAttiva ? `Senza prevendita si entra pagando in cassa: ${euro(e.prezzoCassa ?? e.prezzoLista)}.` : 'Ingresso solo in prevendita: alla porta non si vendono ingressi.'}` },
+      : `Prevendita online: ${prezzo}, con carta, Apple Pay o Google Pay. Il QR arriva subito dopo il pagamento. ${testoLimite(e)}` },
     ...(e.dressCode ? [{ d: `Devo per forza venire ${e.dressCode.toLowerCase()}?`, r: `Il dress code della serata è ${e.dressCode.toLowerCase()}: vieni a tema, è metà della festa.` /* TODO: cliente — regola dress code alla porta */ }] : []),
   ];
 
@@ -84,7 +84,7 @@ export default async function PaginaEvento({ params }: Props) {
           <div className="grid grid-cols-2 gap-x-5 gap-y-7 md:gap-x-10 md:gap-y-8">
             <Info titolo="Quando" valore={`${giorno2(e.data)} ${meseLungo(e.data)}`} nota={<span className="font-mono text-[11px] leading-4 md:text-[13px]">{giornoSettLungo(e.data)} · {orari(e.data, e.dataFine)}</span>} />
             <Info titolo="Ingresso" valore={prezzo} nota={e.tipoIngresso === 'libero' ? 'Ingresso libero. Col QR passi prima.'
-              : e.cassaAttiva ? `Prevendita online. Prezzo in cassa ${euro(e.prezzoCassa ?? e.prezzoLista)}.` : 'Ingresso solo in prevendita: alla porta non si paga.'} />
+              : `Prevendita online. ${testoLimite(e)}`} />
             <Info largo titolo="Dove" valore={visibile ? e.location || e.comune || 'In arrivo' : 'Location segreta'}
               nota={<span className="font-mono text-[11px] leading-4 md:text-[13px]">{visibile ? [e.location && e.comune, coordinate].filter(Boolean).join(' · ') || 'Te la diciamo presto' : 'Svelata 48 ore prima'}</span>} />
             <Info largo titolo="Età" valore={e.etaMinima > 0 ? `${e.etaMinima}+` : 'Per tutti'} nota={e.senzaTelefono ? 'Serata senza telefono: alla porta serve un documento con lo stesso nome e la stessa data di nascita.' : 'Porta un documento: il nome deve combaciare con il QR.'} />

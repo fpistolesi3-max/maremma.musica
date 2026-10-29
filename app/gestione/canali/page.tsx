@@ -48,10 +48,6 @@ export default async function Canali({ searchParams }: Props) {
         <div className="flex min-w-0 flex-col">
           <Tabella titolo="Per canale · senza PR" righe={c.senzaPr.canali} vuoto="Ancora nessuno si è iscritto da solo." />
           <Tabella titolo="Come vengono aperti i link dei PR" righe={c.conPr.canali} vuoto="Nessuna iscrizione dai PR." piccola />
-          <p className="m-0 border-t border-linea py-4 text-[15px] leading-6">
-            <span className="font-display text-[20px] font-extrabold uppercase">Ingressi in cassa: {c.cassa.ingressi}</span>
-            <span className="text-osso-2"> · {c.cassa.incassato.toLocaleString('it-IT')} € incassati da chi è entrato senza lista né QR. Non contano nei canali.</span>
-          </p>
           <p className="m-0 pb-8 text-[13px] leading-5 text-osso-3">
             Il canale si riconosce da solo: dal social da cui arriva la persona (Instagram, Facebook e TikTok aprono il sito nel loro browser)
             o dal link etichettato. &quot;Diretto&quot; è chi ha scritto l&apos;indirizzo o ha aperto un link senza etichetta, per esempio da WhatsApp.

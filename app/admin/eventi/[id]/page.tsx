@@ -32,7 +32,7 @@ export default async function SerataLive({ params }: Props) {
         briciole={`SERATE / ${e.numero ? numeroEvento(e.numero) : e.slug}`}
         titolo={e.nome}
         chip={<ChipSerata pubblicata={e.pubblicato} inCorso={inCorso} testo={inCorso ? 'Porta aperta · live' : e.pubblicato ? 'Lista aperta' : undefined} />}
-        sotto={`${giornoSett(e.data)} ${dataPunti(e.data)} · ${luogoTesto(e).toUpperCase()} · ${orari(e.data, e.dataFine)} · ${e.tipoIngresso === 'libero' ? 'INGRESSO LIBERO' : `PREVENDITA ${testoPrezzoTipi(l.prezzoTipi, e.prezzoLista).toUpperCase()} ONLINE · ${e.cassaAttiva ? `CASSA ${euro(e.prezzoCassa ?? l.prezzoTipi?.primo ?? e.prezzoLista)}` : 'SOLO PREVENDITA'}`}`}
+        sotto={`${giornoSett(e.data)} ${dataPunti(e.data)} · ${luogoTesto(e).toUpperCase()} · ${orari(e.data, e.dataFine)} · ${e.tipoIngresso === 'libero' ? 'INGRESSO LIBERO' : `PREVENDITA ${testoPrezzoTipi(l.prezzoTipi, e.prezzoLista).toUpperCase()} ONLINE${l.prevenditaFinoAlle ? ` · VALIDA FINO ALLE ${ora(l.prevenditaFinoAlle)}` : ''}`}`}
         azioni={<>
           <Link className="mm-btn mm-btn--primario" href={`/admin/eventi/${e.id}/modifica`}>Modifica serata</Link>
           <MenuAltro>
@@ -43,13 +43,11 @@ export default async function SerataLive({ params }: Props) {
           </MenuAltro>
         </>}
       />
-      <div className="grid grid-cols-2 border-b border-linea lg:grid-cols-5">
+      <div className="grid grid-cols-2 border-b border-linea lg:grid-cols-4">
         <Numero etichetta="In lista" valore={String(l.inLista)} />
         <Numero etichetta="Entrati" valore={String(l.entrati)} colore="text-ok"
-          nota={`${l.entratiDaLista} DALLA LISTA${l.inLista ? ` (${Math.round((l.entratiDaLista / l.inLista) * 100)}%)` : ''} · ${l.cassa.ingressi} IN CASSA`} bordo />
-        <Numero etichetta="In cassa" valore={String(l.cassa.ingressi)}
-          nota={l.cassa.attiva || l.cassa.ingressi ? `${euro(l.cassa.incassato)} · CONTANTI ${euro(l.cassa.contanti)} · POS ${euro(l.cassa.pos)}` : 'CASSA SPENTA · SOLO PREVENDITA'} bordo />
-        <Numero etichetta="Incassato" valore={euro(l.incassato)} nota={`${euro(l.prevendita.incassato)} PREVENDITA ONLINE · ${euro(l.cassa.incassato)} CASSA ALLA PORTA`} bordo />
+          nota={`${l.entratiDaLista} DALLA LISTA${l.inLista ? ` (${Math.round((l.entratiDaLista / l.inLista) * 100)}%)` : ''}${l.portaStorico.ingressi ? ` · ${l.portaStorico.ingressi} ALLA PORTA (STORICO)` : ''}`} bordo />
+        <Numero etichetta="Incassato" valore={euro(l.incassato)} nota={`${euro(l.prevendita.incassato)} PREVENDITA ONLINE${l.portaStorico.ingressi ? ` · ${euro(l.portaStorico.incassato)} ALLA PORTA (STORICO)` : ''}`} bordo />
         <Numero etichetta="Ancora fuori" valore={String(l.fuori)} nota={l.prevendita.inAttesa ? `DELLA LISTA · ${l.prevendita.inAttesa} STANNO PAGANDO` : 'DELLA LISTA'} bordo />
       </div>
       {l.prevendita.daRimborsare.n > 0 && (
@@ -112,7 +110,7 @@ export default async function SerataLive({ params }: Props) {
                   </table>
                 </div>
               )}
-              <span className="text-[13px] text-osso-3">L&apos;incasso dei tavoli è a parte: non entra in &quot;Incassato&quot; qui sopra, che conta prevendita online e cassa alla porta.</span>
+              <span className="text-[13px] text-osso-3">L&apos;incasso dei tavoli è a parte: non entra in &quot;Incassato&quot; qui sopra, che conta le prevendite online.</span>
             </section>
           )}
 

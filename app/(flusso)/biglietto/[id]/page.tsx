@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { bigliettoPubblico, type Biglietto } from '@/lib/dati/pubblico';
 import { applicaScadenzeIscrizioni } from '@/lib/dati/prevendita';
 import { verificaRitornoIscrizione } from '@/lib/pagamento-prevendita';
-import { linkPagaBiglietto, testoCassa } from '@/lib/biglietto-email';
+import { linkPagaBiglietto } from '@/lib/biglietto-email';
+import { testoLimite } from '@/lib/regole';
 import { lasciaPostoAzione } from '@/app/azioni/prevendita';
 import { origineRichiesta } from '@/lib/sessione';
 import { isAttiva } from '@/lib/regole';
@@ -65,7 +66,7 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
                   <span className="font-mono text-[11px] leading-none tracking-[.06em] text-ok">{b.iscrizione.importo > 0 ? `✓ PAGAMENTO RICEVUTO · ${euro(b.iscrizione.importo)}` : '✓ ISCRIZIONE CONFERMATA'}</span>
                   <h1 className="m-0 font-display text-[96px] font-black uppercase leading-[.82]">Sei<br /><span className="text-arancio">in lista.</span></h1>
                   <p className="m-0 text-[18px] leading-[27px]">
-                    Ci vediamo sotto cassa, {b.iscrizione.nome}.{b.evento.dressCode ? ` Dress code: ${b.evento.dressCode.toLowerCase()}.` : ''} {b.evento.senzaTelefono ? 'Serata senza telefono: alla porta porta un documento.' : 'Alla porta mostra questo QR con un documento.'}
+                    Ci vediamo sotto cassa, {b.iscrizione.nome}.{b.evento.dressCode ? ` Dress code: ${b.evento.dressCode.toLowerCase()}.` : ''} {b.evento.senzaTelefono ? 'Serata senza telefono: alla porta porta un documento.' : 'Alla porta mostra questo QR con un documento.'}{testoLimite(b.evento) ? ` ${testoLimite(b.evento)}` : ''}
                   </p>
                   {pagato && b.iscrizione.importo > 0 && <PulsanteMorph href="#qr" esterno esito className="mm-btn--pieno">Biglietto pronto</PulsanteMorph>}
                 </>
@@ -73,7 +74,7 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
                 <>
                   <span className="font-mono text-[11px] leading-none tracking-[.06em] text-arancio">✦ IL TUO QR</span>
                   <h1 className="m-0 font-display text-[72px] font-black uppercase leading-[.84]">{b.iscrizione.nome},<br />eccolo.</h1>
-                  <p className="m-0 text-[17px] leading-[26px] text-osso-2">Alla porta mostralo con un documento. Luminosità al massimo.</p>
+                  <p className="m-0 text-[17px] leading-[26px] text-osso-2">Alla porta mostralo con un documento. Luminosità al massimo.{testoLimite(b.evento) ? ` ${testoLimite(b.evento)}` : ''}</p>
                 </>
               )}
             </section>
@@ -91,7 +92,6 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
               <span className="font-display text-[30px] font-black uppercase leading-[.95]">Porta la tua gente</span>
               <span className="text-[15px] leading-[22px] text-osso-2">
                 Manda questo link agli amici{b.prHandle ? `: finiscono anche loro nella lista di ${b.lista}.` : ': si mettono in lista in un minuto.'}
-                {testoCassa(b.evento) ? ` ${testoCassa(b.evento)}` : ''}
               </span>
               <CampoLink link={b.prHandle ? `/e/${b.evento.slug}/${b.prHandle}` : `/e/${b.evento.slug}`} />
             </section>

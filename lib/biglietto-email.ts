@@ -4,6 +4,7 @@ import type { Biglietto } from './dati/pubblico';
 import type { PrenotazioneVista } from './dati/tavoli';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
 import { dataPunti, euro, giornoSett, nascita, numeroEvento, orari } from './formato';
+import { testoLimite } from './regole';
 import { mostraCodice } from './qr-token';
 import { luogoTesto } from './luogo';
 
@@ -16,13 +17,6 @@ export function linkPagaBiglietto(origine: string, id: string, email: string) {
   return `${origine}/biglietto/${id}/paga?email=${encodeURIComponent(email)}`;
 }
 
-/** Cosa sapere sull'ingresso per chi non ha la prevendita: c'è la cassa alla porta o no. */
-export function testoCassa(e: Pick<Biglietto['evento'], 'cassaAttiva' | 'prezzoCassa' | 'prezzoLista' | 'tipoIngresso'>) {
-  if (e.tipoIngresso === 'libero') return null;
-  if (!e.cassaAttiva) return 'Ingresso solo in prevendita: alla porta non si vendono ingressi.';
-  return `Prezzo in cassa per chi non ha la prevendita: ${euro(e.prezzoCassa ?? e.prezzoLista)}.`;
-}
-
 /** QR come PNG: moduli vinile su fondo osso (il DS: un QR chiaro su scuro non tutti i lettori lo leggono). */
 export function qrPng(token: string, larghezza = 480) {
   return QRCode.toDataURL(token, { errorCorrectionLevel: 'M', margin: 2, width: larghezza, color: { dark: '#050505ff', light: '#e1d7c9ff' } });
@@ -32,7 +26,7 @@ export async function inviaBiglietto(b: Biglietto, origine: string) {
   const { iscrizione: i, evento: e } = b;
   const link = linkBiglietto(origine, i.id, i.email);
   const alPorta = i.importo > 0 ? `${euro(i.importo)} pagati online` : 'Ingresso libero';
-  const cassa = testoCassa(e);
+  const limite = testoLimite(e);
   const senzaTel = e.senzaTelefono;
   const corpo = `
 <p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${senzaTel
@@ -48,12 +42,13 @@ export async function inviaBiglietto(b: Biglietto, origine: string) {
     <span style="color:#a39e95;">Titolare</span> ${escapeHtml(`${i.nome} ${i.cognome}`)}<br>
     <span style="color:#a39e95;">Nato/a il</span> ${nascita(i.dataNascita)}<br>
     <span style="color:#a39e95;">Lista</span> ${escapeHtml(b.lista)}<br>
-    <span style="color:#d55b23;">${alPorta}</span>
+    <span style="color:#d55b23;">${alPorta}</span>${limite ? `<br>
+    <span style="color:#e1d7c9;">${escapeHtml(limite)}</span>` : ''}
   </p>
 </div>
 ${bottoneEmail(link, 'Apri il biglietto →')}
 ${senzaTel ? '' : `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0 0 12px;">Se il QR non si legge, alla porta basta dettare il codice ${mostraCodice(i.codice)}.</p>`}
-${cassa ? `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0;">${escapeHtml(cassa)}${senzaTel ? '' : ' Gli amici prendono il loro QR dallo stesso link.'}</p>` : ''}`;
+${limite && !senzaTel ? `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0;">Gli amici prendono il loro QR dallo stesso link.</p>` : ''}`;
   await inviaEmail({
     a: i.email,
     oggetto: `${i.importo > 0 ? 'Prevendita pagata' : 'Sei in lista'} · ${e.nome} ${dataPunti(e.data)}`,

@@ -2,30 +2,26 @@
 
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { MetodoPagamento } from '@/lib/dati/tipi';
-import { stessaPersona, type DatiCassa, type EsitoPorta, type Scheda, type VocePorta } from '@/lib/porta-logica';
+import type { EsitoPorta, VocePorta } from '@/lib/porta-logica';
 
 // Stato del telefono della porta, salvato in localStorage: l'elenco resta anche senza campo
 // e gli ingressi fatti offline aspettano in coda finché torna la connessione.
 
-export interface Movimento { idLocale: string; voceId: string; chiave: string; metodo: MetodoPagamento; ora: string; cassa?: DatiCassa; conferma?: boolean; rifiuto?: boolean }
+export interface Movimento { idLocale: string; voceId: string; chiave: string; ora: string; conferma?: boolean; rifiuto?: boolean }
 
 interface StatoPorta {
   eventoId: string | null;
   porta: string;
-  scheda: Scheda;                 // ultima scheda usata sul telefono: scanner o cassa
   elenco: VocePorta[];
   salvatoAlle: string | null;     // ultimo elenco scaricato
-  cassa: boolean | null;          // la serata ha la cassa alla porta (dall'ultima sincronizzazione); null = non ancora saputo
+  limite: string | null;          // fino a quando la prevendita vale per entrare (dall'ultima sincronizzazione); null = non ancora saputo
   coda: Movimento[];
   conflitti: number;              // ingressi offline che un'altra porta aveva già fatto
   online: boolean;
   serveAccesso: boolean;         // sessione scaduta: rientrare con il link
   scegliEvento: (id: string) => void;
   scegliPorta: (p: string) => void;
-  scegliScheda: (s: Scheda) => void;
   applicaLocale: (voce: VocePorta, m: Movimento) => void;
-  aggiungiCassa: (voce: VocePorta, m: Movimento) => void;
   sincronizza: () => Promise<{ esiti: { idLocale: string; esito: EsitoPorta }[] } | null>;
   scarica: () => Promise<void>;
 }
@@ -35,7 +31,7 @@ function unisci(server: VocePorta[], coda: Movimento[], locale: VocePorta[]) {
   const inCoda = new Set(coda.map((m) => m.voceId));
   const loc = new Map(locale.map((v) => [v.id, v]));
   const ids = new Set(server.map((v) => v.id));
-  // Gli ingressi in cassa ancora in coda non sono sul server: restano quelli del telefono.
+  // Una voce in coda che il server non conosce (non dovrebbe succedere) resta quella del telefono.
   const soloLocali = locale.filter((v) => inCoda.has(v.id) && !ids.has(v.id));
   return [...server.map((v) => (inCoda.has(v.id) ? loc.get(v.id) ?? v : v)), ...soloLocali];
 }
@@ -49,23 +45,15 @@ export const usePorta = create<StatoPorta>()(
     (set, get) => ({
       eventoId: null,
       porta: 'P1',
-      scheda: 'scanner',
       elenco: [],
       salvatoAlle: null,
-      cassa: null,
+      limite: null,
       coda: [],
       conflitti: 0,
       online: true,
       serveAccesso: false,
-      scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, cassa: null, coda: [], conflitti: 0 }); },
+      scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, limite: null, coda: [], conflitti: 0 }); },
       scegliPorta: (p) => set({ porta: p }),
-      scegliScheda: (scheda) => set({ scheda }),
-      aggiungiCassa: (voce, m) => {
-        // Chi aveva una prevendita non completata e passa dalla cassa compare una volta sola: la richiesta sparisce subito anche qui
-        // (il server la chiude alla sincronizzazione).
-        set((s) => ({ elenco: [...s.elenco.filter((v) => !(v.stato === 'in_attesa' && stessaPersona(v, voce))), voce], coda: [...s.coda, m] }));
-        void get().sincronizza();
-      },
       applicaLocale: (voce, m) => {
         set((s) => ({ elenco: s.elenco.map((v) => (v.id === voce.id ? voce : v)), coda: [...s.coda, m] }));
         void get().sincronizza();
@@ -91,11 +79,11 @@ export const usePorta = create<StatoPorta>()(
           });
           if (r.status === 401) { set({ serveAccesso: true }); return null; }
           if (!r.ok) throw new Error(String(r.status));
-          const dati = (await r.json()) as { esiti: { idLocale: string; esito: EsitoPorta }[]; elenco: VocePorta[]; cassa: boolean; ora: string };
+          const dati = (await r.json()) as { esiti: { idLocale: string; esito: EsitoPorta }[]; elenco: VocePorta[]; limite: string | null; ora: string };
           const conflitti = dati.esiti.filter((e) => e.esito.esito !== 'entrato' && e.esito.esito !== 'rifiutato').length;
           set((s) => {
             const rimasti = s.coda.filter((m) => !inviati.some((x) => x.idLocale === m.idLocale));
-            return { coda: rimasti, elenco: unisci(dati.elenco, rimasti, s.elenco), salvatoAlle: dati.ora, cassa: dati.cassa, conflitti: s.conflitti + conflitti, online: true, serveAccesso: false };
+            return { coda: rimasti, elenco: unisci(dati.elenco, rimasti, s.elenco), salvatoAlle: dati.ora, limite: dati.limite ?? s.limite, conflitti: s.conflitti + conflitti, online: true, serveAccesso: false };
           });
           return dati;
         } catch {
@@ -109,7 +97,7 @@ export const usePorta = create<StatoPorta>()(
     {
       name: 'mm-porta',
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ eventoId: s.eventoId, porta: s.porta, scheda: s.scheda, elenco: s.elenco, salvatoAlle: s.salvatoAlle, cassa: s.cassa, coda: s.coda, conflitti: s.conflitti }),
+      partialize: (s) => ({ eventoId: s.eventoId, porta: s.porta, elenco: s.elenco, salvatoAlle: s.salvatoAlle, limite: s.limite, coda: s.coda, conflitti: s.conflitti }),
     },
   ),
 );

@@ -87,7 +87,6 @@ export async function panoramicaPr(s: Sessione, eventoId: string | 'tutte' | nul
     righe,
     totali: numeri(viaPr, conResa),
     diretta: numeri(iscr.filter((i) => !i.prId && i.origine !== 'cassa'), conResa), // Lista Maremma Musica, senza PR
-    cassa: numeri(iscr.filter((i) => i.origine === 'cassa'), true),
     prAttivi: d.pr.filter((p) => p.stato === 'attivo').length,
   };
 }
@@ -164,7 +163,6 @@ export async function canaliSerata(s: Sessione, eventoId: string | 'tutte' | nul
   const iscr = d.iscrizioni.filter((i) => (!evento || i.eventoId === evento.id) && conta(i));
   const conResa = evento ? portaAperta(evento) : true;
   const senzaPr = iscr.filter((i) => !i.prId && i.origine !== 'cassa');
-  const cassa = iscr.filter((i) => i.origine === 'cassa' && isAttiva(i));
   const conPr = iscr.filter((i) => i.prId);
   return {
     admin: s.utente.ruolo === 'admin',
@@ -172,6 +170,5 @@ export async function canaliSerata(s: Sessione, eventoId: string | 'tutte' | nul
     eventi: d.eventi.slice().sort((a, b) => b.data.localeCompare(a.data)).map((e) => ({ id: e.id, nome: e.nome, data: e.data, slug: e.slug })),
     senzaPr: { numeri: numeri(senzaPr, conResa), canali: perCanale(senzaPr, conResa) },
     conPr: { numeri: numeri(conPr, conResa), canali: perCanale(conPr, conResa) },
-    cassa: { ingressi: cassa.length, incassato: cassa.reduce((t, i) => t + i.importo, 0) },
   };
 }

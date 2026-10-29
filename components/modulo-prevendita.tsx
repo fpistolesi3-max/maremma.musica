@@ -13,14 +13,14 @@ interface Props {
   etaMinima: number;
   senzaTelefono?: boolean; // serata senza telefono: niente QR, alla porta si controlla il documento
   aPagamento: boolean;    // false = serata gratis: il QR arriva subito
-  soloPrevendita: boolean; // la serata non ha la cassa alla porta
+  validaFino: string | null; // "01:00": fino a quando la prevendita vale per entrare (null = ingresso libero, nessun limite)
   tipo?: { nome: string; categoria: string | null; conferma: boolean; prossimo: string | null } | null; // tipo di prevendita in vendita adesso
   children: React.ReactNode; // campo Lista, già pronto dal server
 }
 
 const INIZIALE: StatoModulo = { errori: {}, valori: {} };
 
-export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore, etaMinima, senzaTelefono, aPagamento, soloPrevendita, tipo, children }: Props) {
+export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore, etaMinima, senzaTelefono, aPagamento, validaFino, tipo, children }: Props) {
   const [stato, invia, inCorso] = useActionState(iscriviti, INIZIALE);
   const e = stato.errori;
   const v = stato.valori;
@@ -117,7 +117,7 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
       <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
         {senzaTelefono ? (aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · ALLA PORTA SERVE IL DOCUMENTO' : 'ALLA PORTA SERVE IL DOCUMENTO')
           : aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · IL QR ARRIVA DOPO IL PAGAMENTO' : 'IL QR ARRIVA SUBITO'}
-        {soloPrevendita && <><br />INGRESSO SOLO IN PREVENDITA: ALLA PORTA NON SI PAGA</>}
+        {validaFino && <><br />VALIDA PER ENTRARE ENTRO LE {validaFino}</>}
       </span>
     </form>
   );

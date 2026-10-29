@@ -28,8 +28,8 @@ export default async function AdminSerate() {
             <span className="font-mono text-[12px] text-osso-2">{giornoSett(p.evento.data)} {dataPunti(p.evento.data)}</span>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4">
-            <Numero etichetta="In lista" valore={String(p.inLista)} nota="SENZA LA CASSA" />
-            <Numero etichetta="Entrati" valore={String(p.entrati)} colore="text-ok" nota={p.entratiCassa ? `DI CUI ${p.entratiCassa} IN CASSA` : undefined} bordo />
+            <Numero etichetta="In lista" valore={String(p.inLista)} />
+            <Numero etichetta="Entrati" valore={String(p.entrati)} colore="text-ok" bordo />
             <Numero etichetta="Incassato" valore={euro(p.incassato)} />
             <Numero etichetta="Tavoli pagati" valore={String(p.tavoliPagati)} nota={p.tavoliInAttesa ? `${p.tavoliInAttesa} IN ATTESA` : undefined} bordo />
           </div>

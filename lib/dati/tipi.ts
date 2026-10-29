@@ -9,7 +9,7 @@ export type StatoPr = 'attivo' | 'sospeso';
  * pagato = prevendita pagata online, QR valido. in_lista = serata gratis (lotto a 0 € o ingresso libero), QR valido.
  */
 export type StatoIscrizione = 'in_attesa' | 'scaduta' | 'in_lista' | 'pagato' | 'entrato' | 'annullato' | 'rimborsato';
-/** online = prevendita pagata sul sito; porta_* = ingresso in cassa pagato alla porta. */
+/** online = prevendita pagata sul sito; porta_* = solo storico: ingressi in cassa registrati quando la cassa esisteva (oggi non si incassa più alla porta). */
 export type MetodoPagamento = 'online' | 'porta_contanti' | 'porta_pos';
 
 export interface Evento {
@@ -33,10 +33,14 @@ export interface Evento {
   locandinaUrl: string | null;
   piantinaUrl: string | null;     // foto o disegno della sala, sfondo della mappa dei tavoli
   prezzoLista: number;
-  cassaAttiva: boolean;           // false = ingresso solo in prevendita: alla porta niente cassa
   inCopertina?: boolean;          // serata scelta dall'admin per la copertina della home; una sola alla volta
   senzaTelefono: boolean;         // serata dove il telefono non entra: alla porta si controlla il documento, non il QR
-  prezzoCassa: number | null;     // ingresso pagato in cassa senza prevendita; null = come la lista
+  /**
+   * Istante oltre il quale la prevendita non vale più per entrare (i tavoli non hanno limite). Assente nelle serate vecchie:
+   * vale il default (la prima 01:00 a Roma dopo l'apertura porte), vedi `limitePrevendita`. Le serate salvate prima di togliere la
+   * cassa possono avere ancora `cassaAttiva` e `prezzoCassa` nella riga: non si leggono più e non vanno tolti.
+   */
+   prevenditaFinoAlle?: string | null;
   etaMinima: number;
   pubblicato: boolean;
   prAbilitati: string[] | null;   // null = tutti i PR attivi
@@ -154,7 +158,7 @@ export interface Iscrizione {
   nome: string;
   cognome: string;
   dataNascita: string;            // YYYY-MM-DD
-  email: string;                  // vuota per chi entra in cassa (niente QR, niente email)
+  email: string;                  // vuota solo per gli ingressi in cassa storici (niente QR, niente email)
   tokenQr: string;                // firmato HMAC, mai progressivo
   codice: string;                 // 8 caratteri da dettare alla porta
   stato: StatoIscrizione;
@@ -162,7 +166,7 @@ export interface Iscrizione {
   importo: number;                // prezzo del lotto al momento dell'iscrizione
   pagatoAt: string | null;
   scade: string | null;           // in attesa: termine per pagare online
-  pagamentoOnline: PagamentoOnline | null; // prevendita pagata (o da pagare) sul sito; null per gratis e cassa
+  pagamentoOnline: PagamentoOnline | null; // prevendita pagata (o da pagare) sul sito; null per gratis e per gli ingressi in cassa storici
   oraCheckIn: string | null;
   porta: string | null;
   consensoPrivacyAt: string;
@@ -171,9 +175,10 @@ export interface Iscrizione {
   createdAt: string;
   canale: string;                 // da dove è arrivato: instagram, facebook, tiktok, whatsapp, google, diretto…
   consegnaId: string | null;      // solo storico: soldi incassati dal PR e consegnati, prima che tutto passasse dal sito
-  origine: 'lista' | 'cassa';     // cassa = registrato alla porta dallo staff, entra subito, senza QR
-  rifCassa: string | null;
-  /** Prevendita mai completata chiusa perché la persona è entrata dalla cassa: id dell'ingresso in cassa che l'ha sostituita. */
+  /** Solo storico: 'cassa' = registrato alla porta dallo staff quando la cassa esisteva (entrava subito, senza QR). Oggi nasce solo 'lista'. */
+  origine: 'lista' | 'cassa';
+  rifCassa?: string | null;       // solo storico (ingressi in cassa): id creato dal telefono
+  /** Solo storico: prevendita mai completata chiusa perché la persona era entrata dalla cassa (id di quell'ingresso). Resta nascosta nelle Iscrizioni. */
   chiusaDaCassa?: string | null;
   /**
    * Dopo `GIORNI_ANONIMIZZAZIONE` giorni dalla serata nome, cognome, email e data di nascita si cancellano (restano come stringa

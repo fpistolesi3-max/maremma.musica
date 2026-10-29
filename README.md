@@ -1,15 +1,15 @@
 # Maremma Musica — sito MVP (offline)
 
-Prevendita online + cassa alla porta per serata (decisione del 26.10): lista e tavoli si pagano solo sul sito con Stripe,
-niente pagamenti segnati a mano né soldi dai PR. Alla porta resta l'ingresso in cassa (anche in contanti) per chi non ha
-la prevendita, attivabile serata per serata. Il bar resta fuori dal sito.
+Solo prevendita online (decisione del 29.10): il sito vende prevendite e tavoli con Stripe e alla porta controlla i QR.
+Niente pagamenti segnati a mano, niente soldi dai PR e niente cassa: i contanti restano per i servizi dentro la serata (il bar),
+fuori dal sito. La prevendita vale per entrare fino a un orario limite (di default l'01:00 della notte della serata).
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (59 test: token QR, età, doppioni, lotti, prevendita online, porta, cassa, permessi, tavoli, mappa), `npm run typecheck`,
+Altri comandi: `npm test` (59 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, mappa), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -44,7 +44,7 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
 
 L'admin ha il guscio di `components/area/guscio.tsx`: barra laterale su desktop, barra in basso su telefono, sempre con
 **Porta** per prima (accesso allo scanner a un tocco). Voci: admin = Porta · Serate · PR · Iscrizioni · Staff.
-**Lo staff vede solo la porta** (`/door`): barra "Scanner · Cassa · Esci" (la scheda Cassa solo se la serata ha la cassa; con "Admin" in più per l'admin). "PR" ha tre schede, tutte solo
+**Lo staff vede solo la porta** (`/door`): barra "Porta · Esci" (con "Admin" in più per l'admin). "PR" ha tre schede, tutte solo
 admin: Attività, Canali · senza PR e Account PR. Dopo il login ogni ruolo arriva alla sua pagina (admin `/admin`, staff `/door`,
 PR la sua area); chi apre un'area che non è sua (uno staff su `/gestione/pr`, `/gestione/canali` o `/admin`) torna alla propria,
 senza passare dal login. Il sito pubblico ha una sola voce, "Accedi". Nelle impostazioni della porta: serata, porta
@@ -71,7 +71,7 @@ Le voci sono solo navigazione: i permessi restano in `richiedi` e `lib/dati/*`.
 ### Serate senza telefono (ingresso con documento)
 Per le serate dove il telefono non si porta: *Modifica serata → Ingresso senza telefono (con documento)* (campo `senzaTelefono` dell'evento). La prevendita si compra online come sempre (Stripe, nome, cognome e data di nascita obbligatori, un biglietto per persona).
 - **Cliente**: il modulo, la pagina della serata, il biglietto e l'email dicono "serata senza telefono, porta un documento"; l'email non ha né QR né codice.
-- **Porta**: la schermata iniziale è la ricerca per cognome (non c'è lo scanner), che usa l'elenco salvato sul telefono e quindi funziona anche offline. La scheda mostra nome, cognome, data di nascita ed età con **Fai entrare** / **Non corrisponde**; nulla si registra finché lo staff non tocca "Fai entrare". Il controllo vale anche sul server (`checkIn` legge `senzaTelefono` dall'evento): un telefono non può saltarlo. Un ingresso si registra una sola volta (il secondo passaggio dà "già entrato"); "Non corrisponde" salva il rifiuto come "Non rientra" e l'iscrizione resta valida. La cassa alla porta resta quella della serata.
+- **Porta**: la schermata iniziale è la ricerca per cognome (non c'è lo scanner), che usa l'elenco salvato sul telefono e quindi funziona anche offline. La scheda mostra nome, cognome, data di nascita ed età con **Fai entrare** / **Non corrisponde**; nulla si registra finché lo staff non tocca "Fai entrare". Il controllo vale anche sul server (`checkIn` legge `senzaTelefono` dall'evento): un telefono non può saltarlo. Un ingresso si registra una sola volta (il secondo passaggio dà "già entrato"); "Non corrisponde" salva il rifiuto come "Non rientra" e l'iscrizione resta valida.
 - **Lista di riserva**: *Serata → Lista da stampare* (`/admin/eventi/[id]/lista`, Ctrl+P): cognome, nome, data di nascita, entrato sì/no, in ordine alfabetico.
 - **Cambio nominativo**: solo l'admin, da *Iscrizioni → Cambia nome* (un piccolo modulo con nome, cognome, data di nascita ed email del biglietto, facoltativa), solo per chi non è ancora entrato; controlla età minima e doppioni, il biglietto resta lo stesso. Se cambia l'email, il link e il recupero usano la nuova; non parte nessuna email.
 - **Privacy**: nessuna foto né numero del documento. I dati personali si cancellano per tutte le iscrizioni, vedi *Anonimizzazione* qui sotto.
@@ -79,9 +79,9 @@ Per le serate dove il telefono non si porta: *Modifica serata → Ingresso senza
 - Supabase: `supabase/migrations/20261015000000_senza_telefono.sql` (colonna `eventi.senza_telefono`; RLS invariata). `porta_elenco` non cambia.
 
 ### Creare una serata (un solo prezzo, un solo Salva)
-- **Un solo prezzo.** Il prezzo di prevendita si decide solo nei *Tipi di prevendita*. Nel modulo di una serata nuova il campo "Prezzo del primo tipo" serve a creare il primo tipo («Lista», segnato come creato in automatico); dopo sparisce dal modulo. Intestazioni (serata live, area PR, pagina pubblica) mostrano il prezzo calcolato dai tipi ancora vendibili (aperti o in arrivo, non chiusi né esauriti), "da 8 €" se i prezzi sono diversi (`prezzoVendibile` e `testoPrezzoTipi` in `lib/regole.ts`); se non resta nulla da vendere (o la serata è passata) vale il prezzo dell'ultimo tipo. `prezzoDaTipi` considera tutti i tipi ed è solo per il prezzo del primo tipo (cassa) e per i modelli. `Evento.prezzoLista` resta nei dati solo come copia del prezzo del primo tipo (lo leggono le serate vecchie senza tipi, le email e il fallback della porta): si aggiorna da solo a ogni modifica dei tipi (`allineaPrezzoLista` in `lib/dati/admin.ts`). Il prezzo della cassa è un campo della sezione *Porta*, precompilato col prezzo del primo tipo; con la cassa accesa è obbligatorio, quindi `prezzoCassa` c'è sempre. Il campo opzionale `automatico` dei tipi manca nelle serate vecchie e vale `false`: nessuna migrazione.
+- **Un solo prezzo.** Il prezzo di prevendita si decide solo nei *Tipi di prevendita*. Nel modulo di una serata nuova il campo "Prezzo del primo tipo" serve a creare il primo tipo («Lista», segnato come creato in automatico); dopo sparisce dal modulo. Intestazioni (serata live, area PR, pagina pubblica) mostrano il prezzo calcolato dai tipi ancora vendibili (aperti o in arrivo, non chiusi né esauriti), "da 8 €" se i prezzi sono diversi (`prezzoVendibile` e `testoPrezzoTipi` in `lib/regole.ts`); se non resta nulla da vendere (o la serata è passata) vale il prezzo dell'ultimo tipo. `prezzoDaTipi` considera tutti i tipi ed è solo per il prezzo del primo tipo e per i modelli. `Evento.prezzoLista` resta nei dati solo come copia del prezzo del primo tipo (lo leggono le serate vecchie senza tipi, le email e il fallback della porta): si aggiorna da solo a ogni modifica dei tipi (`allineaPrezzoLista` in `lib/dati/admin.ts`). Il campo opzionale `automatico` dei tipi manca nelle serate vecchie e vale `false`: nessuna migrazione.
 - **Un solo Salva.** La barra in basso salva prima i tipi e i tavoli cambiati nella pagina (ognuno si iscrive a `RegistroSalvataggi`, `components/admin/salva-tutto.tsx`; si ferma al primo errore e dice quale modulo) e poi i dati della serata. Un tipo o un tavolo modificato dice "Modificato: si salva con «Salva» in basso" e, dopo il salvataggio, "Salvato ✓". I tipi e i tavoli *nuovi* si aggiungono con il loro pulsante ("Aggiungi il tipo", "Aggiungi N tavoli").
-- **Bozza e "Cosa manca".** Il primo salvataggio di una serata nuova è sempre una bozza (`pubblicatoDopoSalvataggio`). Premendo "Pubblica serata" compare "Cosa manca" (`cosaManca`): tipi propri (non solo quello creato in automatico), locandina, tavoli, prezzo della cassa se la cassa è attiva. Si può pubblicare lo stesso.
+- **Bozza e "Cosa manca".** Il primo salvataggio di una serata nuova è sempre una bozza (`pubblicatoDopoSalvataggio`). Premendo "Pubblica serata" compare "Cosa manca" (`cosaManca`): tipi propri (non solo quello creato in automatico), locandina, tavoli. Si può pubblicare lo stesso.
 - **Duplica serata** (menu *Altro* della serata live → `/admin/eventi/[id]/duplica`): chiede solo la nuova data. Copia dati, PR e impostazioni della porta, tipi (`copiaTipi`: uscite relative e date fisse spostate dello stesso numero di giorni di calendario, alla stessa ora di Roma anche a cavallo dell'ora legale; vale anche per la fine della serata) e tavoli con piantina (`copiaTavoli`); la copia nasce in bozza, con un altro numero e un altro indirizzo, fuori dalla copertina e senza iscrizioni.
 - **Tavoli in serie.** "Aggiungi più tavoli in serie": quanti, nome di partenza (`nomiInSerie`: T1 → T1, T2…; T08 tiene gli zeri; senza numero parte da 1), zona, posti e spesa minima; poi si ritoccano i singoli. Tutto o niente se un nome c'è già. "Posti" è obbligatorio (modulo, serie e `salvaTavolo`).
 - **Avanzate.** "Numero", "Indirizzo della pagina" e le coordinate stanno in una sezione chiusa in fondo; la locandina è dentro "Copertina e locandina"; le coordinate si ricavano incollando un link lungo di Google Maps (`coordinateDaLinkMaps`: `@lat,lng`, `!3d…!4d…`, `q=` o `ll=`; i link corti non si possono leggere).
@@ -120,55 +120,50 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   chiede a Stripe l'esito delle pagine di pagamento rimaste senza risposta, così un tavolo pagato non torna libero se il webhook
   non arriva. Non esiste "Segna pagato": un tavolo diventa "in attesa" o "pagato" solo con una prenotazione pagata sul sito.
 - PR: `/pr/[handle]` — chi apre il link vede le prossime serate; il PR entrato vede la sua area.
-- Porta: `/door` — fotocamera o codice, "cerca per nome", contatore live separato ("Lista 1/17 · Cassa 1": la cassa non gonfia il totale
-  della lista), funziona senza rete (elenco e ingressi in coda salvati sul telefono, sincronizzati al ritorno del segnale).
-  In alto una barra leggera Scanner · Cassa / Admin (Cassa solo se la serata ha la cassa, Admin solo per l'admin) con "Esci" sempre a destra, come nel resto dell'area
-  riservata; "Esci" chiede conferma e, se ci sono ingressi non ancora inviati, fa prima sincronizzare. "Esci" porta a `/accedi`
-  per tutti i ruoli. L'elenco delle serate della porta non mostra le bozze.
+- Porta: `/door` — fotocamera o codice, "cerca per nome", contatore live ("Lista 1/17"), funziona senza rete (elenco e ingressi in coda salvati
+  sul telefono, sincronizzati al ritorno del segnale). In alto una barra leggera "Porta" / "Admin" (Admin solo per l'admin) con "Esci" sempre
+  a destra, come nel resto dell'area riservata; "Esci" chiede conferma e, se ci sono ingressi non ancora inviati, fa prima sincronizzare.
+  "Esci" porta a `/accedi` per tutti i ruoli. L'elenco delle serate della porta non mostra le bozze.
   **Layout:** su schermi larghi la porta resta una colonna da telefono (480 px) centrata, con lo sfondo a tutto schermo; lo scanner
   si adatta all'altezza (anche un portatile da 768 px vede fotocamera, "Cerca per nome" e torcia senza scorrere).
-  **Scanner e cassa sono due postazioni separate** (schede "Scanner" e "Cassa" della barra; il telefono ricorda l'ultima usata, quindi con due
-  code ognuno resta sulla sua e con una coda sola si passa da una all'altra con un tocco). Chi ha la prevendita si scansiona; chi non ce l'ha va
-  alla cassa e paga lì, senza mai passare dallo scanner. La scheda Scanner ha solo mirino, "o scrivi il codice", "Cerca per nome" (per chi ha
-  la prevendita ma non trova il QR) e torcia: nessun pulsante della cassa, nemmeno negli esiti. Dove prima si offriva la cassa ("Prevendita non
-  completata", "Tavolo pieno", "Non valido") c'è solo il testo "Non ha una prevendita valida: va alla cassa." (o "Stasera niente cassa: senza
-  prevendita non entra." se la serata non ha la cassa). Le due schede sono lo stesso componente (`components/porta/porta.tsx`) e non due pagine:
-  così hanno per forza la stessa sincronizzazione, la stessa coda e lo stesso elenco salvato sul telefono, e passare da una all'altra non
-  richiede rete né ricaricare la pagina (con `/door/cassa` bisognerebbe duplicare la sincronizzazione e mettere la pagina in cache nel service
-  worker). La logica pura (`schedaEffettiva`, `rimandoCassa`, `proposteRiuso`, `riepilogoCassa`) sta in `lib/porta-logica.ts`. Offline come il resto.
+  **Solo scanner, niente cassa.** Il sito non incassa alla porta: la schermata ha solo mirino, "o scrivi il codice", "Cerca per nome" (per chi
+  ha la prevendita ma non trova il QR) e torcia. Negli esiti negativi ("Prevendita non completata", "Tavolo pieno", "Non valido") il testo dice
+  che chi non ha una prevendita valida può comprarla ora dal telefono; i contanti, se ci sono, restano fuori dal sito.
 - Alla porta chi è in lista ha già pagato online: non si incassa niente e la prevendita non si vende mai. Una prevendita
   "non completata" (modulo compilato o link del PR, pagamento mai arrivato: stato `in_attesa`) non è una prevendita: non ha un QR,
   non vale per entrare e non conta nel contatore. Nell'elenco e nella schermata del risultato dice "Prevendita non completata · non vale
-  per entrare", con due strade: "Ha pagato ora? Riprova" (ha pagato online dal telefono, il telefono riscarica l'elenco) oppure "Non entra", con la
-  scritta "Non ha una prevendita valida: va alla cassa" (nella cassa, scrivendo il cognome, compare la riga per riusare i suoi dati). Offline vale l'elenco salvato: chi ha pagato dopo l'ultimo aggiornamento non c'è ancora e si aspetta la rete.
-- Niente doppioni tra lista e cassa: quando qualcuno entra dalla cassa con gli stessi dati (cognome senza accenti + data di nascita,
-  stessa serata) di una prevendita non completata, quella richiesta si chiude (stato `scaduta`, campo `chiusaDaCassa` = id dell'ingresso
-  in cassa) e la sua pagina di pagamento Stripe si chiude con `chiudiCheckout` (`/checkout/sessions/{id}/expire`), così non si può
-  più pagare. La persona compare una sola volta nella ricerca della porta e in Iscrizioni. Se un pagamento arriva lo stesso, trova
-  un ingresso valido (doppione) e finisce tra i pagamenti da rimborsare, visibili all'admin (`confermaPagamentoIscrizione`).
+  per entrare", con due strade: "Ha pagato ora? Riprova" (ha pagato online dal telefono, il telefono riscarica l'elenco) oppure "Non entra",
+  con la scritta "Non ha una prevendita valida: può comprarla ora dal telefono". Offline vale l'elenco salvato: chi ha pagato dopo l'ultimo
+  aggiornamento non c'è ancora e si aspetta la rete.
+- **Orario limite della prevendita** (`Evento.prevenditaFinoAlle`, istante ISO): la prevendita vale per entrare fino a quell'ora, di default
+  l'01:00 della notte della serata (la prima 01:00 a Roma dopo l'apertura porte: `limitePrevendita` e `istanteDopoApertura` in
+  `lib/regole.ts`). Si cambia per serata nella sezione *Porta* del modulo (hh:mm: un orario dopo la mezzanotte vale per la notte della
+  serata; l'istante si ricalcola a ogni salvataggio e "Duplica serata" lo sposta con la data). Le serate vecchie senza il campo usano il
+  default; l'ingresso libero non ha limite. Alla porta, dopo il limite, un QR di prevendita (pagata, gratis o mai pagata) dà "Prevendita
+  scaduta alle 01:00 · non vale più per entrare" (esito `oltre_orario`) e non registra nessun ingresso; chi è già entrato resta "già entrato".
+  Il controllo c'è sul telefono (orologio del telefono, anche offline: il limite si salva con l'elenco e si aggiorna a ogni sincronizzazione)
+  e nel server (`checkIn`, che rifà `decidiIngresso`): il server conta l'orario vero dell'ingresso, mai nel futuro, quindi un ingresso fatto
+  offline prima del limite e sincronizzato dopo vale, uno fatto dopo no. **I QR dei tavoli non hanno il limite** (da confermare col
+  proprietario). Il cliente lo legge nella pagina della serata (riquadro Ingresso e domande), sotto il modulo di prevendita, nella pagina del
+  biglietto e nell'email del biglietto ("Valida per entrare entro le 01:00.", `testoLimite`).
 - QR di un'altra serata: se il QR è firmato ma non è in elenco, il telefono chiede al server di quale serata è
   (`/api/door?biglietto=…`, `serataDelBiglietto`: la serata si ricava dall'iscrizione o dal tavolo e la firma si verifica con quella
   serata, quindi un QR falso non dice niente) e mostra "Biglietto di <serata> (<data>). Cambia serata →": un tocco passa alla serata
   giusta (prima sincronizza la coda) e rilegge lo stesso QR. Serve la rete: il token porta solo l'id del biglietto, non la serata,
   quindi offline resta "Non è in elenco" (cambiare il formato del token invaliderebbe i biglietti già inviati).
-- Ingresso senza prevendita, alla cassa (staff e admin, da `/door` → scheda "Cassa"), solo nelle serate con "Ingresso in cassa alla
-  porta" acceso nel form della serata (sezione Ingresso; di default acceso). Spento: la porta non mostra la scheda Cassa, la
-  pagina della serata, il modulo e le email dicono "Ingresso solo in prevendita". La porta riceve l'interruttore a ogni
-  sincronizzazione; un ingresso in cassa fatto offline prima dello spegnimento si registra comunque. Chi arriva senza lista paga alla porta
-  e viene registrato con nome, cognome e data di nascita (età minima e doppioni). Niente email e niente QR:
-  entra subito, anche offline. Prezzo di default = "Prezzo in cassa" della serata (con la cassa accesa c'è sempre: parte dal prezzo del primo tipo e si cambia nella sezione Porta),
-  modificabile al momento. Nelle metriche è a parte: non gonfia la lista né la classifica PR, conta negli
-  ingressi e nell'incasso (riquadro "In cassa" nella serata live, filtro nelle Iscrizioni, colonna nel CSV). La scheda Cassa ha il modulo
-  (azione principale), il controllo dei doppioni, la riga "usa questi dati" quando il cognome che si scrive corrisponde a una prevendita non
-  completata (alla registrazione quella si chiude con la sua sessione Stripe, come sopra) e in fondo gli ultimi ingressi in cassa della serata
-  con il totale in contanti e con POS (`riepilogoCassa`; il metodo arriva dal server nel campo `metodo` della voce della porta).
+- **Dati storici della cassa.** Gli ingressi in cassa già registrati (`origine: 'cassa'`, `metodoPagamento` contanti o POS, `rifCassa`,
+  `chiusaDaCassa`) restano nei dati e non si migrano: compaiono come "Ingresso alla porta (storico)" nella serata live (dentro l'incassato),
+  nelle Iscrizioni (filtro "Ingresso alla porta (storico)"), nel CSV e alla porta in "Cerca per nome"; non gonfiano la lista né la classifica
+  PR. Le serate vecchie hanno ancora `cassaAttiva` e `prezzoCassa` nella riga: i campi sono tolti dal tipo `Evento`, nessuno li legge più e
+  non serve nessuna migrazione. Un telefono con la vecchia porta e ingressi in cassa ancora in coda al momento dell'aggiornamento li perde
+  (alla sincronizzazione risultano "non in lista").
 - Gestione attività PR: `/gestione/pr` — solo admin (lo staff vede solo la porta, i PR non entrano). Per ogni PR: in lista,
   nuovi nelle 24 ore, entrati, resa, prevendita pagata online, annullati, ultima attività (contano solo le prevendite pagate);
   scheda del singolo PR con iscritti al giorno, serate, lista e cronologia. L'admin la apre dalla barra (voce "PR");
   lo staff alla porta trova la lista di un PR con "Cerca per nome" e non vede i numeri dei PR.
 - I PR non incassano: niente "Ha pagato" e niente consegne di soldi. Il PR vede nella sua area solo i clienti che hanno
   pagato (o sono entrati); la classifica conta solo le prevendite pagate. Serata live dell'admin: prevendita incassata
-  online, cassa alla porta (contanti e POS) e tavoli a parte, più le prevendite da rimborsare.
+  online e tavoli a parte (più gli ingressi in cassa storici, se ci sono), più le prevendite da rimborsare.
 - Canali `/gestione/canali` (solo admin): chi si iscrive senza PR, per canale (Instagram, Facebook, TikTok,
   WhatsApp, Google, locandina, diretto). Il canale si riconosce dal social di provenienza o dal link
   etichettato `/e/[slug]?da=instagram` (la pagina dà i link pronti da copiare). Anche nella serata live
@@ -212,4 +207,4 @@ su Storage e il modulo le riduce prima dell'invio (limite 4 MB, quello di Vercel
    (accetta l'avviso sul certificato di sviluppo).
 
 ### Area admin da telefono
-Da telefono le tabelle dell'admin (serate, iscrizioni, PR, staff) diventano schede (`.mm-schede` in `app/globals.css`, le etichette vengono da `data-et`). I filtri delle iscrizioni e i moduli "Aggiungi PR" / "Dai accesso" sono richiudibili (`Filtri`, `Apribile` in `components/admin/ui.tsx`): chiusi mostrano i filtri attivi e "Azzera". Le azioni secondarie di una serata stanno nel menu "Altro". Il modulo serata ha le sezioni Dati, Prevendite, Porta (cassa e prezzo in cassa, senza telefono), Copertina e locandina, PR, Tipi di prevendita, Tavoli, Avanzate; la barra Salva (un solo Salva per tutta la pagina) resta sopra la navigazione. La briciola mostra MM/NNN e non ripete il titolo. Gli stati hanno sempre lo stesso colore (`ChipSerata`, `ChipIscrizione`): in attesa/da rimborsare ambra, pagato bianco, entrato verde, rimborsato grigio tratteggiato, annullato/scaduta rosso barrato. La porta (`/door`) non è toccata.
+Da telefono le tabelle dell'admin (serate, iscrizioni, PR, staff) diventano schede (`.mm-schede` in `app/globals.css`, le etichette vengono da `data-et`). I filtri delle iscrizioni e i moduli "Aggiungi PR" / "Dai accesso" sono richiudibili (`Filtri`, `Apribile` in `components/admin/ui.tsx`): chiusi mostrano i filtri attivi e "Azzera". Le azioni secondarie di una serata stanno nel menu "Altro". Il modulo serata ha le sezioni Dati, Prevendite, Porta (orario limite della prevendita, senza telefono), Copertina e locandina, PR, Tipi di prevendita, Tavoli, Avanzate; la barra Salva (un solo Salva per tutta la pagina) resta sopra la navigazione. La briciola mostra MM/NNN e non ripete il titolo. Gli stati hanno sempre lo stesso colore (`ChipSerata`, `ChipIscrizione`): in attesa/da rimborsare ambra, pagato bianco, entrato verde, rimborsato grigio tratteggiato, annullato/scaduta rosso barrato. La porta (`/door`) non è toccata.

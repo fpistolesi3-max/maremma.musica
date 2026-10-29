@@ -1,5 +1,5 @@
 import type { Evento, Iscrizione, Lotto, PrenotazioneTavolo } from './dati/tipi';
-import { anniCompiuti, dataIso, dataPunti, euro } from './formato';
+import { anniCompiuti, dataIso, dataPunti, euro, isoRoma, ora, spostaGiorni } from './formato';
 
 // Regole di business pure (senza archivio): testate in lib/regole.test.ts.
 
@@ -23,6 +23,29 @@ export function iscrizioneScaduta(i: Pick<Iscrizione, 'stato' | 'scade'>, adesso
 /** Occupa un posto del lotto: valida, oppure in attesa di pagamento e ancora nel termine. */
 export function tienePosto(i: Pick<Iscrizione, 'stato' | 'scade'>, adesso = new Date()) {
   return isAttiva(i) || (i.stato === 'in_attesa' && !iscrizioneScaduta(i, adesso));
+}
+
+/** Orario limite di default della prevendita (ora di Roma): la prevendita vale per entrare fino a quest'ora della notte. */
+export const LIMITE_PREVENDITA_DEFAULT = '01:00';
+
+/** La prima volta che a Roma l'orologio segna `hhmm` dopo l'apertura porte: 22:00 + 01:00 → l'1 della notte seguente. */
+export function istanteDopoApertura(apertura: string, hhmm: string): string {
+  const primo = isoRoma(dataIso(apertura), hhmm);
+  return Date.parse(primo) > Date.parse(apertura) ? primo : spostaGiorni(primo, 1);
+}
+
+/** Fino a quando la prevendita vale per entrare: l'orario scelto per la serata, altrimenti la prima 01:00 dopo l'apertura. */
+export const limitePrevendita = (e: Pick<Evento, 'data' | 'prevenditaFinoAlle'>) =>
+  e.prevenditaFinoAlle || istanteDopoApertura(e.data, LIMITE_PREVENDITA_DEFAULT);
+
+/** Il limite che vale alla porta: le serate a ingresso libero non lo hanno (il QR serve solo a passare prima). */
+export const limiteIngresso = (e: Pick<Evento, 'data' | 'prevenditaFinoAlle' | 'tipoIngresso'>) =>
+  e.tipoIngresso === 'libero' ? null : limitePrevendita(e);
+
+/** Quello che il cliente legge sull'orario limite. Niente per l'ingresso libero. */
+export function testoLimite(e: Pick<Evento, 'data' | 'prevenditaFinoAlle' | 'tipoIngresso'>) {
+  const limite = limiteIngresso(e);
+  return limite ? `Valida per entrare entro le ${ora(limite)}.` : null;
 }
 
 export function eventoPassato(e: Pick<Evento, 'data' | 'dataFine'>, adesso = new Date()) {
@@ -213,7 +236,7 @@ export const HANDLE_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 /** Prezzi dei tipi di prevendita di una serata: il prezzo si decide solo lì, il resto lo calcola da qui. */
 export interface PrezzoTipi { primo: number; minimo: number; massimo: number }
 
-/** `primo` è il prezzo del primo tipo (per ordine): è quello che precompila la cassa. Senza tipi: null. */
+/** `primo` è il prezzo del primo tipo (per ordine). Senza tipi: null. */
 export function prezzoDaTipi(lotti: Pick<Lotto, 'prezzo' | 'ordine'>[]): PrezzoTipi | null {
   if (lotti.length === 0) return null;
   const prezzi = lotti.map((l) => l.prezzo);
@@ -225,7 +248,7 @@ export function prezzoDaTipi(lotti: Pick<Lotto, 'prezzo' | 'ordine'>[]): PrezzoT
  * Prezzi da mostrare nelle intestazioni: solo i tipi ancora vendibili (aperti, in arrivo o in coda dopo il precedente),
  * come la regola "il sito vende il primo tipo aperto con posti". Chiusi ed esauriti non contano, e a serata passata nulla
  * è vendibile. Se non resta nulla da vendere vale il prezzo dell'ultimo tipo, l'ultimo a cui si è venduto.
- * `primo` resta sempre il prezzo del primo tipo (precompila la cassa).
+ * `primo` resta sempre il prezzo del primo tipo.
  */
 export function prezzoVendibile(evento: Evento, lotti: Lotto[], usati: Record<string, number> = {}, adesso = new Date()): PrezzoTipi | null {
   const suoi = lotti.filter((l) => l.eventoId === evento.id).sort((a, b) => a.ordine - b.ordine);
@@ -248,14 +271,14 @@ export function pubblicatoDopoSalvataggio(o: { nuova: boolean; azione: string; e
   return o.azione === 'pubblica' ? true : o.azione === 'bozza' ? false : o.eraPubblicata;
 }
 
-export interface Manca { id: 'tipi' | 'locandina' | 'tavoli' | 'cassa'; testo: string; ancora: string }
+export interface Manca { id: 'tipi' | 'locandina' | 'tavoli'; testo: string; ancora: string }
 
 /**
- * Cosa manca prima di pubblicare: tipi propri (non solo quello creato in automatico), locandina, tavoli se previsti,
- * prezzo della cassa se la cassa è attiva. Non blocca nulla: serve a pubblicare sapendolo.
+ * Cosa manca prima di pubblicare: tipi propri (non solo quello creato in automatico), locandina, tavoli se previsti.
+ * Non blocca nulla: serve a pubblicare sapendolo.
  */
 export function cosaManca(
-  e: Pick<Evento, 'tipoIngresso' | 'locandinaUrl' | 'cassaAttiva' | 'prezzoCassa'>,
+  e: Pick<Evento, 'tipoIngresso' | 'locandinaUrl'>,
   lotti: (Pick<Lotto, 'nome' | 'prezzo'> & { automatico?: boolean })[], nTavoli: number,
 ): Manca[] {
   const manca: Manca[] = [];
@@ -267,7 +290,6 @@ export function cosaManca(
   }
   if (!e.locandinaUrl) manca.push({ id: 'locandina', testo: 'Manca la locandina.', ancora: 'copertina' });
   if (nTavoli === 0) manca.push({ id: 'tavoli', testo: 'Nessun tavolo (se la serata li prevede, aggiungili).', ancora: 'tavoli' });
-  if (e.tipoIngresso !== 'libero' && e.cassaAttiva && e.prezzoCassa == null) manca.push({ id: 'cassa', testo: 'La cassa è attiva ma manca il prezzo in cassa.', ancora: 'porta' });
   return manca;
 }
 

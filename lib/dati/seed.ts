@@ -15,7 +15,7 @@ function evento(p: Partial<Evento> & Pick<Evento, 'slug' | 'nome' | 'data'>): Ev
   return {
     id: randomUUID(), numero: null, dataFine: null, location: null, comune: null, lat: null, lng: null,
     locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, dressCode: null,
-    lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 0, cassaAttiva: true, senzaTelefono: false, prezzoCassa: null, etaMinima: 18, pubblicato: true,
+    lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 0, senzaTelefono: false, etaMinima: 18, pubblicato: true,
     prAbilitati: null, createdAt: ora(), updatedAt: ora(), ...p,
   };
 }
@@ -35,7 +35,6 @@ export function datiIniziali(segreto: string): Archivio {
     infoArrivo: null,                            // TODO: cliente — parcheggio, navetta
     locandinaUrl: '/img/locandine/halloween-party-31-10-26.jpg',
     prezzoLista: 10,                             // TODO: cliente — prezzo della prevendita online
-    prezzoCassa: 15,                             // TODO: cliente — prezzo per chi entra in cassa senza prevendita
     etaMinima: 18,                               // TODO: cliente — età minima
   });
   const solchi = evento({ // ESEMPIO dai mockup
@@ -117,7 +116,7 @@ export function datiIniziali(segreto: string): Archivio {
       scade: null, pagamentoOnline: { sessione: null, pagamento: `prova_esempio_${id}`, daRimborsare: false },
       oraCheckIn: null, porta: null, consensoPrivacyAt: creata.toISOString(), consensoMarketing: false,
       annullatoAt: null, createdAt: creata.toISOString(),
-      canale, consegnaId: null, origine: 'lista', rifCassa: null,
+      canale, consegnaId: null, origine: 'lista',
     };
   });
 

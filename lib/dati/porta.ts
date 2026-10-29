@@ -3,12 +3,9 @@ import { leggi, modifica, segreto } from './archivio';
 import type { Archivio, Iscrizione, PrenotazioneTavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { leggiTokenQr, verificaTokenQr } from '../qr-token';
-import { decidiIngresso, trovaVoce, type DatiCassa, type EsitoPorta, type OpzioniIngresso, type SerataBiglietto, type VocePorta } from '../porta-logica';
-import { chiudiCheckout } from '../pagamenti';
+import { decidiIngresso, trovaVoce, type EsitoPorta, type OpzioniIngresso, type SerataBiglietto, type VocePorta } from '../porta-logica';
 import { randomUUID } from 'node:crypto';
-import { creaCodice, creaTokenQr } from '../qr-token';
-import { chiaveCognome, etaSufficiente, giaIscritto, iscrizioneScaduta } from '../regole';
-import { eventoPassato, prenotazioneAttiva, prenotazioneScaduta } from '../regole';
+import { eventoPassato, iscrizioneScaduta, limiteIngresso, prenotazioneAttiva, prenotazioneScaduta } from '../regole';
 
 // Porta: staff e admin. Lo staff vede le iscrizioni ma dei PR solo il nome della lista
 // (equivalente di porta_elenco() nello schema Supabase).
@@ -21,7 +18,7 @@ function voce(d: Readonly<Archivio>, i: Iscrizione): VocePorta {
   const pr = i.prId ? d.pr.find((p) => p.id === i.prId) : null;
   return {
     id: i.id, token: i.tokenQr, codice: i.codice, nome: i.nome, cognome: i.cognome, dataNascita: i.dataNascita,
-    stato: i.stato, importo: i.importo, oraCheckIn: i.oraCheckIn, porta: i.porta, lista: i.origine === 'cassa' ? 'Cassa' : pr?.nomeDisplay ?? 'Maremma Musica', categoria: i.categoria ?? null, rifiuto: i.rifiutoIngresso ?? null, canale: i.canale ?? 'diretto', origine: i.origine ?? 'lista', metodo: i.origine === 'cassa' ? i.metodoPagamento : null,
+    stato: i.stato, importo: i.importo, oraCheckIn: i.oraCheckIn, porta: i.porta, lista: i.origine === 'cassa' ? 'Ingresso alla porta (storico)' : pr?.nomeDisplay ?? 'Maremma Musica', categoria: i.categoria ?? null, rifiuto: i.rifiutoIngresso ?? null, canale: i.canale ?? 'diretto', origine: i.origine ?? 'lista',
   };
 }
 
@@ -57,8 +54,7 @@ export async function eventiPorta(s: Sessione) {
     .sort((a, b) => a.data.localeCompare(b.data))
     .map((e) => ({
       id: e.id, nome: e.nome, data: e.data, numero: e.numero, etaMinima: e.etaMinima,
-      prezzoCassa: e.tipoIngresso === 'libero' ? 0 : e.prezzoCassa ?? e.prezzoLista,
-      cassa: e.cassaAttiva, senzaTelefono: e.senzaTelefono,
+      limite: limiteIngresso(e), senzaTelefono: e.senzaTelefono,
     }));
 }
 
@@ -97,10 +93,11 @@ export async function listaStampabile(s: Sessione, eventoId: string) {
   return { evento, righe };
 }
 
-/** La serata ha la cassa alla porta? Arriva al telefono a ogni sincronizzazione: l'admin la può cambiare durante la serata. */
-export async function cassaAttivaPorta(s: Sessione, eventoId: string): Promise<boolean> {
+/** Fino a quando la prevendita vale per entrare. Arriva al telefono a ogni sincronizzazione: l'admin lo può cambiare durante la serata. */
+export async function limitePorta(s: Sessione, eventoId: string): Promise<string | null> {
   soloStaff(s);
-  return (await leggi()).eventi.find((e) => e.id === eventoId)?.cassaAttiva ?? false;
+  const e = (await leggi()).eventi.find((x) => x.id === eventoId);
+  return e ? limiteIngresso(e) : null;
 }
 
 /** `rif`: id del movimento creato dal telefono. Serve ai tavoli, dove lo stesso QR passa più volte. */
@@ -129,9 +126,12 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
       if (r.aggiornata) p.ingressi.push({ rif: rif ?? randomUUID(), ora, porta: o.porta });
       return r.esito;
     }
-    // Serata senza telefono: lo decide il server, il telefono non può saltare il controllo del documento.
-    const documento = d.eventi.find((e) => e.id === eventoId)?.senzaTelefono === true;
-    const { esito, aggiornata } = decidiIngresso(v, { ...o, ora, documento });
+    // Serata senza telefono e orario limite: li decide il server, il telefono non può saltare il controllo del documento né il limite.
+    // Vale l'orario in cui l'ingresso è stato fatto (mai nel futuro): chi è entrato offline prima del limite e sincronizza dopo, è valido.
+    const evento = d.eventi.find((e) => e.id === eventoId);
+    const documento = evento?.senzaTelefono === true;
+    const limite = evento ? limiteIngresso(evento) : null;
+    const { esito, aggiornata } = decidiIngresso(v, { ...o, ora, documento, limite });
     if (aggiornata) {
       const i = elenco.find((x) => x.id === v.id)!;
       i.stato = 'entrato'; i.oraCheckIn = ora; i.porta = o.porta;
@@ -156,59 +156,6 @@ export async function rifiutaIngresso(s: Sessione, eventoId: string, chiave: str
     return { esito: 'rifiutato', voce: voce(d, i) };
   });
 }
-
-/**
- * Ingresso in cassa: la persona paga alla porta senza essere in lista. Si registra con nome, cognome
- * e data di nascita (età minima e doppioni), niente email e niente QR: entra subito.
- * `rif` è l'id creato dal telefono: se la sincronizzazione si ripete non si crea un doppione.
- */
-export async function registraCassa(s: Sessione, eventoId: string, rif: string, dati: DatiCassa, o: OpzioniIngresso): Promise<EsitoPorta> {
-  soloStaff(s);
-  const chiave = await segreto();
-  const ora = new Date(Math.min(new Date(o.ora).getTime() || Date.now(), Date.now())).toISOString();
-  const sessioniDaChiudere: string[] = [];
-  const esito = await modifica((d): EsitoPorta => {
-    const gia = d.iscrizioni.find((i) => i.rifCassa === rif && i.eventoId === eventoId);
-    if (gia) return { esito: 'entrato', voce: voce(d, gia), incassato: gia.importo, ora: gia.oraCheckIn ?? ora, primaPagato: false };
-    const evento = d.eventi.find((e) => e.id === eventoId);
-    if (!evento) return { esito: 'non_valido', motivo: 'Serata non trovata' };
-    // Con la cassa spenta il telefono non mostra il pulsante; un ingresso arrivato lo stesso (fatto offline, prima che il
-    // telefono sapesse dello spegnimento) si registra comunque: la persona ha pagato ed è dentro.
-    const nome = dati.nome.trim().slice(0, 80);
-    const cognome = dati.cognome.trim().slice(0, 80);
-    if (!nome || !cognome || !/^\d{4}-\d{2}-\d{2}$/.test(dati.dataNascita)) return { esito: 'non_valido', motivo: 'Dati incompleti' };
-    if (!etaSufficiente(dati.dataNascita, evento)) return { esito: 'non_valido', motivo: `Serata ${evento.etaMinima}+: non può entrare` };
-    const doppio = giaIscritto(d.iscrizioni, eventoId, cognome, dati.dataNascita);
-    if (doppio) return { esito: doppio.stato === 'entrato' ? 'gia_entrato' : 'non_valido', ...(doppio.stato === 'entrato' ? { voce: voce(d, doppio) } : { motivo: 'È già in lista: aprilo da "Cerca per nome"' }) } as EsitoPorta;
-    const importo = Math.max(0, Math.round((Number(dati.importo) || 0) * 100) / 100);
-    const id = randomUUID();
-    const i = {
-      id, eventoId, lottoId: null, categoria: null, prId: null, nome, cognome, dataNascita: dati.dataNascita, email: '',
-      tokenQr: creaTokenQr(chiave, id, eventoId), codice: creaCodice(chiave, id), // interni: nessun QR viene mostrato
-      stato: 'entrato' as const, metodoPagamento: importo > 0 ? o.metodo : null, importo,
-      pagatoAt: importo > 0 ? ora : null, scade: null, pagamentoOnline: null, oraCheckIn: ora, porta: o.porta,
-      consensoPrivacyAt: ora, consensoMarketing: false, annullatoAt: null, createdAt: ora,
-      canale: 'cassa', consegnaId: null, origine: 'cassa' as const, rifCassa: rif,
-    };
-    // Chi aveva chiesto la prevendita senza completarla (stessi dati, stessa serata) non è più "in sospeso": la sua richiesta si chiude
-    // e si collega a questo ingresso, così compare una volta sola e non può pagare dopo (la pagina di Stripe si chiude qui sotto;
-    // se un pagamento arriva lo stesso, trova un ingresso valido e finisce tra i rimborsi: vedi confermaPagamentoIscrizione).
-    for (const x of d.iscrizioni) {
-      if (!nonCompletata(x) || x.eventoId !== eventoId || x.anonimizzata || x.dataNascita !== dati.dataNascita || chiaveCognome(x.cognome) !== chiaveCognome(cognome)) continue;
-      x.stato = 'scaduta';
-      x.chiusaDaCassa = id;
-      if (x.pagamentoOnline?.sessione) sessioniDaChiudere.push(x.pagamentoOnline.sessione);
-    }
-    d.iscrizioni.push(i);
-    return { esito: 'entrato', voce: voce(d, i), incassato: importo, ora, primaPagato: false };
-  });
-  // Fuori dal salvataggio: è una chiamata di rete. Se fallisce l'ingresso è comunque registrato.
-  await Promise.all(sessioniDaChiudere.map((id) => chiudiCheckout(id).catch(() => undefined)));
-  return esito;
-}
-
-/** Prevendita chiesta ma mai completata: in attesa, o scaduta ma ancora senza un pagamento registrato. */
-const nonCompletata = (i: Iscrizione) => i.stato === 'in_attesa' || (i.stato === 'scaduta' && !i.pagamentoOnline?.pagamento && !i.chiusaDaCassa);
 
 /** Ogni sincronizzazione aggiorna lo stato della porta, visibile all'admin. */
 export async function segnaPorta(nome: string, eventoId: string) {

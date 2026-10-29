@@ -1,16 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps } from './regole';
+import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps, limitePrevendita, limiteIngresso, testoLimite, istanteDopoApertura } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
-import { categoriaDaControllare, cercaPerNome, decidiIngresso, proposteRiuso, rimandoCassa, riepilogoCassa, schedaEffettiva, trovaVoce, type VocePorta } from './porta-logica';
+import { categoriaDaControllare, cercaPerNome, decidiIngresso, oltreLimite, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro, isoRoma, spostaGiorni, giorniTra } from './formato';
 import type { Evento, Iscrizione, Lotto } from './dati/tipi';
 import { canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './canali';
 
 const evento = (p: Partial<Evento> = {}): Evento => ({
   id: 'e1', numero: 25, slug: 'halloween-party', nome: 'Halloween Party', data: '2026-10-31T22:00:00+01:00', dataFine: '2026-11-01T04:00:00+01:00',
-  location: null, comune: null, lat: null, lng: null, locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, cassaAttiva: true, senzaTelefono: false, prezzoCassa: null,
+  location: null, comune: null, lat: null, lng: null, locationSegreta: false, tipoIngresso: 'lista', descrizione: null, highlight: null, senzaTelefono: false,
   dressCode: null, lineup: [], infoArrivo: null, locandinaUrl: null, piantinaUrl: null, prezzoLista: 10, etaMinima: 18, pubblicato: true, prAbilitati: null,
   createdAt: '', updatedAt: '', ...p,
 });
@@ -105,7 +105,7 @@ test('tipi di prevendita: categoria venduta dai PR scelti', () => {
 
 test('porta: con categoria l’ingresso si registra solo dopo "Fai entrare"; senza categoria (o Standard) subito', () => {
   const v: VocePorta = { id: 'x', token: 'MM1.a.b.c', codice: 'ABCD1234', nome: 'Giulia', cognome: 'Bianchi', dataNascita: '2001-05-14', stato: 'pagato', importo: 7, oraCheckIn: null, porta: null, lista: 'Maremma Musica', canale: 'diretto', origine: 'lista', categoria: 'Donne' };
-  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: '2026-10-31T23:41:00Z' };
+  const o = { porta: 'P1', ora: '2026-10-31T23:41:00Z' };
   const r = decidiIngresso(v, o);
   assert.equal(r.esito.esito, 'da_confermare', 'categoria: prima la scelta dello staff');
   assert.equal(r.aggiornata, null, 'niente ingresso registrato');
@@ -123,7 +123,7 @@ test('porta: con categoria l’ingresso si registra solo dopo "Fai entrare"; sen
 
 test('porta: chi è in lista ha già pagato online, non si incassa; non pagato non entra', () => {
   const v: VocePorta = { id: 'x', token: 'MM1.a.b.c', codice: 'ABCD1234', nome: 'Giulia', cognome: 'Bianchi', dataNascita: '2001-05-14', stato: 'pagato', importo: 10, oraCheckIn: null, porta: null, lista: 'Zarro Pollicino', canale: 'instagram', origine: 'lista' };
-  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: '2026-10-31T23:41:00Z' };
+  const o = { porta: 'P1', ora: '2026-10-31T23:41:00Z' };
   const { esito, aggiornata } = decidiIngresso(v, o);
   assert.equal(esito.esito, 'entrato', 'pagato online: entra');
   assert.equal(esito.esito === 'entrato' && esito.incassato, 0, 'alla porta non si incassa niente');
@@ -225,7 +225,7 @@ test('accesso: "dopo" accetta solo percorsi interni (niente reindirizzamenti ver
   for (const no of ['//evil.com', '/\\evil.com', '/\\\\evil.com', 'https://evil.com', 'evil.com', '/\t/evil.com', '/\n/evil.com', '/ /evil.com', '', null, undefined]) assert.equal(percorsoInterno(no as string), false, String(no));
 });
 
-test('prezzo dai tipi: "da 8 €" per le intestazioni, il primo tipo precompila la cassa', () => {
+test('prezzo dai tipi: "da 8 €" per le intestazioni', () => {
   assert.equal(prezzoDaTipi([]), null);
   const tipi = [lotto({ id: 'b', ordine: 1, prezzo: 11 }), lotto({ id: 'a', ordine: 0, prezzo: 8 }), lotto({ id: 'c', ordine: 2, prezzo: 11 })];
   assert.deepEqual(prezzoDaTipi(tipi), { primo: 8, minimo: 8, massimo: 11 });
@@ -278,16 +278,15 @@ test('bozza: il primo salvataggio di una serata nuova non pubblica mai', () => {
   assert.equal(pubblicatoDopoSalvataggio({ nuova: false, azione: '', eraPubblicata: false }), false);
 });
 
-test('cosa manca prima di pubblicare: tipi propri, locandina, tavoli, prezzo della cassa', () => {
-  const base = { tipoIngresso: 'lista' as const, locandinaUrl: null, cassaAttiva: true, prezzoCassa: null };
+test('cosa manca prima di pubblicare: tipi propri, locandina, tavoli', () => {
+  const base = { tipoIngresso: 'lista' as const, locandinaUrl: null };
   const ids = (m: ReturnType<typeof cosaManca>) => m.map((x) => x.id);
-  assert.deepEqual(ids(cosaManca(base, [], 0)), ['tipi', 'locandina', 'tavoli', 'cassa']);
+  assert.deepEqual(ids(cosaManca(base, [], 0)), ['tipi', 'locandina', 'tavoli']);
   const auto = [{ nome: 'Lista', prezzo: 10, automatico: true }];
-  assert.deepEqual(ids(cosaManca(base, auto, 0)), ['tipi', 'locandina', 'tavoli', 'cassa'], 'solo il tipo creato in automatico non basta');
+  assert.deepEqual(ids(cosaManca(base, auto, 0)), ['tipi', 'locandina', 'tavoli'], 'solo il tipo creato in automatico non basta');
   const propri = [{ nome: 'Early bird', prezzo: 8 }, { nome: 'Standard', prezzo: 10 }];
-  assert.deepEqual(ids(cosaManca({ ...base, locandinaUrl: '/media/a.jpg', prezzoCassa: 12 }, propri, 4)), [], 'tutto a posto: niente da dire');
-  assert.deepEqual(ids(cosaManca({ ...base, locandinaUrl: '/media/a.jpg', cassaAttiva: false }, [{ nome: 'Standard', prezzo: 10 }], 2)), [], 'cassa spenta: niente prezzo da chiedere');
-  assert.deepEqual(ids(cosaManca({ ...base, tipoIngresso: 'libero', locandinaUrl: '/media/a.jpg' }, [], 1)), [], 'ingresso libero: né tipi né cassa');
+  assert.deepEqual(ids(cosaManca({ ...base, locandinaUrl: '/media/a.jpg' }, propri, 4)), [], 'tutto a posto: niente da dire');
+  assert.deepEqual(ids(cosaManca({ ...base, tipoIngresso: 'libero', locandinaUrl: '/media/a.jpg' }, [], 1)), [], 'ingresso libero: nessun tipo da chiedere');
 });
 
 test('tavoli in serie: T1…T10, zeri conservati, senza numero parte da 1', () => {
@@ -309,33 +308,39 @@ test('coordinate da un link di Google Maps', () => {
   assert.equal(coordinateDaLinkMaps(''), null);
 });
 
-test('scheda della porta: la cassa solo se stasera c’è; chi non ha la prevendita va alla cassa', () => {
-  assert.equal(schedaEffettiva('cassa', true), 'cassa', 'ricorda l’ultima scheda');
-  assert.equal(schedaEffettiva('scanner', true), 'scanner');
-  assert.equal(schedaEffettiva('cassa', false), 'scanner', 'senza cassa si resta sullo scanner');
-  assert.equal(schedaEffettiva(undefined, true), 'scanner', 'telefono mai usato');
-  assert.equal(schedaEffettiva('boh', true), 'scanner');
-  assert.match(rimandoCassa(true), /va alla cassa/);
-  assert.match(rimandoCassa(false), /niente cassa.*non entra/);
+test('orario limite della prevendita: di default la prima 01:00 dopo l’apertura, a ora di Roma', () => {
+  const sera = evento({ data: isoRoma('2026-10-31', '22:00') });
+  assert.equal(limitePrevendita(sera), isoRoma('2026-11-01', '01:00'), 'apre la sera: l’1 della notte dopo');
+  assert.equal(limitePrevendita(evento({ data: isoRoma('2026-11-01', '00:30') })), isoRoma('2026-11-01', '01:00'), 'apre dopo mezzanotte: l’1 dello stesso giorno');
+  assert.equal(limitePrevendita(evento({ data: isoRoma('2026-11-01', '01:00') })), isoRoma('2026-11-02', '01:00'), 'a mezz’ora esatta si passa alla successiva');
+  assert.equal(limitePrevendita(evento({ data: isoRoma('2026-10-24', '22:00') })), '2026-10-24T23:00:00.000Z', 'l’1 resta l’1 anche nella notte del cambio d’ora');
+  assert.equal(limitePrevendita({ ...sera, prevenditaFinoAlle: '2026-11-01T01:30:00.000Z' }), '2026-11-01T01:30:00.000Z', 'quello scelto per la serata vale più del default');
+  assert.equal(istanteDopoApertura(isoRoma('2026-10-31', '22:00'), '23:30'), isoRoma('2026-10-31', '23:30'), 'prima di mezzanotte resta la stessa sera');
+  assert.equal(limiteIngresso(evento({ tipoIngresso: 'libero' })), null, 'ingresso libero: nessun limite');
+  assert.equal(limiteIngresso(sera), limitePrevendita(sera));
+  assert.equal(testoLimite(sera), 'Valida per entrare entro le 01:00.');
+  assert.equal(testoLimite(evento({ tipoIngresso: 'libero' })), null);
 });
 
-test('cassa: riuso dei dati di una prevendita non completata e riepilogo degli ultimi ingressi', () => {
-  const v = (o: Partial<VocePorta>): VocePorta => ({ id: 'x', token: '', codice: '', nome: 'A', cognome: 'B', dataNascita: '2000-01-01', stato: 'pagato', importo: 0, oraCheckIn: null, porta: null, lista: 'L', canale: 'diretto', origine: 'lista', ...o });
-  const elenco = [
-    v({ id: '1', nome: 'Anna', cognome: 'Rossi', stato: 'in_attesa' }),
-    v({ id: '2', nome: 'Rosa', cognome: 'Rossini', stato: 'in_attesa' }),
-    v({ id: '3', nome: 'Rino', cognome: 'Rossi', stato: 'pagato' }),
-    v({ id: '4', nome: 'Gigi', cognome: "D'Alì", stato: 'in_attesa' }),
-    v({ id: 'c1', nome: 'Cassa', cognome: 'Uno', origine: 'cassa', stato: 'entrato', importo: 15, metodo: 'porta_contanti', oraCheckIn: '2026-10-31T22:00:00Z' }),
-    v({ id: 'c2', nome: 'Cassa', cognome: 'Due', origine: 'cassa', stato: 'entrato', importo: 15, metodo: 'porta_pos', oraCheckIn: '2026-10-31T23:00:00Z' }),
-    v({ id: 'c3', nome: 'Cassa', cognome: 'Tre', origine: 'cassa', stato: 'entrato', importo: 10, metodo: 'porta_contanti', oraCheckIn: '2026-10-31T21:00:00Z' }),
-  ];
-  assert.deepEqual(proposteRiuso(elenco, 'ro').map((x) => x.id), ['1', '2'], 'solo non completate, per inizio cognome');
-  assert.deepEqual(proposteRiuso(elenco, 'Rossi').map((x) => x.id), ['1', '2']);
-  assert.deepEqual(proposteRiuso(elenco, 'rossin').map((x) => x.id), ['2']);
-  assert.deepEqual(proposteRiuso(elenco, 'r'), [], 'una lettera è troppo poco');
-  assert.deepEqual(proposteRiuso(elenco, 'dali').map((x) => x.id), ['4'], 'senza accenti e apostrofi');
-  const r = riepilogoCassa(elenco, 2);
-  assert.deepEqual(r.ultimi.map((x) => x.id), ['c2', 'c1'], 'dal più recente');
-  assert.deepEqual([r.ingressi, r.contanti, r.pos], [3, 25, 15], 'i totali contano tutti gli ingressi, non solo gli ultimi');
+test('porta: dopo l’orario limite la prevendita non entra (pagata, gratis o no), il tavolo sì', () => {
+  const v: VocePorta = { id: 'x', token: 'MM1.a.b.c', codice: 'ABCD1234', nome: 'Giulia', cognome: 'Bianchi', dataNascita: '2001-05-14', stato: 'pagato', importo: 10, oraCheckIn: null, porta: null, lista: 'Maremma Musica', canale: 'diretto', origine: 'lista' };
+  const limite = '2026-11-01T00:00:00.000Z'; // l’1 a Roma
+  const prima = { porta: 'P1', ora: '2026-10-31T23:59:59Z', limite };
+  const dopo = { porta: 'P1', ora: '2026-11-01T00:00:00Z', limite };
+  assert.equal(decidiIngresso(v, prima).esito.esito, 'entrato', 'un secondo prima del limite entra');
+  const tardi = decidiIngresso(v, dopo);
+  assert.equal(tardi.esito.esito, 'oltre_orario', 'al limite non entra più');
+  assert.equal(tardi.esito.esito === 'oltre_orario' && tardi.esito.limite, limite);
+  assert.equal(tardi.aggiornata, null, 'nessun ingresso registrato');
+  assert.equal(decidiIngresso({ ...v, stato: 'in_lista', importo: 0 }, dopo).esito.esito, 'oltre_orario', 'anche la prevendita gratis');
+  assert.equal(decidiIngresso({ ...v, stato: 'in_attesa' }, dopo).esito.esito, 'oltre_orario', 'e quella mai pagata');
+  assert.equal(decidiIngresso({ ...v, categoria: 'Donne' }, { ...dopo, confermato: true }).esito.esito, 'oltre_orario', 'nemmeno dopo "Fai entrare"');
+  assert.equal(decidiIngresso({ ...v, stato: 'entrato', oraCheckIn: '2026-10-31T23:00:00Z' }, dopo).esito.esito, 'gia_entrato', 'chi è già dentro resta "già entrato"');
+  assert.equal(decidiIngresso({ ...v, stato: 'annullato' }, dopo).esito.esito, 'annullato');
+  const tavolo: VocePorta = { ...v, origine: 'tavolo', tavolo: { nome: 'T1', persone: 4, entrati: 1, pagato: true } };
+  assert.equal(decidiIngresso(tavolo, dopo).esito.esito, 'entrato', 'i tavoli non hanno limite');
+  assert.equal(decidiIngresso(v, { ...dopo, limite: null }).esito.esito, 'entrato', 'senza limite (ingresso libero) entra sempre');
+  assert.equal(oltreLimite(undefined, dopo.ora), false);
+  assert.equal(oltreLimite(limite, '2026-11-01T01:00:00+01:00'), true, 'si confrontano gli istanti, non le ore scritte');
+  assert.equal(oltreLimite(limite, '2026-11-01T00:59:00+01:00'), false);
 });

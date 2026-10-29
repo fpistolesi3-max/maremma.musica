@@ -5,7 +5,7 @@ import type { Archivio, Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } fro
 import { tipiDelModello, type NomeModello } from '../tipi-modelli';
 import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
-import { eventoPassato, etaSufficiente, giaIscritto, isAttiva, tienePosto, prenotazioneAttiva, prenotazioneScaduta, prezzoDaTipi, prezzoVendibile, nomiInSerie, EMAIL_RE, HANDLE_RE } from '../regole';
+import { eventoPassato, etaSufficiente, giaIscritto, isAttiva, limiteIngresso, tienePosto, prenotazioneAttiva, prenotazioneScaduta, prezzoDaTipi, prezzoVendibile, nomiInSerie, EMAIL_RE, HANDLE_RE } from '../regole';
 import { nascita, ora as oraDi, dataCompleta, giorniTra, isoRoma, slugDa, spostaGiorni } from '../formato';
 import { usatiPerLotto } from './pubblico';
 import { applicaScadenze } from './tavoli';
@@ -47,7 +47,6 @@ export async function cruscotto(s: Sessione) {
       evento: prossima,
       inLista: iscr.filter((i) => i.origine !== 'cassa').length,
       entrati: iscr.filter((i) => i.stato === 'entrato').length,
-      entratiCassa: iscr.filter((i) => i.stato === 'entrato' && i.origine === 'cassa').length,
       incassato: iscr.filter((i) => i.metodoPagamento).reduce((t, i) => t + i.importo, 0),
       tavoliPagati: tavoli.filter((p) => p.stato === 'confermata').length,
       tavoliInAttesa: tavoli.filter((p) => p.stato === 'in_attesa').length,
@@ -95,15 +94,16 @@ export async function serataLive(s: Sessione, eventoId: string) {
   const evento = d.eventi.find((e) => e.id === eventoId);
   if (!evento) return null;
   const iscr = d.iscrizioni.filter((i) => i.eventoId === eventoId);
-  const cassa = iscr.filter((i) => i.origine === 'cassa' && isAttiva(i));
-  const attive = iscr.filter((i) => isAttiva(i) && i.origine !== 'cassa');   // "in lista": senza la cassa
+  // Ingressi in cassa storici (di quando la cassa esisteva): non sono "in lista", ma i loro soldi restano nell'incassato della serata.
+  const storico = iscr.filter((i) => i.origine === 'cassa' && isAttiva(i));
+  const attive = iscr.filter((i) => isAttiva(i) && i.origine !== 'cassa');   // "in lista": senza gli ingressi storici
   const entrati = iscr.filter((i) => i.stato === 'entrato');
-  // Soldi: la prevendita si incassa online, alla porta solo l'ingresso in cassa (contanti o POS).
+  // Soldi: la prevendita si incassa online sul sito; alla porta il sito non incassa più (restano gli ingressi in cassa storici).
   const somma = (xs: Iscrizione[]) => xs.reduce((t, i) => t + i.importo, 0);
   const online = attive.filter((i) => i.metodoPagamento === 'online');
   const daRimborsare = iscr.filter((i) => i.pagamentoOnline?.daRimborsare);
   const incassatoOnline = somma(online);
-  const incassatoCassa = somma(cassa);
+  const incassatoStorico = somma(storico);
 
   // Ingressi ogni mezz'ora, dall'apertura alla chiusura (o 6 ore).
   const inizio = new Date(evento.data).getTime();
@@ -130,17 +130,15 @@ export async function serataLive(s: Sessione, eventoId: string) {
     };
   }).sort((a, b) => b.incassato - a.incassato || b.atteso - a.atteso);
 
-  const nomeLista = (i: Iscrizione) => (i.origine === 'cassa' ? 'Cassa' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica');
+  const nomeLista = (i: Iscrizione) => (i.origine === 'cassa' ? 'Ingresso alla porta (storico)' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica');
   return {
     evento,
     prezzoTipi: prezzoVendibile(evento, d.lotti, usatiPerLotto(d, eventoId)),
     inLista: attive.length,
     entrati: entrati.length,
     entratiDaLista: entrati.filter((i) => i.origine !== 'cassa').length,
-    cassa: {
-      attiva: evento.cassaAttiva, ingressi: cassa.length, incassato: incassatoCassa,
-      contanti: somma(cassa.filter((i) => i.metodoPagamento === 'porta_contanti')), pos: somma(cassa.filter((i) => i.metodoPagamento === 'porta_pos')),
-    },
+    portaStorico: { ingressi: storico.length, incassato: incassatoStorico },
+    prevenditaFinoAlle: limiteIngresso(evento),
     prevendita: {
       pagate: online.length, incassato: incassatoOnline,
       inAttesa: iscr.filter((i) => tienePosto(i) && i.stato === 'in_attesa').length,
@@ -163,7 +161,7 @@ export async function serataLive(s: Sessione, eventoId: string) {
     rifiuti: iscr.filter((i) => i.rifiutoIngresso).sort((a, b) => b.rifiutoIngresso!.ora.localeCompare(a.rifiutoIngresso!.ora)).map((i) => ({
       id: i.id, nome: `${i.nome} ${i.cognome}`, categoria: i.categoria, entrato: i.stato === 'entrato', ...i.rifiutoIngresso!,
     })),
-    incassato: incassatoOnline + incassatoCassa,
+    incassato: incassatoOnline + incassatoStorico,
     fuori: attive.filter((i) => i.stato !== 'entrato').length,
     perMezzora,
     classifica: calcolaClassifica(d, eventoId, { admin: true }),
@@ -184,17 +182,17 @@ export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; 
   const q = filtro.q ? norm(filtro.q) : '';
   return d.iscrizioni
     .filter((i) => !filtro.eventoId || i.eventoId === filtro.eventoId)
-    // La prevendita mai completata di chi è poi entrato dalla cassa è chiusa e collegata a quell'ingresso: la persona compare una volta sola.
+    // Storico: la prevendita mai completata di chi era poi entrato dalla cassa è chiusa e collegata a quell'ingresso: la persona compare una volta sola.
     // Se il pagamento è arrivato lo stesso, resta visibile tra i rimborsi.
     .filter((i) => !(i.chiusaDaCassa && i.stato === 'scaduta' && !i.pagamentoOnline?.daRimborsare))
-    .filter((i) => !filtro.stato || (filtro.stato === 'cassa' ? i.origine === 'cassa'
+    .filter((i) => !filtro.stato || (filtro.stato === 'porta_storico' ? i.origine === 'cassa'
       : filtro.stato === 'da_rimborsare' ? Boolean(i.pagamentoOnline?.daRimborsare) : i.stato === filtro.stato))
     .filter((i) => !q || norm(`${i.nome} ${i.cognome} ${i.email} ${i.codice}`).includes(q))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((i) => ({
       iscrizione: i,
       evento: d.eventi.find((e) => e.id === i.eventoId)!,
-      lista: i.origine === 'cassa' ? 'Cassa' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica',
+      lista: i.origine === 'cassa' ? 'Ingresso alla porta (storico)' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica',
     }));
 }
 
@@ -207,7 +205,7 @@ export async function cambiaStatoIscrizione(s: Sessione, id: string, azione: 'an
     if (azione === 'annulla' && isAttiva(i)) {
       i.stato = 'annullato'; i.annullatoAt = adesso;
     } else if (azione === 'rimborsa' && i.metodoPagamento && (isAttiva(i) || i.stato === 'annullato')) {
-      // Online: i soldi sono già stati restituiti su Stripe (azioneIscrizione). Cassa: si restituiscono a mano, qui si registra.
+      // Online: i soldi sono già stati restituiti su Stripe (azioneIscrizione). Ingresso in cassa storico: si restituiscono a mano, qui si registra.
       i.stato = 'rimborsato'; i.annullatoAt = adesso;
     } else if (azione === 'ripristina' && i.stato === 'annullato') {
       // Una prevendita lasciata senza pagare non torna valida: sarebbe un QR regalato.
@@ -273,13 +271,10 @@ export async function salvaEvento(s: Sessione, id: string | null, dati: DatiEven
       Object.assign(e, resto, { numero: dati.numero ?? e.numero, updatedAt: adesso });
       if (e.tipoIngresso === 'libero') e.prezzoLista = 0;
       else allineaPrezzoLista(d, e.id);
-      // Cassa accesa: il prezzo in cassa c'è sempre (di partenza, quello del primo tipo).
-      if (e.tipoIngresso !== 'libero' && e.cassaAttiva && e.prezzoCassa == null) e.prezzoCassa = e.prezzoLista;
       return e;
     }
     const numero = dati.numero ?? Math.max(0, ...d.eventi.map((e) => e.numero ?? 0)) + 1;
     const e: Evento = { ...dati, id: randomUUID(), numero, piantinaUrl: null, createdAt: adesso, updatedAt: adesso };
-    if (e.tipoIngresso !== 'libero' && e.cassaAttiva && e.prezzoCassa == null) e.prezzoCassa = e.prezzoLista;
     d.eventi.push(e);
     // Ogni serata a lista nasce con un primo tipo, col prezzo scritto nel modulo: poi i prezzi si ritoccano solo nei tipi.
     if (e.tipoIngresso !== 'libero') {
@@ -309,6 +304,8 @@ export async function duplicaSerata(s: Sessione, daEventoId: string, nuovoGiorno
     const nuovo: Evento = {
       ...da, id: randomUUID(), numero: Math.max(0, ...d.eventi.map((e) => e.numero ?? 0)) + 1, slug, data, dataFine,
       lineup: [...da.lineup], prAbilitati: da.prAbilitati ? [...da.prAbilitati] : null,
+      // L'orario limite scritto per la serata si sposta con la data, alla stessa ora a Roma.
+      prevenditaFinoAlle: da.prevenditaFinoAlle ? spostaGiorni(da.prevenditaFinoAlle, giorniTra(da.data, data)) : null,
       pubblicato: false, inCopertina: false, piantinaUrl: null, createdAt: adesso, updatedAt: adesso,
     };
     d.eventi.push(nuovo);
@@ -558,13 +555,13 @@ export async function csvEvento(s: Sessione, eventoId: string) {
   const evento = d.eventi.find((e) => e.id === eventoId);
   if (!evento) return null;
   const intestazione = ['Codice', 'Origine', 'Nome', 'Cognome', 'Data di nascita', 'Email', 'Lista', 'Tipo di prevendita', 'Categoria', 'Importo', 'Stato', 'Pagamento', 'Pagato il', 'Da rimborsare', 'Iscritto il', 'Entrato alle', 'Porta', 'Rifiutato alla porta', 'Newsletter', 'Età alla serata'];
-  const PAGAMENTO = { online: 'online', porta_contanti: 'porta contanti', porta_pos: 'porta POS' } as const;
+  const PAGAMENTO = { online: 'online', porta_contanti: 'porta contanti (storico)', porta_pos: 'porta POS (storico)' } as const;
   const righe = d.iscrizioni
     .filter((i) => i.eventoId === eventoId)
     .sort((a, b) => a.cognome.localeCompare(b.cognome))
     .map((i) => [
-      i.codice, i.origine === 'cassa' ? 'cassa' : 'lista', i.nome, i.cognome, nascita(i.dataNascita), i.email,
-      i.origine === 'cassa' ? 'Cassa' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica',
+      i.codice, i.origine === 'cassa' ? 'porta (storico)' : 'lista', i.nome, i.cognome, nascita(i.dataNascita), i.email,
+      i.origine === 'cassa' ? 'Ingresso alla porta (storico)' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica',
       i.lottoId ? d.lotti.find((l) => l.id === i.lottoId)?.nome : '', i.categoria ?? '',
       i.importo.toFixed(2).replace('.', ','), i.stato, i.metodoPagamento ? PAGAMENTO[i.metodoPagamento] : '',
       i.pagatoAt ? `${dataCompleta(i.pagatoAt)} ${oraDi(i.pagatoAt)}` : '', i.pagamentoOnline?.daRimborsare ? 'sì' : '',

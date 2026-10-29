@@ -17,7 +17,7 @@ export interface RigaClassifica {
 export function calcolaClassifica(d: Readonly<Archivio>, eventoId: string, vista: { admin: boolean; prId?: string | null }): RigaClassifica[] {
   const righe = new Map<string, RigaClassifica>();
   for (const i of d.iscrizioni) {
-    if (i.eventoId !== eventoId || i.origine === 'cassa') continue; // la cassa non è la lista di nessuno
+    if (i.eventoId !== eventoId || i.origine === 'cassa') continue; // gli ingressi in cassa storici non sono la lista di nessuno
     if (i.stato === 'in_attesa' || i.stato === 'scaduta') continue; // conta solo la prevendita pagata
     const k = i.prId ?? '_mm';
     let r = righe.get(k);
