@@ -425,7 +425,7 @@ function Esito({ esito, senzaTelefono, online, salvatoAlle, onRiprova, onCambiaS
         <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
           {X}
           <span className="font-mono text-[13px] font-medium leading-[18px]">ORARIO LIMITE {oraDi(esito.limite)} SUPERATO · INGRESSO NON REGISTRATO</span>
-          <span className="font-display text-[88px] font-black uppercase leading-[.85]">Prevendita<br />non valida</span>
+          <span className="font-display text-[64px] font-black uppercase leading-[.85]">Prevendita<br />non valida</span>
           <div className={linea} />
           <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
           <span className="text-[17px] font-medium leading-6">Orario limite superato, prevendita non valida.</span>
