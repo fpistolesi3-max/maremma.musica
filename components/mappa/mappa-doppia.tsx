@@ -34,7 +34,7 @@ export function MappaDoppia({ d }: { d: DatiMappa }) {
   return (
     <div>
       {vera ? (
-        <Scatola><MappaVera d={d} subito onErrore={() => { setVera(false); setAssente(true); }} />{comandi}</Scatola>
+        <Scatola><MappaVera d={d} subito pulsanteSinistra onErrore={() => { setVera(false); setAssente(true); }} />{comandi}</Scatola>
       ) : (
         <CartinaMaremma d={d}>{comandi}</CartinaMaremma>
       )}

@@ -25,7 +25,7 @@ export default function Privacy() {
       <h2>Per quanto</h2>
       <p>Nome, cognome, data di nascita ed email della lista li cancelliamo 30 giorni dopo la serata. Restano solo dati anonimi, come l’età alla serata e il tipo di prevendita, per le statistiche. Il consenso alle email vale finché non lo revochi.</p>
       <h2>La mappa della serata</h2>
-      <p>Nella pagina di una serata la mappa di «Come arrivare» si carica da OpenFreeMap, un servizio esterno. Come ogni servizio esterno riceve il tuo indirizzo IP, e non usa cookie.</p>
+      <p>Nella pagina di una serata «Come arrivare» mostra prima una cartina illustrata della Maremma, che è un’immagine del nostro sito e non chiama nessun servizio esterno. Solo se tocchi «Vedi la mappa» (o se la serata è fuori dalla Maremma, quando la sezione sta per comparire) la mappa vera si carica da OpenFreeMap, un servizio esterno. Come ogni servizio esterno riceve il tuo indirizzo IP, e non usa cookie.</p>
       <h2>I tuoi diritti</h2>
       <p>Puoi chiedere accesso, correzione, cancellazione, limitazione e portabilità dei tuoi dati, o opporti al trattamento, scrivendo a maremmamusica@gmail.com. Puoi anche rivolgerti al Garante per la protezione dei dati personali.</p>
     </PaginaLegale>

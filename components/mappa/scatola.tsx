@@ -1,6 +1,7 @@
 import { ALTEZZA, LARGHEZZA } from '@/lib/cartina';
+import type { Lato } from '@/lib/etichetta';
 
-/** Il riquadro comune alle tre proposte: stessa forma e stessa grana, così si confrontano alla pari. */
+/** Il riquadro della mappa di "Come arrivare": stessa forma e stessa grana per la cartina e per la mappa vera. */
 export function Scatola({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={`mm-grana mm-cq relative w-full overflow-hidden border border-linea bg-[#0b1824] ${className}`} style={{ aspectRatio: `${LARGHEZZA} / ${ALTEZZA}` }}>
@@ -10,17 +11,24 @@ export function Scatola({ children, className = '' }: { children: React.ReactNod
 }
 
 /**
- * L'etichetta arancio del sito: nome della serata, data e luogo. Lo stelo tocca il punto: `ancora` è dove cade lungo la larghezza
- * (50 = al centro; meno o più per le serate vicine ai bordi), `giu` mette l'etichetta sotto il punto invece che sopra.
+ * L'etichetta arancio del sito: nome della serata, data e luogo, con lo stelo che tocca il punto (il punto è l'origine del contenitore che la ospita).
+ * `lato` dice da che parte del punto sta e `ancora` dove cade il punto lungo l'etichetta (in %), come li sceglie `scegliLato`.
  */
-export function EtichettaSerata({ titolo, sotto, ancora = 50, giu = false, className = '' }: { titolo: string; sotto: string; ancora?: number; giu?: boolean; className?: string }) {
+export function EtichettaSerata({ titolo, sotto, lato = 'su', ancora = 50 }: { titolo: string; sotto: string; lato?: Lato; ancora?: number }) {
+  const verticale = lato === 'su' || lato === 'giu';
+  const stile: React.CSSProperties = verticale
+    ? { left: 0, transform: `translateX(-${ancora}%)`, ...(lato === 'su' ? { bottom: 10, paddingBottom: 12 } : { top: 10, paddingTop: 12 }) }
+    : { top: 0, transform: `translateY(-${ancora}%)`, ...(lato === 'dx' ? { left: 10, paddingLeft: 12 } : { right: 10, paddingRight: 12 }) };
+  const stelo: React.CSSProperties = verticale
+    ? { left: `${ancora}%`, width: 1, height: 12, ...(lato === 'su' ? { bottom: 0 } : { top: 0 }) }
+    : { top: `${ancora}%`, height: 1, width: 12, ...(lato === 'dx' ? { left: 0 } : { right: 0 }) };
   return (
-    <div className={`pointer-events-none absolute z-10 flex ${giu ? 'flex-col-reverse' : 'flex-col'} ${className}`} style={{ transform: `translateX(-${ancora}%)` }}>
-      <div className="max-w-[290px] bg-arancio px-[10px] py-[6px] text-su-arancio">
+    <div className="cq-et pointer-events-none absolute z-10 w-max" style={stile}>
+      <div className="bg-arancio px-[10px] py-[6px] text-su-arancio">
         <div className="cq-et-titolo truncate font-display font-black uppercase leading-[.95]">{titolo}</div>
         <div className="cq-et-sotto truncate pt-[3px] font-mono leading-[12px]">{sotto}</div>
       </div>
-      <div className="h-3 w-px bg-arancio" style={{ marginLeft: `${ancora}%` }} />
+      <div className="absolute bg-arancio" style={stelo} />
     </div>
   );
 }

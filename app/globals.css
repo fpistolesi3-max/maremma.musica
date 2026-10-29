@@ -408,14 +408,16 @@ a.mm-btn--primario:hover, a.mm-btn--primario:active { color: var(--su-arancio); 
 .mm-cq { container-type: inline-size; }
 .cq-paese { font-size: 11px; }
 .cq-luogo { font-size: 8px; }
-.cq-vert { font-size: 30px; }
+.cq-titolo { font-size: 22px; }
+.cq-et { max-width: 290px; }
 .cq-et-titolo { font-size: 17px; }
 .cq-et-sotto { font-size: 9px; }
 .cq-largo-flex, .cq-largo-block, .cq-largo-inline { display: none; }
 @container (min-width: 560px) {
   .cq-paese { font-size: 14px; }
   .cq-luogo { font-size: 10px; }
-  .cq-vert { font-size: 44px; }
+  .cq-titolo { font-size: 34px; }
+  .cq-et { max-width: 360px; }
   .cq-et-titolo { font-size: 26px; }
   .cq-et-sotto { font-size: 10px; }
   .cq-largo-flex { display: flex; }

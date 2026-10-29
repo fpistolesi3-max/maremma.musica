@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { linkIndicazioni, usaAppleMaps } from '@/lib/mappa';
 import type { DatiMappa } from './tipi';
 
-/** Pulsante "Indicazioni": Apple Maps su iOS, Google Maps altrove. */
-export function Indicazioni({ d, className = '' }: { d: Pick<DatiMappa, 'lat' | 'lng' | 'location' | 'comune'>; className?: string }) {
+/** L'unico link per le indicazioni: Apple Maps su iOS, Google Maps altrove. Non compare se non c'è niente da cercare. */
+export function Indicazioni({ d, className = '' }: { d: Omit<Pick<DatiMappa, 'lat' | 'lng' | 'location' | 'comune'>, 'lat' | 'lng'> & { lat: number | null; lng: number | null }; className?: string }) {
   const [apple, setApple] = useState(false);
   useEffect(() => setApple(usaAppleMaps(navigator.userAgent, navigator.maxTouchPoints)), []);
   const href = linkIndicazioni(d, apple);
