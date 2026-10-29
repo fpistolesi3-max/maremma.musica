@@ -74,3 +74,39 @@ export function stileNotte<T extends Stile>(stile: T): T {
   });
   return { ...stile, layers };
 }
+
+// ——— Proposta "locandina": zoom largo, mare ben distinto, strade con una gerarchia, nomi dei paesi scritti dal sito (non dalla mappa) ———
+const TERRA = '#151a21';
+const MARE = '#0e2b46';
+const BOSCO = '#18261e';
+const larghezza = (z1: number, w1: number, z2: number, w2: number, z3 = z2 + 3, w3 = w2 * 3) => ['interpolate', ['exponential', 1.4], ['zoom'], z1, w1, z2, w2, z3, w3];
+
+/** Zoom per la larghezza del riquadro: su telefono serve più campo per vedere la costa e i paesi vicini. */
+export function zoomLocandina(larghezzaPx: number): number {
+  return larghezzaPx < 460 ? 8.9 : larghezzaPx < 760 ? 9.2 : 9.5;
+}
+
+/** Ristilizza lo stile scuro di OpenFreeMap come una locandina: mare blu notte, terra quasi nera, verde appena accennato, strade in osso (autostrade e statali più forti), niente edifici né scritte (i paesi li scrive il sito). */
+export function stileLocandina<T extends Stile>(stile: T): T {
+  const nascosti = /^(building|aeroway|road_|highway_path|highway_name|place_|water_name|boundary_|railway|landcover_ice|landcover_glacier|waterway)/;
+  const colori: Record<string, Record<string, unknown>> = {
+    background: { 'background-color': TERRA },
+    water: { 'fill-color': MARE },
+    landcover_wood: { 'fill-color': BOSCO },
+    landuse_park: { 'fill-color': BOSCO },
+    landuse_residential: { 'fill-color': '#1c232b' },
+    highway_minor: { 'line-color': OSSO(0.2), 'line-opacity': 1, 'line-width': larghezza(8, 0.3, 12, 0.9) },
+    highway_major_casing: { 'line-color': TERRA, 'line-width': larghezza(11, 2, 13, 4.5) },
+    highway_major_inner: { 'line-color': OSSO(0.72), 'line-width': larghezza(11, 1.1, 13, 2.8) },
+    highway_major_subtle: { 'line-color': OSSO(0.5), 'line-width': larghezza(6, 0.7, 10, 1.4, 11, 1.8) },
+    highway_motorway_casing: { 'line-color': TERRA, 'line-width': larghezza(6, 2, 12, 6.5) },
+    highway_motorway_inner: { 'line-color': OSSO(0.95), 'line-width': larghezza(6, 1, 12, 3.8) },
+    highway_motorway_subtle: { 'line-color': OSSO(0.8), 'line-width': 1 },
+  };
+  const layers = stile.layers.map((l) => {
+    if (nascosti.test(l.id) && !colori[l.id]) return { ...l, layout: { ...l.layout, visibility: 'none' } };
+    const c = colori[l.id];
+    return c ? { ...l, paint: { ...l.paint, ...c } } : l;
+  });
+  return { ...stile, layers };
+}
