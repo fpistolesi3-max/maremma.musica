@@ -139,12 +139,12 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   l'01:00 della notte della serata (la prima 01:00 a Roma dopo l'apertura porte: `limitePrevendita` e `istanteDopoApertura` in
   `lib/regole.ts`). Si cambia per serata nella sezione *Porta* del modulo (hh:mm: un orario dopo la mezzanotte vale per la notte della
   serata; l'istante si ricalcola a ogni salvataggio e "Duplica serata" lo sposta con la data). Le serate vecchie senza il campo usano il
-  default; l'ingresso libero non ha limite. Alla porta, dopo il limite, un QR di prevendita (pagata, gratis o mai pagata) dà "Prevendita
-  scaduta alle 01:00 · non vale più per entrare" (esito `oltre_orario`) e non registra nessun ingresso; chi è già entrato resta "già entrato".
+  default; l'ingresso libero non ha limite. Alla porta, dopo il limite, un QR di prevendita (pagata, gratis o mai pagata) dà "Orario limite superato,
+  prevendita non valida" (esito `oltre_orario`) e non registra nessun ingresso; chi è già entrato resta "già entrato".
   Il controllo c'è sul telefono (orologio del telefono, anche offline: il limite si salva con l'elenco e si aggiorna a ogni sincronizzazione)
   e nel server (`checkIn`, che rifà `decidiIngresso`): il server conta l'orario vero dell'ingresso, mai nel futuro, quindi un ingresso fatto
-  offline prima del limite e sincronizzato dopo vale, uno fatto dopo no. **I QR dei tavoli non hanno il limite** (da confermare col
-  proprietario). Il cliente lo legge nella pagina della serata (riquadro Ingresso e domande), sotto il modulo di prevendita, nella pagina del
+  offline prima del limite e sincronizzato dopo vale, uno fatto dopo no. **I QR dei tavoli non hanno il limite** (scelta del proprietario,
+  per ora). Il cliente lo legge nella pagina della serata (riquadro Ingresso e domande), sotto il modulo di prevendita, nella pagina del
   biglietto e nell'email del biglietto ("Valida per entrare entro le 01:00.", `testoLimite`).
 - **La vendita online si chiude all'orario limite.** Dall'01:00 (o dal limite scelto) `statoLista` dà "chiusa" con l'orario ("Prevendite chiuse
   alle 01:00", pagina della serata, modulo e link del PR) e `creaIscrizione` rifiuta lato server, anche riprendendo una richiesta ancora aperta.
