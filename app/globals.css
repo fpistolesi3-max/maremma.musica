@@ -404,24 +404,19 @@ a.mm-btn--primario:hover, a.mm-btn--primario:active { color: var(--su-arancio); 
   .mm-schede .mm-classifica__nome { white-space: normal; }
 }
 
-/* Mappe di "Come arrivare": le misure seguono la larghezza del riquadro (non quella dello schermo), perché a 1280 px il riquadro è stretto quanto su telefono. */
+/* Mappa di "Come arrivare": l'etichetta segue la larghezza del riquadro (non quella dello schermo) e non è mai più larga del riquadro. */
 .mm-cq { container-type: inline-size; }
-.cq-paese { font-size: 11px; }
-.cq-luogo { font-size: 8px; }
-.cq-titolo { font-size: 22px; }
-.cq-et { max-width: 290px; }
+.cq-et { max-width: min(290px, calc(100cqw - 12px)); }
 .cq-et-titolo { font-size: 17px; }
 .cq-et-sotto { font-size: 9px; }
-.cq-largo-flex, .cq-largo-block, .cq-largo-inline { display: none; }
 @container (min-width: 560px) {
-  .cq-paese { font-size: 14px; }
-  .cq-luogo { font-size: 10px; }
-  .cq-titolo { font-size: 34px; }
   .cq-et { max-width: 360px; }
   .cq-et-titolo { font-size: 26px; }
   .cq-et-sotto { font-size: 10px; }
-  .cq-largo-flex { display: flex; }
-  .cq-largo-block { display: block; }
-  .cq-largo-inline { display: inline; }
-  .cq-stretto { display: none; }
 }
+
+/* Mappa unica di "Come arrivare": il suggerimento "due dita" di MapLibre diventa un'etichetta discreta in basso, nello stile del sito. */
+.mm-mappa .maplibregl-cooperative-gesture-screen { inset: auto 0 14px 0; background: none; padding: 0; font-size: inherit; transition: opacity .4s .8s; }
+.mm-mappa .maplibregl-cooperative-gesture-screen > div { margin: 0 auto; width: max-content; max-width: calc(100% - 24px); padding: 8px 12px; border: 1px solid var(--linea-forte, rgba(225,215,201,.3)); background: rgba(12,15,20,.88); color: #e1d7c9; font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; line-height: 14px; letter-spacing: .06em; text-transform: uppercase; }
+.mm-mappa .maplibregl-canvas:focus-visible { outline: 2px solid #d55b23; outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { .mm-mappa .maplibregl-cooperative-gesture-screen { transition: none; } }

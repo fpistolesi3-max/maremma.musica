@@ -1,4 +1,4 @@
-/** Dove mettere l'etichetta arancio della serata rispetto al punto: sopra, sotto, a sinistra o a destra, dove sta nel riquadro e copre meno nomi (senza dipendenze, per i test). */
+/** Dove mettere l'etichetta arancio della serata rispetto al punto: sopra, sotto, a sinistra o a destra, dove sta nel riquadro e copre meno nomi di paesi (senza dipendenze, per i test). */
 
 export type Rett = { x0: number; y0: number; x1: number; y1: number };
 export type Lato = 'su' | 'giu' | 'sx' | 'dx';
@@ -16,10 +16,13 @@ export const DISTANZA = 22;
 const MARGINE = 6;
 const ORDINE: Lato[] = ['su', 'giu', 'dx', 'sx'];
 
-/** Misura approssimata dell'etichetta (titolo in Big Shoulders nero, riga sotto in mono): stessa larghezza massima del CSS (290 px, 360 se il riquadro è largo). */
-export function misuraEtichetta(titolo: string, sotto: string, larga = false): { w: number; h: number } {
+/**
+ * Misura approssimata dell'etichetta (titolo in Big Shoulders nero, riga sotto in mono): stessa larghezza massima del CSS
+ * (290 px, 360 se il riquadro è largo, e mai più di `massimo`, cioè il riquadro meno il margine).
+ */
+export function misuraEtichetta(titolo: string, sotto: string, larga = false, massimo = Infinity): { w: number; h: number } {
   const w = Math.max(titolo.length * (larga ? 10.4 : 6.8), sotto.length * (larga ? 7 : 6.3)) + 20;
-  return { w: Math.min(larga ? 360 : 290, Math.round(w)), h: larga ? 53 : 44 };
+  return { w: Math.min(larga ? 360 : 290, massimo, Math.round(w)), h: larga ? 60 : 52 };
 }
 
 /** Rettangolo di un nome scritto accanto a un punto (paese: pallino + nome, a destra o a sinistra) o centrato sul punto (luogo). */
@@ -54,7 +57,7 @@ function candidata(lato: Lato, p: { x: number; y: number }, m: { w: number; h: n
 }
 
 /**
- * Sceglie il lato: tra quelli che stanno tutti nel riquadro vince chi copre meno area di `ostacoli` (nomi, pulsanti, titolo);
+ * Sceglie il lato: tra quelli che stanno tutti nel riquadro vince chi copre meno area di `ostacoli` (i nomi dei paesi);
  * a parità, l'ordine è sopra, sotto, destra, sinistra. Se nessuno sta dentro, vince chi esce di meno.
  */
 export function scegliLato(punto: { x: number; y: number }, misura: { w: number; h: number }, box: { w: number; h: number }, ostacoli: Rett[] = []): Posizione {
@@ -71,11 +74,4 @@ export function scegliLato(punto: { x: number; y: number }, misura: { w: number;
     if (costo < costoMigliore) { costoMigliore = costo; migliore = c; }
   });
   return migliore!;
-}
-
-/** Ingombro dei pulsanti negli angoli in alto ("Vedi la mappa" a sinistra, "Indicazioni" a destra): l'etichetta non ci va sopra. */
-export function rettPulsanti(boxW: number, sinistra: boolean): Rett[] {
-  const r: Rett[] = [{ x0: boxW - 130, y0: 0, x1: boxW, y1: 52 }];
-  if (sinistra) r.push({ x0: 0, y0: 0, x1: 178, y1: 52 });
-  return r;
 }

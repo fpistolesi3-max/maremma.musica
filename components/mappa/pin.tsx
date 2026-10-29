@@ -1,14 +1,4 @@
-import { ALTEZZA, LARGHEZZA } from '@/lib/cartina';
 import type { Lato } from '@/lib/etichetta';
-
-/** Il riquadro della mappa di "Come arrivare": stessa forma e stessa grana per la cartina e per la mappa vera. */
-export function Scatola({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`mm-grana mm-cq relative w-full overflow-hidden border border-linea bg-[#0b1824] ${className}`} style={{ aspectRatio: `${LARGHEZZA} / ${ALTEZZA}` }}>
-      {children}
-    </div>
-  );
-}
 
 /**
  * L'etichetta arancio del sito: nome della serata, data e luogo, con lo stelo che tocca il punto (il punto è l'origine del contenitore che la ospita).
