@@ -32,7 +32,7 @@ export default async function SerataLive({ params }: Props) {
         briciole={`SERATE / ${e.numero ? numeroEvento(e.numero) : e.slug}`}
         titolo={e.nome}
         chip={<ChipSerata pubblicata={e.pubblicato} inCorso={inCorso} testo={inCorso ? 'Porta aperta · live' : e.pubblicato ? 'Lista aperta' : undefined} />}
-        sotto={`${giornoSett(e.data)} ${dataPunti(e.data)} · ${luogoTesto(e).toUpperCase()} · ${orari(e.data, e.dataFine)} · ${e.tipoIngresso === 'libero' ? 'INGRESSO LIBERO' : `PREVENDITA ${testoPrezzoTipi(l.prezzoTipi, e.prezzoLista).toUpperCase()} ONLINE · ${e.cassaAttiva ? `CASSA ${euro(e.prezzoCassa ?? l.prezzoTipi?.primo ?? e.prezzoLista)}` : 'SOLO PREVENDITA'}`}`}
+        sotto={`${giornoSett(e.data)} ${dataPunti(e.data)} · ${luogoTesto(e).toUpperCase()} · ${orari(e.data, e.dataFine)} · ${e.tipoIngresso === 'libero' ? 'INGRESSO LIBERO' : `PREVENDITA ${testoPrezzoTipi(l.prezzoTipi, e.prezzoLista).toUpperCase()} ONLINE${l.prevenditaFinoAlle ? ` · VALIDA FINO ALLE ${ora(l.prevenditaFinoAlle)}` : ''}`}`}
         azioni={<>
           <Link className="mm-btn mm-btn--primario" href={`/admin/eventi/${e.id}/modifica`}>Modifica serata</Link>
           <MenuAltro>
@@ -43,13 +43,39 @@ export default async function SerataLive({ params }: Props) {
           </MenuAltro>
         </>}
       />
-      <div className="grid grid-cols-2 border-b border-linea lg:grid-cols-5">
+      <section aria-label="Entrati" className="flex flex-col gap-3 border-b border-linea px-4 py-6 md:px-12">
+        {l.conteggio.dopoLimite && l.prevenditaFinoAlle && (
+          <span className="font-mono text-[12px] font-semibold leading-4 tracking-[.04em] text-attesa">DALLE {ora(l.prevenditaFinoAlle)} LE PREVENDITE NON VALGONO PIÙ</span>
+        )}
+        <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">ENTRATI</span>
+            <span className="font-display text-[72px] font-black leading-[.85] text-ok md:text-[96px]">{l.conteggio.entrati}</span>
+          </div>
+          {l.capienza != null && l.conteggio.liberi != null && (
+            l.conteggio.dopoLimite ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">PUOI FAR ENTRARE ANCORA</span>
+                <span className="font-display text-[72px] font-black leading-[.85] text-arancio md:text-[96px]">{l.conteggio.liberi}</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">CAPIENZA {l.capienza} · LIBERI</span>
+                <span className="font-display text-[72px] font-black leading-[.85] md:text-[96px]">{l.conteggio.liberi}</span>
+              </div>
+            )
+          )}
+        </div>
+        {l.capienza != null && l.conteggio.dopoLimite && <span className="font-mono text-[12px] leading-4 text-osso-2">CAPIENZA {l.capienza} · ENTRATI {l.conteggio.entrati} · LIBERI {l.conteggio.liberi}</span>}
+        <span className="font-mono text-[11px] leading-4 text-osso-3">
+          ENTRATI = SCAN DI PREVENDITE E TAVOLI{!l.conteggio.dopoLimite && l.conteggio.attesi > 0 ? ` · ATTESI ANCORA FUORI ${l.conteggio.attesi}` : ''}. GLI INGRESSI PAGATI ALLA PORTA{l.prevenditaFinoAlle ? ` DOPO LE ${ora(l.prevenditaFinoAlle)}` : ''} SONO FUORI DAL SITO E NON SI CONTANO.
+        </span>
+      </section>
+      <div className="grid grid-cols-2 border-b border-linea lg:grid-cols-4">
         <Numero etichetta="In lista" valore={String(l.inLista)} />
         <Numero etichetta="Entrati" valore={String(l.entrati)} colore="text-ok"
-          nota={`${l.entratiDaLista} DALLA LISTA${l.inLista ? ` (${Math.round((l.entratiDaLista / l.inLista) * 100)}%)` : ''} · ${l.cassa.ingressi} IN CASSA`} bordo />
-        <Numero etichetta="In cassa" valore={String(l.cassa.ingressi)}
-          nota={l.cassa.attiva || l.cassa.ingressi ? `${euro(l.cassa.incassato)} · CONTANTI ${euro(l.cassa.contanti)} · POS ${euro(l.cassa.pos)}` : 'CASSA SPENTA · SOLO PREVENDITA'} bordo />
-        <Numero etichetta="Incassato" valore={euro(l.incassato)} nota={`${euro(l.prevendita.incassato)} PREVENDITA ONLINE · ${euro(l.cassa.incassato)} CASSA ALLA PORTA`} bordo />
+          nota={`${l.entratiDaLista} DALLA LISTA${l.inLista ? ` (${Math.round((l.entratiDaLista / l.inLista) * 100)}%)` : ''}${l.portaStorico.ingressi ? ` · ${l.portaStorico.ingressi} ALLA PORTA (STORICO)` : ''}`} bordo />
+        <Numero etichetta="Incassato" valore={euro(l.incassato)} nota={`${euro(l.prevendita.incassato)} PREVENDITA ONLINE${l.portaStorico.ingressi ? ` · ${euro(l.portaStorico.incassato)} ALLA PORTA (STORICO)` : ''}`} bordo />
         <Numero etichetta="Ancora fuori" valore={String(l.fuori)} nota={l.prevendita.inAttesa ? `DELLA LISTA · ${l.prevendita.inAttesa} STANNO PAGANDO` : 'DELLA LISTA'} bordo />
       </div>
       {l.prevendita.daRimborsare.n > 0 && (
@@ -112,7 +138,7 @@ export default async function SerataLive({ params }: Props) {
                   </table>
                 </div>
               )}
-              <span className="text-[13px] text-osso-3">L&apos;incasso dei tavoli è a parte: non entra in &quot;Incassato&quot; qui sopra, che conta prevendita online e cassa alla porta.</span>
+              <span className="text-[13px] text-osso-3">L&apos;incasso dei tavoli è a parte: non entra in &quot;Incassato&quot; qui sopra, che conta le prevendite online.</span>
             </section>
           )}
 

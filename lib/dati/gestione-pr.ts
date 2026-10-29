@@ -6,15 +6,15 @@ import { eventoPassato, isAttiva } from '../regole';
 import { dataIso } from '../formato';
 import { etichettaCanale } from '../canali';
 
-// Gestionale dell'attività dei PR: solo admin e staff.
-// Lo staff vede numeri, attività e nomi in lista (li vede già alla porta), ma non le email dei PR
-// e non può cambiare nulla. L'admin vede anche i contatti e può sospendere un PR (da /admin/pr).
+// Gestionale dell'attività dei PR: solo admin. Lo staff della porta vede solo la porta (la lista di un PR
+// la trova già con "Cerca per nome"), quindi niente numeri, incassi o classifiche dei PR.
+// L'admin vede anche i contatti e può sospendere un PR (da /admin/pr).
 // I soldi non passano dai PR: la prevendita si paga online, qui si vede solo quanto è stato incassato sul sito.
 // Le prevendite non pagate (in attesa o scadute) non contano.
 // Equivale alla funzione attivita_pr() nello schema Supabase.
 
-function soloStaffOAdmin(s: Sessione) {
-  if (s.utente.ruolo !== 'staff' && s.utente.ruolo !== 'admin') throw new Error('non_autorizzato');
+function soloAdmin(s: Sessione) {
+  if (s.utente.ruolo !== 'admin') throw new Error('non_autorizzato');
 }
 
 export interface NumeriPr {
@@ -66,7 +66,7 @@ function serataDefault(d: Readonly<Archivio>) {
 }
 
 export async function panoramicaPr(s: Sessione, eventoId: string | 'tutte' | null) {
-  soloStaffOAdmin(s);
+  soloAdmin(s);
   const d = await leggi();
   const admin = s.utente.ruolo === 'admin';
   const evento = eventoId === 'tutte' ? null : d.eventi.find((e) => e.id === eventoId) ?? serataDefault(d);
@@ -87,7 +87,6 @@ export async function panoramicaPr(s: Sessione, eventoId: string | 'tutte' | nul
     righe,
     totali: numeri(viaPr, conResa),
     diretta: numeri(iscr.filter((i) => !i.prId && i.origine !== 'cassa'), conResa), // Lista Maremma Musica, senza PR
-    cassa: numeri(iscr.filter((i) => i.origine === 'cassa'), true),
     prAttivi: d.pr.filter((p) => p.stato === 'attivo').length,
   };
 }
@@ -106,7 +105,7 @@ function attivitaDa(d: Readonly<Archivio>, iscr: Iscrizione[]): Attivita[] {
 }
 
 export async function dettaglioPr(s: Sessione, handle: string, eventoId: string | 'tutte' | null) {
-  soloStaffOAdmin(s);
+  soloAdmin(s);
   const d = await leggi();
   const pr = d.pr.find((p) => p.handle === handle);
   if (!pr) return null;
@@ -158,13 +157,12 @@ function perCanale(iscr: Iscrizione[], conResa: boolean): RigaCanale[] {
  * locandina, passaparola): nessun PR l'ha portata, quindi si segue a parte.
  */
 export async function canaliSerata(s: Sessione, eventoId: string | 'tutte' | null) {
-  soloStaffOAdmin(s);
+  soloAdmin(s);
   const d = await leggi();
   const evento = eventoId === 'tutte' ? null : d.eventi.find((e) => e.id === eventoId) ?? serataDefault(d);
   const iscr = d.iscrizioni.filter((i) => (!evento || i.eventoId === evento.id) && conta(i));
   const conResa = evento ? portaAperta(evento) : true;
   const senzaPr = iscr.filter((i) => !i.prId && i.origine !== 'cassa');
-  const cassa = iscr.filter((i) => i.origine === 'cassa' && isAttiva(i));
   const conPr = iscr.filter((i) => i.prId);
   return {
     admin: s.utente.ruolo === 'admin',
@@ -172,6 +170,5 @@ export async function canaliSerata(s: Sessione, eventoId: string | 'tutte' | nul
     eventi: d.eventi.slice().sort((a, b) => b.data.localeCompare(a.data)).map((e) => ({ id: e.id, nome: e.nome, data: e.data, slug: e.slug })),
     senzaPr: { numeri: numeri(senzaPr, conResa), canali: perCanale(senzaPr, conResa) },
     conPr: { numeri: numeri(conPr, conResa), canali: perCanale(conPr, conResa) },
-    cassa: { ingressi: cassa.length, incassato: cassa.reduce((t, i) => t + i.importo, 0) },
   };
 }

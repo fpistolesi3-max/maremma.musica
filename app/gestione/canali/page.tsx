@@ -12,10 +12,10 @@ type Props = { searchParams: Promise<{ serata?: string }> };
 
 /**
  * Chi si mette in lista senza passare da un PR: da quale social o link arriva, quanti entrano.
- * L'admin lo usa per capire quanto rendono i social della crew; lo staff lo vede alla porta.
+ * L'admin lo usa per capire quanto rendono i social della crew.
  */
 export default async function Canali({ searchParams }: Props) {
-  const s = await richiedi(['admin', 'staff'], '/gestione/canali');
+  const s = await richiedi(['admin'], '/gestione/canali');
   const { serata } = await searchParams;
   const c = await canaliSerata(s, (serata as string) ?? null);
   const tot = c.senzaPr.numeri.inLista + c.conPr.numeri.inLista;
@@ -48,10 +48,6 @@ export default async function Canali({ searchParams }: Props) {
         <div className="flex min-w-0 flex-col">
           <Tabella titolo="Per canale · senza PR" righe={c.senzaPr.canali} vuoto="Ancora nessuno si è iscritto da solo." />
           <Tabella titolo="Come vengono aperti i link dei PR" righe={c.conPr.canali} vuoto="Nessuna iscrizione dai PR." piccola />
-          <p className="m-0 border-t border-linea py-4 text-[15px] leading-6">
-            <span className="font-display text-[20px] font-extrabold uppercase">Ingressi in cassa: {c.cassa.ingressi}</span>
-            <span className="text-osso-2"> · {c.cassa.incassato.toLocaleString('it-IT')} € incassati da chi è entrato senza lista né QR. Non contano nei canali.</span>
-          </p>
           <p className="m-0 pb-8 text-[13px] leading-5 text-osso-3">
             Il canale si riconosce da solo: dal social da cui arriva la persona (Instagram, Facebook e TikTok aprono il sito nel loro browser)
             o dal link etichettato. &quot;Diretto&quot; è chi ha scritto l&apos;indirizzo o ha aperto un link senza etichetta, per esempio da WhatsApp.

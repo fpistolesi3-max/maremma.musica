@@ -79,7 +79,7 @@ test('porta: QR falsificato non valido, doppio passaggio bloccato, PR non può f
   const s = await sessione('porta@maremmamusica.test');
   const d = await m.archivio.leggi();
   const i = d.iscrizioni.find((x) => x.stato === 'pagato')!;
-  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+  const o = { porta: 'P1', ora: new Date().toISOString() };
   const falso = i.tokenQr.slice(0, -2) + 'xx';
   assert.equal((await m.porta.checkIn(s, i.eventoId, falso, o)).esito, 'non_valido');
   assert.equal((await m.porta.checkIn(s, i.eventoId, i.tokenQr, o)).esito, 'entrato');
@@ -94,7 +94,7 @@ test('porta: categoria da confermare, "Non rientra" salvato, solo lo staff, si p
   const d0 = await m.archivio.leggi();
   const i = d0.iscrizioni.find((x) => x.stato === 'pagato' && x.origine === 'lista')!;
   await m.archivio.modifica((d) => { d.iscrizioni.find((x) => x.id === i.id)!.categoria = 'Donne'; });
-  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+  const o = { porta: 'P1', ora: new Date().toISOString() };
   assert.equal((await m.porta.checkIn(staff, i.eventoId, i.tokenQr, o)).esito, 'da_confermare', 'senza conferma non entra');
   assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === i.id)!.stato, 'pagato');
   await assert.rejects(m.porta.rifiutaIngresso(pr, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora }), /non_autorizzato/);
@@ -111,20 +111,21 @@ test('porta: categoria da confermare, "Non rientra" salvato, solo lo staff, si p
   assert.equal((await m.porta.rifiutaIngresso(staff, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora })).esito, 'gia_entrato', 'già entrato: nessun rifiuto');
 });
 
-test('attività PR: admin e staff sì (staff senza email dei PR), i PR no', async () => {
+test('attività PR e canali: solo admin (lo staff vede solo la porta), i PR no', async () => {
   const admin = await m.gestione.panoramicaPr(await sessione('admin@maremmamusica.test'), 'tutte');
-  const staff = await m.gestione.panoramicaPr(await sessione('porta@maremmamusica.test'), 'tutte');
   assert.ok(admin.righe.some((r) => r.email), 'l’admin vede i contatti');
-  assert.ok(staff.righe.every((r) => r.email === null), 'lo staff no');
-  assert.deepEqual(staff.righe.map((r) => r.inLista), admin.righe.map((r) => r.inLista));
   const d = await m.archivio.leggi();
   const attesi = d.iscrizioni.filter((i) => i.prId && i.metodoPagamento === 'online' && ['in_lista', 'pagato', 'entrato'].includes(i.stato)).reduce((t, i) => t + i.importo, 0);
-  assert.equal(staff.totali.incassatoOnline, attesi, 'prevendita dei PR pagata online');
-  assert.ok(!('daRitirare' in staff.totali), 'niente più soldi da ritirare dai PR');
-  await assert.rejects(m.gestione.panoramicaPr(await sessione('test-pr@maremmamusica.test'), null), /non_autorizzato/);
-  await assert.rejects(m.gestione.dettaglioPr(await sessione('zarro@maremmamusica.test'), 'test-pr', null), /non_autorizzato/);
-  const det = await m.gestione.dettaglioPr(await sessione('porta@maremmamusica.test'), 'zarro-pollicino', 'tutte');
-  assert.ok(det && det.email === null && det.attivita.length > 0);
+  assert.equal(admin.totali.incassatoOnline, attesi, 'prevendita dei PR pagata online');
+  assert.ok(!('daRitirare' in admin.totali), 'niente più soldi da ritirare dai PR');
+  const det = await m.gestione.dettaglioPr(await sessione('admin@maremmamusica.test'), 'zarro-pollicino', 'tutte');
+  assert.ok(det && det.attivita.length > 0);
+  for (const chi of ['porta@maremmamusica.test', 'test-pr@maremmamusica.test', 'zarro@maremmamusica.test']) {
+    const s = await sessione(chi);
+    await assert.rejects(m.gestione.panoramicaPr(s, 'tutte'), /non_autorizzato/, chi);
+    await assert.rejects(m.gestione.dettaglioPr(s, 'zarro-pollicino', 'tutte'), /non_autorizzato/, chi);
+    await assert.rejects(m.gestione.canaliSerata(s, 'tutte'), /non_autorizzato/, chi);
+  }
 });
 
 test('prevendita online: posto fermo, pagamento, ritardo da rimborsare, porta, permessi', async () => {
@@ -140,7 +141,7 @@ test('prevendita online: posto fermo, pagamento, ritardo da rimborsare, porta, p
   assert.ok(r.ok && r.iscrizione.scade && r.iscrizione.pagamentoOnline, 'termine per pagare e pagamento online');
 
   // Prima di pagare: niente QR alla porta, non conta per il PR né in classifica
-  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+  const o = { porta: 'P1', ora: new Date().toISOString() };
   assert.equal((await m.porta.checkIn(staff, halloween.id, id, o)).esito, 'non_pagato');
   const live0 = (await m.admin.serataLive(admin, halloween.id))!;
   assert.ok(live0.prevendita.inAttesa >= 1);
@@ -198,22 +199,43 @@ test('prevendita online: posto fermo, pagamento, ritardo da rimborsare, porta, p
   await assert.rejects(m.admin.cambiaStatoIscrizione(admin, vid, 'ripristina'), /mai stata pagata/);
 });
 
-test('cassa per serata: spenta arriva alla porta, il prezzo resta, solo staff e admin', async () => {
+test('orario limite della prevendita: default 01:00, modificabile per serata, arriva alla porta e il server lo fa rispettare', async () => {
   const admin = await sessione('admin@maremmamusica.test');
   const staff = await sessione('porta@maremmamusica.test');
+  const pr = await sessione('test-pr@maremmamusica.test');
   const d0 = await m.archivio.leggi();
   const ev = d0.eventi.find((e) => e.slug === 'halloween-party')!;
-  assert.equal(await m.porta.cassaAttivaPorta(staff, ev.id), true);
+  const l01 = new Date('2026-11-01T01:00:00+01:00').toISOString(); // apre il 31.10 alle 22:00: l'1 della notte dopo
+  assert.equal(ev.prevenditaFinoAlle, undefined, 'le serate vecchie non hanno il campo: vale il default');
+  assert.equal(await m.porta.limitePorta(staff, ev.id), l01);
+  assert.equal((await m.porta.eventiPorta(staff)).find((e) => e.id === ev.id)!.limite, l01);
+  await assert.rejects(m.porta.limitePorta(pr, ev.id), /non_autorizzato/);
+  assert.equal((await m.admin.serataLive(admin, ev.id))!.prevenditaFinoAlle, l01, 'l’admin lo vede nella serata live');
+
+  // L'admin lo cambia per la serata: arriva alla porta alla sincronizzazione successiva.
   const { id: _id, createdAt: _c, updatedAt: _u, piantinaUrl: _p, ...dati } = ev;
-  await m.admin.salvaEvento(admin, ev.id, { ...dati, cassaAttiva: false });
-  assert.equal(await m.porta.cassaAttivaPorta(staff, ev.id), false);
-  assert.equal((await m.porta.eventiPorta(staff)).find((e) => e.id === ev.id)!.cassa, false);
-  assert.equal((await m.archivio.leggi()).eventi.find((e) => e.id === ev.id)!.prezzoCassa, ev.prezzoCassa, 'il prezzo in cassa resta salvato');
-  await assert.rejects(m.porta.cassaAttivaPorta(await sessione('test-pr@maremmamusica.test'), ev.id), /non_autorizzato/);
-  await m.admin.salvaEvento(admin, ev.id, { ...dati, cassaAttiva: true });
+  const l0130 = new Date('2026-11-01T01:30:00+01:00').toISOString();
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: l0130 });
+  assert.equal(await m.porta.limitePorta(staff, ev.id), l0130);
+
+  // Il server rifà il controllo: un QR pagato dopo il limite non entra, uno fatto offline prima del limite sì (conta l'orario vero).
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: '2026-10-01T00:00:00.000Z' });
+  const i = d0.iscrizioni.find((x) => x.eventoId === ev.id && x.stato === 'pagato' && x.origine === 'lista' && !x.categoria)!;
+  const dopo = await m.porta.checkIn(staff, ev.id, i.tokenQr, { porta: 'P1', ora: new Date().toISOString() });
+  assert.equal(dopo.esito, 'oltre_orario');
+  assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === i.id)!.stato, 'pagato', 'nessun ingresso registrato');
+  const offline = await m.porta.checkIn(staff, ev.id, i.tokenQr, { porta: 'P1', ora: '2026-09-30T23:00:00.000Z' });
+  assert.equal(offline.esito, 'entrato', 'ingresso fatto prima del limite e sincronizzato dopo');
+  await m.archivio.modifica((d) => { const x = d.iscrizioni.find((y) => y.id === i.id)!; x.stato = 'pagato'; x.oraCheckIn = null; x.porta = null; });
+
+  // Ingresso libero: nessun limite.
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, tipoIngresso: 'libero', prevenditaFinoAlle: '2026-10-01T00:00:00.000Z' });
+  assert.equal(await m.porta.limitePorta(staff, ev.id), null);
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: null });
+  assert.equal(await m.porta.limitePorta(staff, ev.id), l01, 'senza valore salvato torna il default');
 });
 
-test('canali: chi arriva senza PR è contato per canale, staff lo vede, il PR no', async () => {
+test('canali: chi arriva senza PR è contato per canale, solo l’admin li vede; alla porta resta il canale di ognuno', async () => {
   const base = { slug: 'halloween-party', dataNascita: '1995-03-03', marketing: false, handlePr: null };
   const ig = await m.pubblico.creaIscrizione({ ...base, nome: 'Ada', cognome: 'Social', email: 'ada@esempio.it', canale: 'instagram' });
   const tt = await m.pubblico.creaIscrizione({ ...base, nome: 'Bea', cognome: 'Video', email: 'bea@esempio.it', canale: 'tiktok' });
@@ -223,7 +245,7 @@ test('canali: chi arriva senza PR è contato per canale, staff lo vede, il PR no
   for (const r of [ig, tt, nessuno]) if (r.ok) await m.prevendita.confermaPagamentoIscrizione(r.iscrizione.id, `pi_${r.iscrizione.id}`);
   assert.equal(nessuno.ok && nessuno.iscrizione.canale, 'diretto');
   const staff = await sessione('porta@maremmamusica.test');
-  const c = await m.gestione.canaliSerata(staff, null);
+  const c = await m.gestione.canaliSerata(await sessione('admin@maremmamusica.test'), null);
   const conta = (k: string) => c.senzaPr.canali.find((r) => r.canale === k)?.inLista ?? 0;
   const d = await m.archivio.leggi();
   const atteso = (k: string) => d.iscrizioni.filter((i) => !i.prId && i.eventoId === c.evento!.id && i.canale === k && ['in_lista', 'pagato', 'entrato'].includes(i.stato)).length;
@@ -231,48 +253,41 @@ test('canali: chi arriva senza PR è contato per canale, staff lo vede, il PR no
   assert.ok(conta('tiktok') >= 1);
   assert.ok(c.senzaPr.canali.every((r) => r.canale), 'ogni iscrizione ha un canale');
   await assert.rejects(m.gestione.canaliSerata(await sessione('test-pr@maremmamusica.test'), null), /non_autorizzato/);
+  await assert.rejects(m.gestione.canaliSerata(staff, null), /non_autorizzato/, 'lo staff vede solo la porta');
   const voce = (await m.porta.elencoPorta(staff, c.evento!.id)).find((v) => ig.ok && v.id === ig.iscrizione.id)!;
   assert.equal(voce.canale, 'instagram', 'alla porta si vede da dove è arrivato');
 });
 
-test('ingresso in cassa: niente email né QR, entra subito, non duplica, metriche a parte', async () => {
+test('ingressi in cassa storici: restano leggibili come "Ingresso alla porta (storico)", non gonfiano lista e classifica, e non se ne registrano più', async () => {
   const staff = await sessione('porta@maremmamusica.test');
   const admin = await sessione('admin@maremmamusica.test');
-  const d0 = await m.archivio.leggi();
-  const ev = d0.eventi.find((e) => e.slug === 'halloween-party')!;
-  const o = { metodo: 'porta_pos' as const, porta: 'P2', ora: new Date().toISOString() };
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
   const primaLive = (await m.admin.serataLive(admin, ev.id))!;
-
-  const r = await m.porta.registraCassa(staff, ev.id, 'tel-1', { nome: 'Walter', cognome: 'Incassa', dataNascita: '1990-04-04', importo: 15 }, o);
-  assert.equal(r.esito, 'entrato');
-  assert.equal(r.esito === 'entrato' && r.incassato, 15);
-  const i = (await m.archivio.leggi()).iscrizioni.find((x) => x.rifCassa === 'tel-1')!;
-  assert.equal(i.email, '');
-  assert.equal(i.origine, 'cassa');
-  assert.equal(i.stato, 'entrato');
-  assert.equal(i.metodoPagamento, 'porta_pos');
-
-  // La sincronizzazione ripetuta (risposta persa col campo che va e viene) non crea un doppione
-  await m.porta.registraCassa(staff, ev.id, 'tel-1', { nome: 'Walter', cognome: 'Incassa', dataNascita: '1990-04-04', importo: 15 }, o);
-  assert.equal((await m.archivio.leggi()).iscrizioni.filter((x) => x.rifCassa === 'tel-1').length, 1);
-
-  const minore = await m.porta.registraCassa(staff, ev.id, 'tel-2', { nome: 'Tim', cognome: 'Piccolo', dataNascita: '2012-01-01', importo: 15 }, o);
-  assert.equal(minore.esito, 'non_valido');
-  const inLista = d0.iscrizioni.find((x) => x.eventoId === ev.id && x.stato === 'pagato')!;
-  const doppio = await m.porta.registraCassa(staff, ev.id, 'tel-3', { nome: inLista.nome, cognome: inLista.cognome.toUpperCase(), dataNascita: inLista.dataNascita, importo: 15 }, o);
-  assert.ok(doppio.esito === 'non_valido' && /già in lista/.test(doppio.motivo), 'chi è in lista non si registra in cassa');
-
-  const live = (await m.admin.serataLive(admin, ev.id))!;
-  assert.equal(live.cassa.ingressi, primaLive.cassa.ingressi + 1);
-  assert.equal(live.inLista, primaLive.inLista, 'la cassa non gonfia la lista');
-  assert.equal(live.entrati, primaLive.entrati + 1);
-  assert.equal(live.incassato, primaLive.incassato + 15);
-  assert.ok(!live.classifica.some((c) => c.nome === 'Cassa'), 'la cassa non entra nella classifica PR');
-  const voce = (await m.porta.elencoPorta(staff, ev.id)).find((v) => v.id === i.id)!;
-  assert.equal(voce.origine, 'cassa');
-
-  const pr = await sessione('test-pr@maremmamusica.test');
-  await assert.rejects(m.porta.registraCassa(pr, ev.id, 'tel-4', { nome: 'X', cognome: 'Y', dataNascita: '1990-01-01', importo: 10 }, o), /non_autorizzato/);
+  const ora = new Date().toISOString();
+  await m.archivio.modifica((d) => {
+    d.iscrizioni.push({
+      id: 'storico-1', eventoId: ev.id, lottoId: null, categoria: null, prId: null, nome: 'Walter', cognome: 'Incassa', dataNascita: '1990-04-04', email: '',
+      tokenQr: 'MM1.storico.x.y', codice: 'STORICO1', stato: 'entrato', metodoPagamento: 'porta_pos', importo: 15, pagatoAt: ora, scade: null, pagamentoOnline: null,
+      oraCheckIn: ora, porta: 'P2', consensoPrivacyAt: ora, consensoMarketing: false, annullatoAt: null, createdAt: ora, canale: 'cassa', consegnaId: null, origine: 'cassa', rifCassa: 'tel-1',
+    });
+  });
+  try {
+    const live = (await m.admin.serataLive(admin, ev.id))!;
+    assert.deepEqual([live.portaStorico.ingressi, live.portaStorico.incassato], [primaLive.portaStorico.ingressi + 1, primaLive.portaStorico.incassato + 15]);
+    assert.equal(live.inLista, primaLive.inLista, 'non gonfia la lista');
+    assert.equal(live.entrati, primaLive.entrati + 1, 'ma è entrato');
+    assert.equal(live.incassato, primaLive.incassato + 15, 'e i suoi soldi restano nell’incassato della serata');
+    assert.ok(!live.classifica.some((c) => /storico|Cassa/.test(c.nome)), 'non entra nella classifica dei PR');
+    const voce = (await m.porta.elencoPorta(staff, ev.id)).find((v) => v.id === 'storico-1')!;
+    assert.deepEqual([voce.origine, voce.lista], ['cassa', 'Ingresso alla porta (storico)']);
+    const righe = await m.admin.iscrizioniAdmin(admin, { eventoId: ev.id, stato: 'porta_storico' });
+    assert.ok(righe.length >= 1 && righe.every((x) => x.iscrizione.origine === 'cassa' && x.lista === 'Ingresso alla porta (storico)'));
+    const csv = (await m.admin.csvEvento(admin, ev.id))!.testo;
+    assert.ok(csv.includes('STORICO1;porta (storico);Walter;Incassa') && csv.includes('porta POS (storico)'), 'nel CSV compare come storico');
+  } finally {
+    await m.archivio.modifica((d) => { d.iscrizioni.splice(d.iscrizioni.findIndex((x) => x.id === 'storico-1'), 1); });
+  }
+  assert.equal('registraCassa' in m.porta, false, 'non si registrano più ingressi in cassa');
 });
 
 test('tavoli: solo l’admin li crea e modifica, niente doppioni di nome nella stessa serata', async () => {
@@ -468,7 +483,7 @@ test('porta e tavoli: un QR per il gruppo, una persona a passaggio, non pagato n
   const tavoloId = (await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'P1')!.id;
   const r = await tv.prenotaTavolo({ tavoloId, nome: 'Gino', cognome: 'Gruppo', email: 'gino@esempio.it', telefono: '333 7654321', persone: 2 }, null);
   const p = r.ok ? r.prenotazione : null!;
-  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+  const o = { porta: 'P1', ora: new Date().toISOString() };
   const voce = async () => (await m.porta.elencoPorta(staff, ev.id)).find((v) => v.id === p.id)!;
 
   // In attesa di pagamento: è in elenco ma il QR non vale
@@ -667,7 +682,7 @@ test('serata senza telefono: il documento si conferma sempre, il telefono non sa
   };
   const rossi = await crea('Rossi', '1995-03-14');
   const verdi = await crea('Verdi', '1990-07-02');
-  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+  const o = { porta: 'P1', ora: new Date().toISOString() };
 
   // Anche senza categoria: la scansione da sola non basta, serve il "Fai entrare" dopo il controllo del documento.
   assert.equal((await m.porta.checkIn(staff, ev.id, rossi.tokenQr, o)).esito, 'da_confermare');
@@ -764,63 +779,20 @@ test('cruscotto admin: solo l’admin, con la prossima serata e i rimborsi da fa
   assert.ok(tavoli && tavoli.n >= 1);
 });
 
-test('cassa dopo una prevendita non completata: la richiesta si chiude, la pagina di pagamento pure, una persona sola, il pagamento tardivo si rimborsa', async () => {
+test('prevendita non completata: alla porta compare una volta, "non pagato", non entra nemmeno dal server', async () => {
   const { decidiIngresso } = await import('../porta-logica');
   const staff = await sessione('porta@maremmamusica.test');
-  const admin = await sessione('admin@maremmamusica.test');
   const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
-  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
-  const dati = { nome: 'Mario', cognome: 'Rossi Cassa', dataNascita: '1991-09-09' };
+  const o = { porta: 'P1', ora: new Date().toISOString() };
+  const dati = { nome: 'Mario', cognome: 'Rossi Attesa', dataNascita: '1991-09-09' };
 
-  const r = await m.pubblico.creaIscrizione({ slug: 'halloween-party', handlePr: null, marketing: false, ...dati, email: 'mario.cassa@esempio.it' });
+  const r = await m.pubblico.creaIscrizione({ slug: 'halloween-party', handlePr: null, marketing: false, ...dati, email: 'mario.attesa@esempio.it' });
   assert.ok(r.ok);
-  const id = r.ok ? r.iscrizione.id : '';
-  await m.prevendita.salvaSessioneIscrizione(id, 'cs_test_aperta');
-
-  // Alla porta non è una prevendita: compare una volta, "non pagato", e non entra.
   const prima = (await m.porta.elencoPorta(staff, ev.id)).filter((v) => v.cognome === dati.cognome);
   assert.equal(prima.length, 1);
   assert.equal(prima[0].stato, 'in_attesa');
   assert.equal(decidiIngresso(prima[0], { ...o }).esito.esito, 'non_pagato');
-  const checkInAttesa = await m.porta.checkIn(staff, ev.id, prima[0].token, o);
-  assert.equal(checkInAttesa.esito, 'non_pagato', 'anche dal server: niente ingresso senza pagamento');
-
-  // Entra dalla cassa (anche con il cognome scritto diverso): la richiesta si chiude e si collega all'ingresso.
-  const chiamate: string[] = [];
-  const fetchVero = globalThis.fetch;
-  const chiaveVera = process.env.STRIPE_SECRET_KEY;
-  process.env.STRIPE_SECRET_KEY = 'sk_test_finta';
-  globalThis.fetch = (async (url: string | URL | Request) => { chiamate.push(String(url)); return { ok: true, json: async () => ({}) } as Response; }) as typeof fetch;
-  let cassa;
-  try {
-    cassa = await m.porta.registraCassa(staff, ev.id, 'tel-attesa-1', { ...dati, cognome: 'ROSSI cassa', importo: 10 }, o);
-  } finally {
-    globalThis.fetch = fetchVero;
-    if (chiaveVera === undefined) delete process.env.STRIPE_SECRET_KEY; else process.env.STRIPE_SECRET_KEY = chiaveVera;
-  }
-  assert.equal(cassa.esito, 'entrato');
-  assert.deepEqual(chiamate, ['https://api.stripe.com/v1/checkout/sessions/cs_test_aperta/expire'], 'la pagina di pagamento aperta si chiude');
-  const chiusa = (await m.archivio.leggi()).iscrizioni.find((x) => x.id === id)!;
-  assert.equal(chiusa.stato, 'scaduta');
-  assert.equal(chiusa.chiusaDaCassa, cassa.esito === 'entrato' ? cassa.voce.id : null, 'collegata all’ingresso in cassa');
-
-  // Una persona sola, alla porta e in Iscrizioni.
-  const dopo = (await m.porta.elencoPorta(staff, ev.id)).filter((v) => v.cognome.toLowerCase() === dati.cognome.toLowerCase());
-  assert.deepEqual(dopo.map((v) => v.origine), ['cassa']);
-  assert.equal((await m.admin.iscrizioniAdmin(admin, { eventoId: ev.id, q: 'rossi cassa' })).length, 1);
-
-  // Registrata una seconda volta con un altro id: è già entrata, non si duplica.
-  const ancora = await m.porta.registraCassa(staff, ev.id, 'tel-attesa-2', { ...dati, importo: 10 }, o);
-  assert.equal(ancora.esito, 'gia_entrato');
-
-  // Il pagamento arriva lo stesso (pagina aperta prima della chiusura): la persona ha già un ingresso valido, i soldi vanno restituiti.
-  assert.equal((await m.prevendita.confermaPagamentoIscrizione(id, 'pi_tardivo_cassa')).esito, 'da_rimborsare');
-  const tardiva = (await m.archivio.leggi()).iscrizioni.find((x) => x.id === id)!;
-  assert.equal(tardiva.stato, 'scaduta', 'non diventa una seconda prevendita valida');
-  assert.equal(tardiva.pagamentoOnline?.daRimborsare, true);
-  const daRimborsare = await m.admin.iscrizioniAdmin(admin, { eventoId: ev.id, stato: 'da_rimborsare' });
-  assert.ok(daRimborsare.some((x) => x.iscrizione.id === id), 'il pagamento da restituire resta visibile all’admin');
-  assert.equal((await m.porta.elencoPorta(staff, ev.id)).filter((v) => v.cognome.toLowerCase() === dati.cognome.toLowerCase()).length, 1, 'alla porta resta una persona sola');
+  assert.equal((await m.porta.checkIn(staff, ev.id, prima[0].token, o)).esito, 'non_pagato', 'anche dal server: niente ingresso senza pagamento');
 });
 
 test('QR di un’altra serata: la porta dice di quale e solo se la firma è vera; le bozze non si aprono alla porta', async () => {
@@ -830,7 +802,7 @@ test('QR di un’altra serata: la porta dice di quale e solo se la firma è vera
   const halloween = d.eventi.find((e) => e.slug === 'halloween-party')!;
   const altra = d.eventi.find((e) => e.slug === 'senza-telefono')!;
   const bigliettoAltra = d.iscrizioni.find((i) => i.eventoId === altra.id && i.tokenQr)!;
-  const o = { metodo: 'porta_contanti' as const, porta: 'P1', ora: new Date().toISOString() };
+  const o = { porta: 'P1', ora: new Date().toISOString() };
 
   // Scansionato sulla serata sbagliata: l'ingresso non passa...
   assert.equal((await m.porta.checkIn(staff, halloween.id, bigliettoAltra.tokenQr, o)).esito, 'non_valido');
@@ -857,29 +829,28 @@ test('QR di un’altra serata: la porta dice di quale e solo se la firma è vera
   assert.ok((await m.porta.eventiPorta(staff)).some((e) => e.id === altra.id));
 });
 
-test('serata: il prezzo viene dai tipi, il primo salvataggio è una bozza con il suo primo tipo, la cassa ha sempre un prezzo', async () => {
+test('serata: il prezzo viene dai tipi, il primo salvataggio è una bozza con il suo primo tipo', async () => {
   const admin = await sessione('admin@maremmamusica.test');
   const staff = await sessione('porta@maremmamusica.test');
   const d0 = await m.archivio.leggi();
   const { id: _i, createdAt: _c, updatedAt: _u, piantinaUrl: _p, numero: _n, ...modello } = d0.eventi.find((e) => e.slug === 'halloween-party')!;
-  const dati = { ...modello, slug: 'prezzo-dai-tipi', nome: 'Prezzo dai tipi', prezzoLista: 9, prezzoCassa: null, pubblicato: false };
+  const dati = { ...modello, slug: 'prezzo-dai-tipi', nome: 'Prezzo dai tipi', prezzoLista: 9, pubblicato: false };
   const nuova = await m.admin.salvaEvento(admin, null, dati);
   let x = (await m.admin.eventoAdmin(admin, nuova.id))!;
   assert.equal(x.lotti.length, 1, 'nasce con il primo tipo');
   assert.deepEqual([x.lotti[0].prezzo, x.lotti[0].automatico], [9, true]);
-  assert.equal(x.evento.prezzoCassa, 9, 'cassa accesa: il prezzo parte da quello del primo tipo');
 
   // Il prezzo si cambia nei tipi: l'evento lo segue, il modulo non lo sposta più
   await m.admin.salvaLotto(admin, { ...x.lotti[0], prezzo: 12 });
   x = (await m.admin.eventoAdmin(admin, nuova.id))!;
   assert.equal(x.evento.prezzoLista, 12);
   assert.equal(x.lotti[0].automatico, false, 'ritoccato: non è più "creato in automatico"');
-  await m.admin.salvaEvento(admin, nuova.id, { ...dati, prezzoLista: 99, prezzoCassa: 15 });
+  await m.admin.salvaEvento(admin, nuova.id, { ...dati, prezzoLista: 99 });
   x = (await m.admin.eventoAdmin(admin, nuova.id))!;
-  assert.deepEqual([x.evento.prezzoLista, x.evento.prezzoCassa], [12, 15], 'il vecchio campo del modulo non conta; il prezzo in cassa è quello scelto');
+  assert.equal(x.evento.prezzoLista, 12, 'il vecchio campo del modulo non conta');
   assert.equal((await m.admin.serataLive(admin, nuova.id))!.prezzoTipi?.primo, 12);
 
-  // Un secondo tipo più economico: l'intestazione dice "da", il primo (per ordine) resta quello della cassa
+  // Un secondo tipo più economico: l'intestazione dice "da", il primo (per ordine) resta quello del primo tipo
   await m.admin.salvaLotto(admin, { ...x.lotti[0], id: null, nome: 'Early bird', prezzo: 8, ordine: 1 });
   const live = (await m.admin.serataLive(admin, nuova.id))!;
   assert.deepEqual([live.prezzoTipi?.minimo, live.prezzoTipi?.primo], [8, 12]);
@@ -899,7 +870,7 @@ test('duplica serata: copia dati, tipi con le uscite spostate, tavoli e piantina
   const { id: _i, createdAt: _c, updatedAt: _u, piantinaUrl: _p, numero: _n, ...modello } = d0.eventi.find((e) => e.slug === 'halloween-party')!;
   const orig = await m.admin.salvaEvento(admin, null, {
     ...modello, slug: 'serata-da-copiare', nome: 'Serata da copiare', data: '2026-11-07T23:00:00+01:00', dataFine: '2026-11-08T04:00:00+01:00',
-    prezzoLista: 10, prezzoCassa: 14, cassaAttiva: true, senzaTelefono: true, etaMinima: 21, inCopertina: true, pubblicato: true, prAbilitati: [],
+    prezzoLista: 10, prevenditaFinoAlle: new Date('2026-11-08T02:00:00+01:00').toISOString(), senzaTelefono: true, etaMinima: 21, inCopertina: true, pubblicato: true, prAbilitati: [],
   });
   const tipi = (await m.admin.eventoAdmin(admin, orig.id))!.lotti;
   await m.admin.salvaLotto(admin, { ...tipi[0], nome: 'Early bird', prezzo: 8, dataInizio: '2026-10-20T00:00:00+02:00', dataFine: null, uscitaGiorniPrima: null });
@@ -914,7 +885,8 @@ test('duplica serata: copia dati, tipi con le uscite spostate, tavoli e piantina
   assert.equal(c.evento.inCopertina, false);
   assert.ok(c.evento.numero! > orig.numero! && c.evento.slug !== orig.slug && /2026-11-14/.test(c.evento.slug));
   assert.deepEqual([c.evento.data, c.evento.dataFine], ['2026-11-14T23:00:00+01:00', '2026-11-15T04:00:00+01:00'].map((x) => new Date(x).toISOString()), 'stessi orari, nuova data');
-  assert.deepEqual([c.evento.cassaAttiva, c.evento.prezzoCassa, c.evento.senzaTelefono, c.evento.etaMinima, c.evento.prAbilitati], [true, 14, true, 21, []], 'porta e PR');
+  assert.deepEqual([c.evento.senzaTelefono, c.evento.etaMinima, c.evento.prAbilitati], [true, 21, []], 'porta e PR');
+  assert.equal(c.evento.prevenditaFinoAlle, new Date('2026-11-15T02:00:00+01:00').toISOString(), 'l’orario limite si sposta con la data, alla stessa ora a Roma');
   assert.deepEqual(c.lotti.map((l) => [l.nome, l.prezzo, l.uscitaGiorniPrima]), [['Early bird', 8, null], ['Standard', 11, 7]]);
   assert.equal(c.lotti[0].dataInizio, new Date('2026-10-27T00:00:00+01:00').toISOString(), 'data fissa spostata di 7 giorni, alla stessa ora anche con il cambio dell’ora legale');
   assert.equal(c.evento.prezzoLista, 8, 'il prezzo dell’evento segue il primo tipo');
@@ -977,4 +949,61 @@ test('tavoli in serie: tutto o niente, posti obbligatori, solo admin', async () 
   assert.deepEqual((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.map((t) => t.ordine), [0, 1, 2, 3, 4, 5]);
   // Un tavolo singolo senza posti non si salva più
   await assert.rejects(m.admin.salvaTavolo(admin, { eventoId: ev.id, nome: 'X1', zona: null, posti: null, spesaMinima: 0, stato: 'libero', nota: null, visibileDaPr: true, prAbilitati: null, ordine: 9 }), /posti/);
+});
+
+test('capienza: facoltativa, arriva alla porta e alla serata live con gli entrati e i posti liberi', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const staff = await sessione('porta@maremmamusica.test');
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  assert.equal(ev.capienza, undefined, 'le serate vecchie non hanno la capienza');
+  const prima = (await m.admin.serataLive(admin, ev.id))!;
+  assert.equal(prima.capienza, null);
+  assert.equal(prima.conteggio.liberi, null, 'senza capienza non ci sono posti liberi');
+  assert.equal((await m.porta.eventiPorta(staff)).find((e) => e.id === ev.id)!.capienza, null);
+
+  const { id: _id, createdAt: _c, updatedAt: _u, piantinaUrl: _p, ...dati } = ev;
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, capienza: 300 });
+  const live = (await m.admin.serataLive(admin, ev.id))!;
+  assert.equal(live.capienza, 300);
+  assert.equal(live.conteggio.liberi, 300 - live.conteggio.entrati);
+  const passaggiTavoli = (await m.archivio.leggi()).prenotazioni.filter((p) => p.eventoId === ev.id).reduce((t, p) => t + p.ingressi.length, 0);
+  assert.equal(live.conteggio.entrati, live.entrati + passaggiTavoli, 'entrati = scan di prevendite + passaggi dei QR dei tavoli (una persona ciascuno)');
+  assert.equal((await m.porta.eventiPorta(staff)).find((e) => e.id === ev.id)!.capienza, 300);
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, capienza: null });
+});
+
+test('orario limite: dopo il limite non si vende più, nemmeno riprendendo una richiesta aperta; un pagamento in ritardo va tra i rimborsi', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  const { id: _id, createdAt: _c, updatedAt: _u, piantinaUrl: _p, ...dati } = ev;
+  const base = { slug: 'halloween-party', dataNascita: '1995-03-03', marketing: false, handlePr: null };
+
+  // Prima del limite: la richiesta parte e il posto si tiene.
+  const r = await m.pubblico.creaIscrizione({ ...base, nome: 'Lia', cognome: 'Limite', email: 'lia@esempio.it' });
+  assert.ok(r.ok);
+  const id = r.ok ? r.iscrizione.id : '';
+  assert.equal((await m.archivio.leggi()).iscrizioni.find((i) => i.id === id)!.stato, 'in_attesa');
+
+  // Il limite passa (la pagina di pagamento era già aperta).
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: '2026-10-01T00:00:00.000Z' });
+  try {
+    const nuova = await m.pubblico.creaIscrizione({ ...base, nome: 'Max', cognome: 'Tardi', email: 'max@esempio.it' });
+    assert.ok(!nuova.ok && /chiuse dalle/.test(nuova.errore), 'server: niente nuove prevendite dopo il limite');
+    const riprende = await m.pubblico.creaIscrizione({ ...base, nome: 'Lia', cognome: 'Limite', email: 'lia@esempio.it' });
+    assert.ok(!riprende.ok && /chiuse dalle/.test(riprende.errore), 'nemmeno riprendendo la richiesta ancora aperta');
+    const zarro = await sessione('zarro@maremmamusica.test');
+    assert.equal((await m.pubblico.eventoPerSlug('halloween-party'))!.stato.tipo, 'chiusa', 'la pagina della serata mostra la lista chiusa');
+    assert.equal((await m.pubblico.eventoPerSlug('halloween-party', true, zarro.pr!.id))!.stato.tipo, 'chiusa', 'e il link del PR pure');
+
+    // Il pagamento arriva dopo il limite: non diventa un QR, va tra i pagamenti da rimborsare.
+    const esito = await m.prevendita.confermaPagamentoIscrizione(id, 'pi_dopo_limite');
+    assert.equal(esito.esito, 'da_rimborsare');
+    const dopo = (await m.archivio.leggi()).iscrizioni.find((i) => i.id === id)!;
+    assert.notEqual(dopo.stato, 'pagato', 'non diventa una prevendita valida');
+    assert.equal(dopo.pagamentoOnline?.daRimborsare, true);
+    assert.ok((await m.admin.iscrizioniAdmin(admin, { eventoId: ev.id, stato: 'da_rimborsare' })).some((x) => x.iscrizione.id === id));
+  } finally {
+    await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: null });
+  }
+  await m.prevendita.chiudiRimborsoIscrizione(admin, id);
 });

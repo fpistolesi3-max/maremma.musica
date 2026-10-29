@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { leggi, modifica, segreto } from './archivio';
 import type { Archivio, Evento, Iscrizione, Lotto, Pr } from './tipi';
 import { creaCodice, creaTokenQr } from '../qr-token';
-import { chiaveCognome, eventoPassato, sceltaCopertina, giaIscritto, isAttiva, iscrizioneScaduta, scadenzaPagamentoOnline, statoLista, tienePosto, type StatoLista, etaSufficiente } from '../regole';
+import { ora } from '../formato';
+import { chiaveCognome, eventoPassato, sceltaCopertina, giaIscritto, isAttiva, iscrizioneScaduta, scadenzaPrevendita, prevenditeChiuseDa, statoLista, tienePosto, type StatoLista, etaSufficiente } from '../regole';
 import { modoPagamentoOnline } from '../pagamenti';
 
 // Dati per le pagine pubbliche e per la prevendita. Nessuna sessione richiesta:
@@ -81,6 +82,9 @@ export async function creaIscrizione(input: {
       return { ok: false, campo: 'cognome', errore: 'Risulti già in lista per questa serata: un solo QR a persona.', esistente: doppio.email };
     }
     const adesso = new Date();
+    // Dall'orario limite non si vende più, nemmeno riprendendo una richiesta ancora aperta: il QR non entrerebbe.
+    const chiusaAlle = prevenditeChiuseDa(evento, adesso);
+    if (chiusaAlle) return { ok: false, errore: `Le prevendite sono chiuse dalle ${ora(chiusaAlle)}: dopo quell’ora il QR non vale più per entrare.` };
     // Ci ha già provato e non ha ancora pagato: riprende la stessa iscrizione (e lo stesso posto) invece di farne un'altra.
     const k = chiaveCognome(input.cognome);
     const sospesa = d.iscrizioni.find((i) => i.eventoId === evento.id && i.stato === 'in_attesa' && !iscrizioneScaduta(i, adesso)
@@ -108,11 +112,11 @@ export async function creaIscrizione(input: {
       tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),
       // A pagamento: il posto è tenuto finché il cliente paga online; gratis: vale subito.
       stato: daPagare ? 'in_attesa' : 'in_lista', metodoPagamento: null, importo: stato.prezzo, pagatoAt: null,
-      scade: daPagare ? scadenzaPagamentoOnline(adesso, evento) : null,
+      scade: daPagare ? scadenzaPrevendita(adesso, evento) : null,
       pagamentoOnline: daPagare ? { sessione: null, pagamento: null, daRimborsare: false } : null,
       oraCheckIn: null, porta: null, consensoPrivacyAt: adesso.toISOString(), consensoMarketing: input.marketing,
       annullatoAt: null, createdAt: adesso.toISOString(),
-      canale: input.canale || 'diretto', consegnaId: null, origine: 'lista', rifCassa: null,
+      canale: input.canale || 'diretto', consegnaId: null, origine: 'lista',
     };
     d.iscrizioni.push(iscrizione);
     return { ok: true, iscrizione };

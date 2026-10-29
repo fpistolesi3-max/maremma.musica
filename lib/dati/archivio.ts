@@ -44,7 +44,6 @@ function normalizza(d: Archivio): Archivio {
     i.canale ??= 'diretto';
     i.consegnaId ??= null;
     i.origine ??= 'lista';
-    i.rifCassa ??= null;
     i.scade ??= null;
     i.pagamentoOnline ??= null;
     // Prima che la prevendita passasse dal sito: chi era in lista senza aver pagato, o aveva pagato al PR, diventa
@@ -66,7 +65,7 @@ function normalizza(d: Archivio): Archivio {
     l.dopoPrecedente ??= false; l.prAbilitati ??= null;
   }
   for (const i of d.iscrizioni) { i.categoria ??= null; i.rifiutoIngresso ??= null; i.anonimizzata ??= false; i.etaAllaSerata ??= null; i.anonimizzataAt ??= null; }
-  for (const e of d.eventi) { e.prezzoCassa ??= null; e.cassaAttiva ??= true; e.senzaTelefono ??= false; e.inCopertina ??= false; e.piantinaUrl ??= null; }
+  for (const e of d.eventi) { e.senzaTelefono ??= false; e.inCopertina ??= false; e.piantinaUrl ??= null; }
   for (const t of d.tavoli) { t.x ??= null; t.y ??= null; t.prAbilitati ??= null; }
   return d;
 }

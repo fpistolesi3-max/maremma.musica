@@ -23,7 +23,7 @@ export async function applicaScadenzeIscrizioni() {
 export const GIORNI_ANONIMIZZAZIONE = 30;
 
 /**
- * Dopo `GIORNI_ANONIMIZZAZIONE` giorni dalla serata, per tutte le iscrizioni (anche gratis, annullate, in cassa) si cancellano
+ * Dopo `GIORNI_ANONIMIZZAZIONE` giorni dalla serata, per tutte le iscrizioni (anche gratis, annullate, in cassa storiche) si cancellano
  * nome, cognome, email e data di nascita. La riga resta anonima e utile per le analisi: età alla serata (calcolata prima di
  * cancellare), tipo di prevendita, importo, PR o sito, data e ora d'acquisto, ingresso sì/no con l'ora. Il consenso marketing
  * non si tocca. Idempotente: ritorna quante iscrizioni ha anonimizzato. Lo chiama il cron giornaliero.

@@ -6,21 +6,18 @@ import type { Ruolo } from '@/lib/dati/tipi';
 
 /** Voci per ruolo. È solo la barra: l'accesso alle pagine lo controlla comunque `richiedi` e `lib/dati/*`. */
 export function vociArea(ruolo: Ruolo): VoceArea[] {
-  const staff: VoceArea[] = [
-    { href: '/door', testo: 'Porta', icona: 'porta' },
-    { href: '/gestione/pr', testo: 'PR', icona: 'pr' },
-  ];
-  if (ruolo !== 'admin') return staff;
+  const porta: VoceArea = { href: '/door', testo: 'Porta', icona: 'porta' };
+  if (ruolo !== 'admin') return [porta]; // lo staff vede solo la porta
   return [
-    staff[0],
+    porta,
     { href: '/admin', testo: 'Serate', icona: 'serate' },
-    staff[1],
+    { href: '/gestione/pr', testo: 'PR', icona: 'pr' },
     { href: '/admin/iscrizioni', testo: 'Iscrizioni', icona: 'iscrizioni' },
     { href: '/admin/staff', testo: 'Staff', icona: 'staff' },
   ];
 }
 
-/** Un solo guscio per admin e staff: stesse voci, stesso "Esci", "Porta" sempre a un tocco. */
+/** Guscio dell'area riservata (le pagine admin): barra laterale su desktop, barra in basso su telefono, "Porta" sempre a un tocco. */
 export function GuscioArea({ ruolo, email, children }: { ruolo: Ruolo; email: string; children: React.ReactNode }) {
   const voci = vociArea(ruolo);
   const etichetta = ruolo === 'admin' ? 'ADMIN' : 'STAFF';

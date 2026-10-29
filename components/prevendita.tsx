@@ -3,8 +3,8 @@ import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { eventoPerSlug, prValido, prevenditaOnlineAttiva, usatiPerLotto } from '@/lib/dati/pubblico';
 import { leggi } from '@/lib/dati/archivio';
-import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
-import { chipLista, tipiVista } from '@/lib/regole';
+import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, ora, orari } from '@/lib/formato';
+import { chipLista, limiteIngresso, tipiVista } from '@/lib/regole';
 import { luogoTesto } from '@/lib/luogo';
 import { CampoLista, IconaIndietro, Monogramma } from './ui';
 import { ModuloPrevendita } from './modulo-prevendita';
@@ -69,7 +69,7 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
           <div className="border-t border-linea bg-notte-2 px-4 pb-8 pt-6 md:border-t md:px-8 md:pb-8">
             {aperta ? (
               <ModuloPrevendita slug={e.slug} prHandle={pr?.handle ?? null} totaleEtichetta={totaleEtichetta} totaleValore={totaleValore} etaMinima={e.etaMinima} senzaTelefono={e.senzaTelefono}
-                aPagamento={aPagamento} soloPrevendita={!e.cassaAttiva}
+                aPagamento={aPagamento} validaFino={limiteIngresso(e) ? ora(limiteIngresso(e)!) : null}
                 tipo={tipo && (tipo.categoria || ep.lotti.length > 1) ? { nome: tipo.nome, categoria: tipo.categoria, conferma: tipo.confermaCategoria, prossimo: prossimo ? `${prossimo.lotto.nome}${prossimo.dal ? ` dal ${dataPunti(prossimo.dal.toISOString())}` : ' quando finiscono i posti'}` : null } : null}>
                 {pr
                   ? <CampoLista nome={pr.nomeDisplay} ufficiale={false} nota={`Sei entrato dal link di ${pr.nomeDisplay}: resti nella sua lista.`} />
@@ -82,7 +82,8 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
                   {inArrivo ? 'La prevendita online apre a breve: torna qui nei prossimi giorni.'
                     : ep.stato.tipo === 'dal' ? (ep.stato.dal ? `La lista apre il ${dataPunti(ep.stato.dal)}. Torna qui quel giorno.` : 'Il prossimo tipo di prevendita esce quando finiscono i posti di quello attuale.')
                     : ep.stato.tipo === 'piena' ? 'I posti in lista sono finiti. Tieni d’occhio Instagram: a volte se ne liberano.'
-                      : 'La lista per questa serata è chiusa.'}
+                      : ep.stato.tipo === 'chiusa' && ep.stato.alle ? `Le prevendite sono chiuse dalle ${ora(ep.stato.alle)}: dopo quell’ora il QR non vale più per entrare.`
+                        : 'La lista per questa serata è chiusa.'}
                 </p>
                 <Link href={`/e/${e.slug}`} className="mm-btn mm-btn--clip mm-btn--linea mm-btn--pieno">Torna alla serata</Link>
               </div>

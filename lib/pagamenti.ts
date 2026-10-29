@@ -2,8 +2,7 @@ import 'server-only';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { modalitaProva } from './prova';
 
-// Pagamento online di tavoli e prevendite: le prevendite si pagano sempre con Stripe, alla serata si paga solo da bere
-// (e l'ingresso in cassa, se la serata ce l'ha).
+// Pagamento online di tavoli e prevendite: le prevendite si pagano sempre con Stripe, alla serata si paga solo da bere.
 // Con STRIPE_SECRET_KEY si usa Stripe Checkout (carta, Apple Pay, Google Pay); senza chiave, in sviluppo e
 // sull'istanza di prova, una pagina di pagamento finta (/dev/pagamento) che fa tutto il giro senza soldi veri.
 // Sul sito vero senza chiave tavoli e prevendite non si vendono (null): niente pagamenti a mano dal sito.

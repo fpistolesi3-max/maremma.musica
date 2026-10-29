@@ -3,26 +3,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePorta, nuovoId } from './store';
 import { Fotocamera } from './fotocamera';
-import { categoriaDaControllare, cercaPerNome, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
-import type { MetodoPagamento } from '@/lib/dati/tipi';
+import { categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
 import { etichettaCanale } from '@/lib/canali';
-import { SchermoCassa, type DatiIniziali } from './cassa';
-import type { DatiCassa } from '@/lib/porta-logica';
 
 // Scanner della porta (mockup Porta 1–5). Tutto il controllo avviene sul telefono con l'elenco salvato:
 // funziona anche senza campo, e gli ingressi si sincronizzano appena torna la connessione.
 
-interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; prezzoCassa: number; cassa: boolean; senzaTelefono: boolean }
+interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; limite: string | null; capienza: number | null; senzaTelefono: boolean }
 
 type Schermo =
   | { tipo: 'scanner' }
   | { tipo: 'cerca' }
-  | { tipo: 'cassa'; iniziale?: DatiIniziali } // iniziale: arriva da una prevendita non completata, i dati sono già noti
   | { tipo: 'impostazioni' }
   | { tipo: 'esito'; esito: EsitoPorta };
 
+const SCANNER: Schermo = { tipo: 'scanner' };
+
 const oraDi = (iso: string) => new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
-const euro = (n: number) => `${Number.isInteger(n) ? n : n.toFixed(2).replace('.', ',')} €`;
 const giornoMese = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' });
 const nascita = (ymd: string) => ymd.split('-').reverse().join('.');
 function anni(ymd: string) {
@@ -38,7 +35,6 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   const [torcia, setTorcia] = useState(false);
   const [daInstallare, setDaInstallare] = useState(false);
   useEffect(() => { setDaInstallare(!window.matchMedia('(display-mode: standalone)').matches); }, []);
-  const [metodo, setMetodo] = useState<MetodoPagamento>('porta_contanti');
   const [codice, setCodice] = useState('');
   const [q, setQ] = useState('');
   const [confermaEsci, setConfermaEsci] = useState(false);
@@ -67,16 +63,19 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   }, [pronto, st.eventoId]);
 
   const evento = eventi.find((e) => e.id === st.eventoId) ?? null;
-  // Cassa alla porta: vale l'ultima sincronizzazione (l'admin la può cambiare durante la serata), offline quella salvata.
-  const cassaAttiva = Boolean(evento && (st.cassa ?? evento.cassa));
+  // Orario limite della prevendita: vale l'ultima sincronizzazione (l'admin lo può cambiare durante la serata), offline quello salvato.
+  // Il controllo usa l'orologio del telefono; il server lo rifà comunque quando riceve l'ingresso.
+  const limite = evento ? st.limite ?? evento.limite : null;
   // Serata senza telefono: niente scanner, la porta parte dalla ricerca per cognome e controlla il documento.
   const senzaTelefono = Boolean(evento?.senzaTelefono);
   // Si contano le persone: un tavolo vale per tutto il suo gruppo. I tavoli non ancora pagati e le prevendite non completate non contano.
-  // La lista (prevendite e tavoli) e la cassa stanno separate: chi paga in cassa non fa salire il totale della lista.
+  // Gli ingressi in cassa storici (di quando la cassa esisteva) non sono nella lista e non fanno salire il totale.
   const contate = st.elenco.filter((v) => v.origine !== 'cassa' && (!v.tavolo || v.tavolo.pagato) && v.stato !== 'in_attesa');
   const totale = contate.reduce((n, v) => n + personeVoce(v), 0);
   const entrati = contate.reduce((n, v) => n + entratiVoce(v), 0);
-  const inCassa = st.elenco.filter((v) => v.origine === 'cassa' && v.stato === 'entrato').length;
+
+  // Dopo l'orario limite le prevendite non valgono più: la testata dice quanti posti restano (se la serata ha la capienza). Tutto dai dati del telefono.
+  const { liberi, dopoLimite } = conteggioPorta(st.elenco, { capienza: evento?.capienza, limite, ora: new Date().toISOString() });
 
   const mostra = useCallback((esito: EsitoPorta) => {
     clearTimeout(ritorno.current);
@@ -84,41 +83,28 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
     // Dopo un ingresso riuscito (o un "Non rientra") torna da solo allo scanner (mockup: 2 secondi).
     // Nelle serate senza telefono "scanner" è la ricerca per cognome, che riparte vuota per il prossimo.
     if (esito.esito === 'entrato' || esito.esito === 'rifiutato') {
-      ritorno.current = setTimeout(() => { if (senzaTelefono) setQ(''); setSchermo({ tipo: 'scanner' }); }, 2000);
+      ritorno.current = setTimeout(() => { if (senzaTelefono) setQ(''); setSchermo(SCANNER); }, 2000);
     }
   }, [senzaTelefono]);
 
   /** `confermato`: lo staff ha toccato "Fai entrare" dopo aver controllato la categoria. */
   const entra = useCallback((v: VocePorta, confermato = false) => {
     const s = usePorta.getState();
-    const { esito, aggiornata } = decidiIngresso(v, { metodo, porta: s.porta, ora: new Date().toISOString(), confermato, documento: senzaTelefono });
+    const { esito, aggiornata } = decidiIngresso(v, { porta: s.porta, ora: new Date().toISOString(), confermato, documento: senzaTelefono, limite });
     if (aggiornata) {
-      s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, metodo, ora: aggiornata.oraCheckIn!, ...(confermato ? { conferma: true } : {}) });
+      s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, ora: aggiornata.oraCheckIn!, ...(confermato ? { conferma: true } : {}) });
     }
     mostra(esito);
-  }, [metodo, mostra, senzaTelefono]);
+  }, [limite, mostra, senzaTelefono]);
 
   /** "Non rientra": nessun ingresso, il rifiuto va in coda come gli ingressi (anche offline) e l'iscrizione resta valida. */
   const rifiuta = useCallback((v: VocePorta) => {
     const s = usePorta.getState();
     const ora = new Date().toISOString();
     const aggiornata: VocePorta = { ...v, rifiuto: { ora, porta: s.porta, da: 'staff' } };
-    s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, metodo, ora, rifiuto: true });
+    s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, ora, rifiuto: true });
     mostra({ esito: 'rifiutato', voce: aggiornata });
-  }, [metodo, mostra]);
-
-  /** Ingresso in cassa: entra subito sul telefono, il server lo registra alla prossima sincronizzazione. */
-  const registraCassa = useCallback((dati: DatiCassa) => {
-    const s = usePorta.getState();
-    const id = nuovoId();
-    const ora = new Date().toISOString();
-    const voce: VocePorta = {
-      id: `cassa-${id}`, token: '', codice: '', nome: dati.nome, cognome: dati.cognome, dataNascita: dati.dataNascita,
-      stato: 'entrato', importo: dati.importo, oraCheckIn: ora, porta: s.porta, lista: 'Cassa', canale: 'cassa', origine: 'cassa',
-    };
-    s.aggiungiCassa(voce, { idLocale: id, voceId: voce.id, chiave: '', metodo, ora, cassa: dati });
-    mostra({ esito: 'entrato', voce, incassato: dati.importo, ora, primaPagato: false });
-  }, [metodo, mostra]);
+  }, [mostra]);
 
   const leggiChiave = useCallback(async (chiave: string) => {
     let v = trovaVoce(usePorta.getState().elenco, chiave);
@@ -171,17 +157,18 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   if (!pronto) return <div className="min-h-dvh bg-vinile" />;
 
   const colori = schermo.tipo === 'esito'
-    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-attesa text-su-stato', altra_serata: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
-    : schermo.tipo === 'cerca' || schermo.tipo === 'impostazioni' || schermo.tipo === 'cassa' ? 'bg-notte text-osso' : 'bg-vinile text-osso';
+    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-attesa text-su-stato', oltre_orario: 'bg-stop text-osso', altra_serata: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
+    : schermo.tipo === 'cerca' || schermo.tipo === 'impostazioni' ? 'bg-notte text-osso' : 'bg-vinile text-osso';
   const suPieno = schermo.tipo === 'esito';
 
   return (
-    <div className={`mm-interno flex min-h-dvh flex-col ${colori} transition-colors duration-cambio`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    // Sfondo a tutto schermo, contenuto in una colonna da telefono (480 px) centrata anche sui computer.
+    <div className={`mm-interno min-h-dvh ${colori} transition-colors duration-cambio`} style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col">
       {/* Navigazione leggera, come nel resto dell'area riservata: Esci sta sempre in alto a destra. Sparisce sulle schermate d'esito a tutto campo. */}
       {schermo.tipo !== 'esito' && (
         <nav aria-label="Area riservata" className="flex flex-none items-center border-b border-linea px-2">
           <span aria-current="page" className="flex min-h-[44px] items-center border-b-2 border-arancio px-3 text-[11px] font-semibold uppercase tracking-[.12em] text-osso">Porta</span>
-          <a href={`/gestione/pr${st.eventoId ? `?serata=${st.eventoId}` : ''}`} className="flex min-h-[44px] items-center px-3 text-[11px] font-semibold uppercase tracking-[.12em] text-osso-2 no-underline">PR</a>
           {admin && <a href="/admin" className="flex min-h-[44px] items-center px-3 text-[11px] font-semibold uppercase tracking-[.12em] text-osso-2 no-underline">Admin</a>}
           <span className="flex-grow" />
           <button type="button" onClick={() => setConfermaEsci(true)} className="flex min-h-[44px] items-center border-0 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-[.12em] text-osso-2">Esci</button>
@@ -191,9 +178,9 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
       <button type="button" onClick={() => setSchermo({ tipo: 'impostazioni' })} className="flex flex-none flex-col gap-[10px] border-0 bg-transparent px-4 pt-[14px] text-left text-current" aria-label="Impostazioni della porta">
         <span className="flex w-full items-center gap-[10px]">
           <span className="min-w-0 flex-grow truncate text-[11px] font-semibold leading-none tracking-logo">{st.porta.replace('P', 'PORTA ')} · {(evento?.nome ?? 'SCEGLI LA SERATA').toUpperCase()}</span>
-          <span className="flex-none font-mono text-[12px] font-medium leading-none" aria-label={`In lista ${entrati} entrati su ${totale}${cassaAttiva || inCassa > 0 ? `, in cassa ${inCassa}` : ''}`}>
+          <span className="flex-none font-mono text-[12px] font-medium leading-none" aria-label={`In lista ${entrati} entrati su ${totale}${dopoLimite && liberi != null ? `, liberi ${liberi}` : ''}`}>
             LISTA {entrati}<span className={suPieno ? 'opacity-50' : 'text-osso-3'}>/{totale}</span>
-            {(cassaAttiva || inCassa > 0) && <span className={suPieno ? 'opacity-70' : 'text-osso-2'}> · CASSA {inCassa}</span>}
+            {dopoLimite && liberi != null && <span className={suPieno ? 'opacity-70' : 'text-osso-2'}> · LIBERI {liberi}</span>}
           </span>
         </span>
         <span className={`block h-[3px] w-full ${suPieno ? 'bg-[rgba(5,5,5,.18)]' : 'bg-notte-3'}`}>
@@ -207,8 +194,8 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
 
       {schermo.tipo === 'scanner' && !senzaTelefono && (
         <>
-          <div className="flex flex-grow flex-col items-center justify-center gap-[22px] px-4">
-            <div className="relative h-[300px] w-[300px] max-w-full overflow-hidden">
+          <div className="flex min-h-0 flex-grow flex-col items-center justify-center gap-3 px-4 py-2">
+            <div className="relative aspect-square w-[min(300px,40dvh)] min-w-[170px] max-w-full overflow-hidden">
               <div className="mm-disco absolute inset-0 opacity-50" style={{ boxShadow: 'none' }}><div className="mm-disco__foro" style={{ background: 'var(--vinile)' }} /></div>
               <Fotocamera attiva={Boolean(evento)} onLettura={leggiChiave} torcia={torcia} />
               <div className="mm-mirino pointer-events-none absolute inset-0"><i /><i /><i /><i /></div>
@@ -222,21 +209,14 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
             </form>
             <StatoRete />
           </div>
-          <div className="flex flex-none px-4 pb-[10px]">
-            {cassaAttiva ? (
-              <button type="button" className="mm-btn mm-btn--primario flex-grow" style={{ minHeight: 56 }} onClick={() => setSchermo({ tipo: 'cassa' })}>
-                Ingresso in cassa{evento && evento.prezzoCassa > 0 ? ` · ${euro(evento.prezzoCassa)}` : ''}
-              </button>
-            ) : evento && (
-              <span className="flex-grow border border-linea-forte px-4 py-3 text-center font-mono text-[12px] leading-4 text-osso-2">SOLO PREVENDITA · NIENTE CASSA STASERA</span>
-            )}
-          </div>
-          <div className="flex flex-none gap-[10px] px-4 pb-7">
-            <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 60 }} onClick={() => { setQ(''); setSchermo({ tipo: 'cerca' }); }}>Cerca per nome</button>
+          <div className="flex flex-none flex-col gap-[10px] px-4 pb-5">
+            <div className="flex gap-[10px]">
+            <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 56 }} onClick={() => { setQ(''); setSchermo({ tipo: 'cerca' }); }}>Cerca per nome</button>
             <button type="button" aria-label={torcia ? 'Spegni la torcia' : 'Accendi la torcia'} aria-pressed={torcia} onClick={() => setTorcia(!torcia)}
-              className={`grid h-[60px] w-[60px] flex-none place-items-center rounded-sm border border-linea-forte p-0 ${torcia ? 'bg-osso text-notte' : 'bg-notte-3 text-osso'}`}>
+              className={`grid h-[56px] w-[56px] flex-none place-items-center rounded-sm border border-linea-forte p-0 ${torcia ? 'bg-osso text-notte' : 'bg-notte-3 text-osso'}`}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M8 2h8l-1 6H9L8 2z" /><path d="M9 8h6v4l-2 10h-2L9 12V8z" /></svg>
             </button>
+            </div>
           </div>
         </>
       )}
@@ -281,20 +261,10 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
           </div>
           {senzaTelefono && (
             <div className="flex flex-col gap-3 pb-7">
-              {cassaAttiva && (
-                <button type="button" className="mm-btn mm-btn--primario" style={{ minHeight: 56 }} onClick={() => setSchermo({ tipo: 'cassa' })}>
-                  Ingresso in cassa{evento && evento.prezzoCassa > 0 ? ` · ${euro(evento.prezzoCassa)}` : ''}
-                </button>
-              )}
               <StatoRete />
             </div>
           )}
         </div>
-      )}
-
-      {schermo.tipo === 'cassa' && evento && cassaAttiva && (
-        <SchermoCassa key={schermo.iniziale ? 'precompilata' : 'vuota'} evento={evento} elenco={st.elenco} metodo={metodo} setMetodo={setMetodo} iniziale={schermo.iniziale}
-          onRegistra={registraCassa} onApri={(v) => entra(v)} onChiudi={() => setSchermo({ tipo: 'scanner' })} />
       )}
 
       {schermo.tipo === 'impostazioni' && (
@@ -317,26 +287,23 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
           </div>
           <div className="flex flex-col gap-1 font-mono text-[12px] leading-5 text-osso-2">
             <span>ELENCO: {st.elenco.length} NOMI{st.salvatoAlle ? ` · SALVATO ${oraDi(st.salvatoAlle)}` : ''}</span>
-            <span>CASSA ALLA PORTA: {cassaAttiva ? 'SÌ' : 'NO, SOLO PREVENDITA'}</span>
+            {limite && <span>PREVENDITA VALIDA FINO ALLE {oraDi(limite)}</span>}
             <span>IN CODA: {st.coda.length}{st.conflitti ? ` · GIÀ ENTRATI DA ALTRE PORTE: ${st.conflitti}` : ''}</span>
             <span>STAFF: {email}</span>
           </div>
           <button type="button" className="mm-btn mm-btn--linea mm-btn--pieno" onClick={() => void st.sincronizza()}>Aggiorna ora</button>
-          <button type="button" className="mm-btn mm-btn--primario mm-btn--pieno" onClick={() => setSchermo({ tipo: 'scanner' })}>Torna allo scanner</button>
+          <button type="button" className="mm-btn mm-btn--primario mm-btn--pieno" onClick={() => setSchermo(SCANNER)}>Torna allo scanner</button>
           {daInstallare && <p className="m-0 font-mono text-[12px] leading-5 text-osso-2">PER APRIRE LA PORTA CON UN TOCCO: MENU DEL BROWSER → AGGIUNGI A HOME. L’INDIRIZZO È /door.</p>}
         </div>
       )}
 
       {schermo.tipo === 'esito' && (
-        <Esito esito={schermo.esito} cassa={cassaAttiva} prezzoCassa={evento?.prezzoCassa ?? 0} senzaTelefono={senzaTelefono} online={st.online} salvatoAlle={st.salvatoAlle}
+        <Esito esito={schermo.esito} senzaTelefono={senzaTelefono} online={st.online} salvatoAlle={st.salvatoAlle}
           onRiprova={() => { if (schermo.esito.esito === 'non_pagato') void riprova(schermo.esito.voce); }}
-          onCassa={() => setSchermo(schermo.esito.esito === 'non_pagato'
-            ? { tipo: 'cassa', iniziale: { nome: schermo.esito.voce.nome, cognome: schermo.esito.voce.cognome, dataNascita: schermo.esito.voce.dataNascita } }
-            : { tipo: 'cassa' })}
           onCambiaSerata={() => { if (schermo.esito.esito === 'altra_serata') void cambiaSerata(schermo.esito.serata, schermo.esito.chiave); }}
           onFaiEntrare={() => { if (schermo.esito.esito === 'da_confermare') entra(schermo.esito.voce, true); }}
           onNonRientra={() => { if (schermo.esito.esito === 'da_confermare') rifiuta(schermo.esito.voce); }}
-          onChiudi={() => { clearTimeout(ritorno.current); if (senzaTelefono) setQ(''); setSchermo({ tipo: 'scanner' }); }} />
+          onChiudi={() => { clearTimeout(ritorno.current); if (senzaTelefono) setQ(''); setSchermo(SCANNER); }} />
       )}
 
       {confermaEsci && (
@@ -356,6 +323,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
         </div>
       )}
     </div>
+    </div>
   );
 }
 
@@ -373,7 +341,7 @@ async function altraSerata(chiave: string, eventoId: string | null): Promise<Ser
 
 /** "Lista: Maremma Musica · da Instagram": senza PR si vede da dove è arrivato. */
 function testoLista(v: VocePorta) {
-  if (v.origine === 'cassa') return 'Ingresso in cassa · senza lista';
+  if (v.origine === 'cassa') return 'Ingresso alla porta (storico) · senza lista';
   const canale = v.canale && v.canale !== 'diretto' ? ` · da ${etichettaCanale(v.canale)}` : '';
   return `Lista: ${v.lista}${v.lista === 'Maremma Musica' ? canale : ''}`;
 }
@@ -391,8 +359,8 @@ function StatoRete() {
   );
 }
 
-function Esito({ esito, cassa, prezzoCassa, senzaTelefono, online, salvatoAlle, onRiprova, onCassa, onCambiaSerata, onFaiEntrare, onNonRientra, onChiudi }: {
-  esito: EsitoPorta; cassa: boolean; prezzoCassa: number; senzaTelefono: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCassa: () => void; onCambiaSerata: () => void; onFaiEntrare: () => void; onNonRientra: () => void; onChiudi: () => void;
+function Esito({ esito, senzaTelefono, online, salvatoAlle, onRiprova, onCambiaSerata, onFaiEntrare, onNonRientra, onChiudi }: {
+  esito: EsitoPorta; senzaTelefono: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCambiaSerata: () => void; onFaiEntrare: () => void; onNonRientra: () => void; onChiudi: () => void;
 }) {
   const linea = 'my-[10px] h-px bg-current opacity-30';
   const indietro = senzaTelefono ? 'Torna alla ricerca' : 'Torna allo scanner';
@@ -400,15 +368,14 @@ function Esito({ esito, cassa, prezzoCassa, senzaTelefono, online, salvatoAlle, 
 
   if (esito.esito === 'entrato') {
     const v = esito.voce;
-    const incasso = esito.incassato > 0;
     return (
       <>
         <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
           <svg width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" /></svg>
           <span className="font-mono text-[13px] font-medium leading-[18px]">
-            {v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()} · PAGATO` : incasso ? `${euro(esito.incassato)} INCASSATI` : esito.primaPagato ? 'PAGATO' : v.importo > 0 ? 'PAGATO' : 'INGRESSO LIBERO'} · {oraDi(esito.ora)}
+            {v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()} · PAGATO` : esito.primaPagato ? 'PAGATO' : v.importo > 0 ? 'PAGATO' : 'INGRESSO LIBERO'} · {oraDi(esito.ora)}
           </span>
-          <span className="font-display text-[104px] font-black uppercase leading-[.8]">{incasso ? 'Entrato' : 'Valido'}</span>
+          <span className="font-display text-[104px] font-black uppercase leading-[.8]">Valido</span>
           {/* Un QR per tutto il tavolo: ogni passaggio è una persona. */}
           {v.tavolo && <span className="font-display text-[56px] font-black uppercase leading-[.85]">{v.tavolo.entrati} di {v.tavolo.persone}</span>}
           <div className={linea} />
@@ -425,7 +392,7 @@ function Esito({ esito, cassa, prezzoCassa, senzaTelefono, online, salvatoAlle, 
   }
 
   // Prevendita non completata (modulo compilato o link del PR, pagamento mai arrivato): non è una prevendita, non ha un QR e non vale per
-  // entrare. Alla porta non si incassa: paga online dal suo telefono (poi "Riprova") oppure, se c'è la cassa, entra come ingresso in cassa.
+  // entrare. Alla porta il sito non incassa: può comprarla ora dal suo telefono (poi "Riprova"), altrimenti non entra.
   if (esito.esito === 'non_pagato') {
     const v = esito.voce;
     return (
@@ -438,14 +405,33 @@ function Esito({ esito, cassa, prezzoCassa, senzaTelefono, online, salvatoAlle, 
           <span className="font-mono text-[13px] font-medium leading-[18px]">NASCITA {nascita(v.dataNascita)} · {anni(v.dataNascita)} ANNI</span>
           <span className="text-[17px] font-medium leading-6">
             {online
-              ? `Ha compilato la prevendita ma il pagamento non è arrivato: non ha un QR. Può pagarla ora online dal suo telefono (rifà la prevendita sul sito con gli stessi dati), poi tocca “Ha pagato ora? Riprova”.${cassa ? ' Oppure entra come ingresso in cassa.' : ' Stasera non c’è cassa: senza prevendita pagata non entra.'}`
+              ? 'Il pagamento non è arrivato: non ha un QR e non ha una prevendita valida. Può comprarla ora dal suo telefono (rifà la prevendita sul sito con gli stessi dati), poi tocca “Ha pagato ora? Riprova”.'
               : 'Senza rete: se ha pagato dopo l’ultimo aggiornamento non lo vediamo ancora. Aspetta che torni la rete e tocca “Ha pagato ora? Riprova”.'}
           </span>
         </div>
         <div className="flex flex-none flex-col gap-2 px-4 pb-7">
           <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onRiprova}>Ha pagato ora? Riprova</button>
-          {cassa && <button type="button" className="mm-btn" style={{ border: '1px solid var(--vinile)', color: 'var(--vinile)', minHeight: 52 }} onClick={onCassa}>Ingresso in cassa{prezzoCassa > 0 ? ` · ${euro(prezzoCassa)}` : ''}</button>}
           <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 48 }} onClick={onChiudi}>Non entra</button>
+        </div>
+      </>
+    );
+  }
+
+  // Prevendita vera ma oltre l'orario limite: non registra nessun ingresso.
+  if (esito.esito === 'oltre_orario') {
+    const v = esito.voce;
+    return (
+      <>
+        <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
+          {X}
+          <span className="font-mono text-[13px] font-medium leading-[18px]">PREVENDITA SCADUTA ALLE {oraDi(esito.limite)} · NON VALE PIÙ PER ENTRARE</span>
+          <span className="font-display text-[88px] font-black uppercase leading-[.85]">Prevendita<br />scaduta</span>
+          <div className={linea} />
+          <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
+          <span className="text-[17px] font-medium leading-6">Il QR è valido, ma l’orario limite è passato: l’ingresso non è registrato. Se la crew lo fa entrare, l’ingresso si paga alla porta, fuori dal sito.</span>
+        </div>
+        <div className="flex flex-none flex-col gap-2 px-4 pb-7">
+          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onChiudi}>{indietro}</button>
         </div>
       </>
     );
@@ -523,12 +509,12 @@ function Esito({ esito, cassa, prezzoCassa, senzaTelefono, online, salvatoAlle, 
         <div className={linea} />
         {v && <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>}
         <span className="text-[17px] font-medium leading-6">
-          {pieno ? 'Il tavolo è al completo: con questo QR non entra più nessuno. Chi è in più passa dalla cassa.'
+          {pieno ? 'Il tavolo è al completo: con questo QR non entra più nessuno. Chi è in più non ha una prevendita valida: può comprarla ora dal telefono.'
             : esito.esito === 'non_valido' && esito.motivo.startsWith('Tavolo') ? 'La prenotazione non è stata pagata: il QR non vale. Chiama la crew.'
             : esito.esito === 'non_valido' && !online && esito.motivo.startsWith('Non è in elenco') ? 'Senza rete: chi ha pagato dopo l’ultimo aggiornamento non è ancora in elenco. Aspetta che torni la rete e riprova.'
             : esito.esito === 'gia_entrato' ? 'Controlla il documento. Se è un’altra persona, il QR è stato girato: non entra.'
             : esito.esito === 'annullato' ? 'Questa iscrizione è stata annullata: non entra con questo QR.'
-              : 'Controlla il documento e prova con "Cerca per nome".'}
+              : 'Controlla il documento e prova con "Cerca per nome". Se non ha una prevendita valida, può comprarla ora dal telefono.'}
         </span>
       </div>
       <div className="flex flex-none px-4 pb-7">

@@ -9,7 +9,7 @@ import { AzioniIscrizione } from '@/components/admin/azioni-client';
 export const metadata = { title: 'Iscrizioni' };
 
 const STATI: Record<string, string> = {
-  cassa: 'Ingresso in cassa', da_rimborsare: 'Da rimborsare', pagato: 'Pagato online', in_lista: 'In lista (gratis)',
+  porta_storico: 'Ingresso alla porta (storico)', da_rimborsare: 'Da rimborsare', pagato: 'Pagato online', in_lista: 'In lista (gratis)',
   in_attesa: 'Non pagato (in attesa)', scaduta: 'Scaduta senza pagare', entrato: 'Entrato', annullato: 'Annullato', rimborsato: 'Rimborsato',
 };
 
@@ -47,7 +47,7 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
           <div className="mm-campo">
             <label className="mm-campo__etichetta" htmlFor="fi-stato">Stato</label>
             <select id="fi-stato" name="stato" defaultValue={f.stato ?? ''} className="mm-campo__input" style={{ height: 44 }}>
-              <option value="">Tutti</option><option value="cassa">Ingresso in cassa</option><option value="da_rimborsare">Da rimborsare</option><option value="pagato">Pagato online</option><option value="in_lista">In lista (gratis)</option>
+              <option value="">Tutti</option><option value="porta_storico">Ingresso alla porta (storico)</option><option value="da_rimborsare">Da rimborsare</option><option value="pagato">Pagato online</option><option value="in_lista">In lista (gratis)</option>
               <option value="in_attesa">Non pagato (in attesa)</option><option value="scaduta">Scaduta senza pagare</option>
               <option value="entrato">Entrato</option><option value="annullato">Annullato</option><option value="rimborsato">Rimborsato</option>
             </select>
@@ -62,7 +62,7 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
                 <tr key={i.id}>
                   <td className="mm-pieno">
                     <div className="text-[15px] font-medium">{i.anonimizzata ? 'Dati cancellati' : `${i.nome} ${i.cognome}`}</div>
-                    <div className="font-mono text-[11px] text-osso-2">{i.anonimizzata ? `${i.etaAllaSerata != null ? `${i.etaAllaSerata} ANNI · ` : ''}${i.origine === 'cassa' ? 'INGRESSO IN CASSA' : 'ANONIMIZZATA'}` : `${nascita(i.dataNascita)} · ${i.origine === 'cassa' ? `INGRESSO IN CASSA${i.porta ? ` · ${i.porta}` : ''}` : `${i.email} · ${mostraCodice(i.codice)}`}`}</div>
+                    <div className="font-mono text-[11px] text-osso-2">{i.anonimizzata ? `${i.etaAllaSerata != null ? `${i.etaAllaSerata} ANNI · ` : ''}${i.origine === 'cassa' ? 'INGRESSO ALLA PORTA (STORICO)' : 'ANONIMIZZATA'}` : `${nascita(i.dataNascita)} · ${i.origine === 'cassa' ? `INGRESSO ALLA PORTA (STORICO)${i.porta ? ` · ${i.porta}` : ''}` : `${i.email} · ${mostraCodice(i.codice)}`}`}</div>
                   </td>
                   <td data-et="Serata" className="whitespace-nowrap font-mono text-[12px]">{dataPunti(evento.data)} {evento.nome}</td>
                   <td data-et="Lista" className="whitespace-nowrap text-[14px]">{lista}</td>
