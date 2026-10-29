@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { etichettaMappa, linkIndicazioni, sceltaMappa, stileNotte, usaAppleMaps } from './mappa';
-import { readFileSync } from 'node:fs';
 import { luogoVisibile } from './luogo';
 
 const scirea = { lat: 43.1512, lng: 10.7713, location: 'Campo G. Scirea', comune: 'Monteverdi M.mo' };
@@ -62,9 +61,4 @@ test('stile notte: ricolora i livelli noti e lascia in pace gli altri', () => {
   assert.deepEqual(n.layers[1].layout, stile.layers[1].layout);
   assert.deepEqual(n.layers[2], stile.layers[2]);
   assert.equal(stile.layers[0].paint['background-color'], 'rgb(12,12,12)', 'non modifica l\'originale');
-});
-
-test('il worker di MapLibre in public/ è quello della versione installata', () => {
-  const leggi = (p: string) => readFileSync(p, 'utf8').split(String.fromCharCode(13)).join(''); // su Windows git può convertire i fine riga
-  assert.equal(leggi('public/maplibre-gl-worker.mjs') === leggi('node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs'), true, 'dopo un aggiornamento di maplibre-gl: cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs public/');
 });

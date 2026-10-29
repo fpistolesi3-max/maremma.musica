@@ -37,7 +37,7 @@ export function MappaSerata({ lat, lng, location, comune, etichetta }: Props) {
         ]);
         clearTimeout(scaduto);
         if (chiusa || !tela.current) return;
-        ml.setWorkerUrl('/maplibre-gl-worker.mjs'); // copia in public/: il percorso di default non regge il bundler
+        ml.setWorkerUrl(new URL('maplibre-gl/dist/maplibre-gl-worker.mjs', import.meta.url).href);
         const ridotto = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const m = new ml.Map({
           container: tela.current,
