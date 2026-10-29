@@ -24,6 +24,8 @@ export default function Privacy() {
       <p>La crew di Maremma Musica, lo staff della porta la sera dell&apos;evento e il PR della lista da cui ti sei iscritto (solo nome, stato dell&apos;iscrizione e orario). Gli altri PR vedono solo numeri totali, mai i tuoi dati. Il servizio di email e l&apos;hosting del sito trattano i dati per nostro conto.</p>
       <h2>Per quanto</h2>
       <p>Nome, cognome, data di nascita ed email della lista li cancelliamo 30 giorni dopo la serata. Restano solo dati anonimi, come l’età alla serata e il tipo di prevendita, per le statistiche. Il consenso alle email vale finché non lo revochi.</p>
+      <h2>La mappa della serata</h2>
+      <p>Nella pagina di una serata la mappa di «Come arrivare» si carica da OpenFreeMap, un servizio esterno. Come ogni servizio esterno riceve il tuo indirizzo IP, e non usa cookie.</p>
       <h2>I tuoi diritti</h2>
       <p>Puoi chiedere accesso, correzione, cancellazione, limitazione e portabilità dei tuoi dati, o opporti al trattamento, scrivendo a maremmamusica@gmail.com. Puoi anche rivolgerti al Garante per la protezione dei dati personali.</p>
     </PaginaLegale>
