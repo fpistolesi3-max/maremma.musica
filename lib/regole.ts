@@ -8,7 +8,7 @@ export type StatoLista =
   | { tipo: 'libero'; lotto: Lotto | null; prezzo: 0 }
   | { tipo: 'dal'; dal: string | null; lotto?: Lotto } // apre più avanti (dal = null: quando finisce il tipo precedente)
   | { tipo: 'piena' }
-  | { tipo: 'chiusa' }
+  | { tipo: 'chiusa'; alle?: string } // alle: orario limite passato, la prevendita non vale più per entrare
   | { tipo: 'passata' };
 
 /** Iscrizioni con un QR valido: pagate online, gratis o già entrate. Quelle in attesa di pagamento non valgono ancora. */
@@ -35,12 +35,28 @@ export function istanteDopoApertura(apertura: string, hhmm: string): string {
 }
 
 /** Fino a quando la prevendita vale per entrare: l'orario scelto per la serata, altrimenti la prima 01:00 dopo l'apertura. */
-export const limitePrevendita = (e: Pick<Evento, 'data' | 'prevenditaFinoAlle'>) =>
+export const limitePrevendita = (e: Pick<Evento, 'data'> & Partial<Pick<Evento, 'prevenditaFinoAlle'>>) =>
   e.prevenditaFinoAlle || istanteDopoApertura(e.data, LIMITE_PREVENDITA_DEFAULT);
 
 /** Il limite che vale alla porta: le serate a ingresso libero non lo hanno (il QR serve solo a passare prima). */
-export const limiteIngresso = (e: Pick<Evento, 'data' | 'prevenditaFinoAlle' | 'tipoIngresso'>) =>
+export const limiteIngresso = (e: Pick<Evento, 'data'> & Partial<Pick<Evento, 'prevenditaFinoAlle' | 'tipoIngresso'>>) =>
   e.tipoIngresso === 'libero' ? null : limitePrevendita(e);
+
+/** Dall'orario limite la prevendita non si vende più (un QR comprato dopo non entrerebbe): restituisce il limite se è passato, altrimenti null. */
+export function prevenditeChiuseDa(e: Pick<Evento, 'data'> & Partial<Pick<Evento, 'prevenditaFinoAlle' | 'tipoIngresso'>>, adesso = new Date()): string | null {
+  const limite = limiteIngresso(e);
+  return limite && adesso.getTime() >= Date.parse(limite) ? limite : null;
+}
+
+/**
+ * Quanto si tiene il posto di una prevendita richiesta: il termine per pagare, mai oltre l'orario limite (che per la prevendita sostituisce
+ * l'apertura porte: si può comprare anche a serata iniziata, fino al limite). I tavoli non passano da qui e restano chiusi all'apertura.
+ */
+export function scadenzaPrevendita(richiesta: Date, evento: Pick<Evento, 'data'> & Partial<Pick<Evento, 'prevenditaFinoAlle' | 'tipoIngresso'>>) {
+  const limite = limiteIngresso(evento);
+  if (!limite) return scadenzaPagamentoOnline(richiesta, evento);
+  return new Date(Math.min(richiesta.getTime() + MINUTI_PAGAMENTO_ONLINE * 60_000, Date.parse(limite))).toISOString();
+}
 
 /** Quello che il cliente legge sull'orario limite. Niente per l'ingresso libero. */
 export function testoLimite(e: Pick<Evento, 'data' | 'prevenditaFinoAlle' | 'tipoIngresso'>) {
@@ -114,11 +130,14 @@ export function statoLista(
 ): StatoLista {
   const adesso = opzioni.adesso ?? new Date();
   if (eventoPassato(evento, adesso)) return { tipo: 'passata' };
+  // Dall'orario limite la vendita online è chiusa: chi comprasse alle 03:00 pagherebbe un QR che non entra.
+  const chiusaAlle = prevenditeChiuseDa(evento, adesso);
+  if (chiusaAlle) return { tipo: 'chiusa', alle: chiusaAlle };
   const dellEvento = lotti.filter((l) => l.eventoId === evento.id);
 
   // Nessun lotto definito: vale il prezzo lista dell'evento, senza limite di posti.
   if (dellEvento.length === 0) {
-    if (new Date(evento.data).getTime() < adesso.getTime()) return { tipo: 'chiusa' };
+    if (!limiteIngresso(evento) && new Date(evento.data).getTime() < adesso.getTime()) return { tipo: 'chiusa' };
     return evento.tipoIngresso === 'libero' || evento.prezzoLista === 0
       ? { tipo: 'libero', lotto: null, prezzo: 0 }
       : { tipo: 'aperta', lotto: null, prezzo: evento.prezzoLista };
@@ -147,7 +166,7 @@ export function chipLista(s: StatoLista, breve = false): { testo: string; classe
     case 'libero': return { testo: 'Ingresso libero', classe: 'mm-chip mm-chip--libero' };
     case 'dal': return { testo: s.dal ? `Lista dal ${dataPunti(s.dal)}` : 'Lista chiusa', classe: 'mm-chip mm-chip--pagato' };
     case 'piena': return { testo: 'Lista piena', classe: 'mm-chip mm-chip--esaurito' };
-    case 'chiusa': return { testo: 'Lista chiusa', classe: 'mm-chip mm-chip--pagato' };
+    case 'chiusa': return { testo: s.alle ? `Prevendite chiuse alle ${ora(s.alle)}` : 'Lista chiusa', classe: 'mm-chip mm-chip--pagato' };
     case 'passata': return { testo: 'Serata passata', classe: 'mm-chip mm-chip--libero' };
   }
 }
@@ -196,16 +215,17 @@ export function scadenzaPagamentoOnline(richiesta: Date, evento: Pick<Evento, 'd
 
 /**
  * Pagamento online di una prevendita arrivato (anche in ritardo, dopo il termine). Vale se l'iscrizione aspettava
- * ancora il pagamento (o è scaduta da poco), la serata non è iniziata, nel lotto c'è ancora posto e la stessa persona
+ * ancora il pagamento (o è scaduta da poco), non è passato l'orario limite (la serata già iniziata non conta), nel lotto c'è ancora posto e la stessa persona
  * non ha già un altro QR valido. Altrimenti i soldi vanno restituiti.
  */
 export function pagamentoIscrizioneValido(o: {
-  iscrizione: Pick<Iscrizione, 'stato'>; evento: Pick<Evento, 'data'>; lotto: Pick<Lotto, 'quantita'> | null;
+  iscrizione: Pick<Iscrizione, 'stato'>; evento: Pick<Evento, 'data'> & Partial<Pick<Evento, 'prevenditaFinoAlle' | 'tipoIngresso'>>; lotto: Pick<Lotto, 'quantita'> | null;
   altriNelLotto: number; doppione: boolean; adesso?: Date;
 }) {
   const adesso = o.adesso ?? new Date();
   if (o.iscrizione.stato !== 'in_attesa' && o.iscrizione.stato !== 'scaduta') return false;
-  if (new Date(o.evento.data).getTime() <= adesso.getTime()) return false;
+  // Con l'orario limite la prevendita vale fino al limite (anche a serata iniziata); senza limite (ingresso libero) fino all'apertura.
+  if (limiteIngresso(o.evento) ? prevenditeChiuseDa(o.evento, adesso) : new Date(o.evento.data).getTime() <= adesso.getTime()) return false;
   if (o.lotto?.quantita != null && o.altriNelLotto >= o.lotto.quantita) return false;
   return !o.doppione;
 }

@@ -971,3 +971,39 @@ test('capienza: facoltativa, arriva alla porta e alla serata live con gli entrat
   assert.equal((await m.porta.eventiPorta(staff)).find((e) => e.id === ev.id)!.capienza, 300);
   await m.admin.salvaEvento(admin, ev.id, { ...dati, capienza: null });
 });
+
+test('orario limite: dopo il limite non si vende più, nemmeno riprendendo una richiesta aperta; un pagamento in ritardo va tra i rimborsi', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  const { id: _id, createdAt: _c, updatedAt: _u, piantinaUrl: _p, ...dati } = ev;
+  const base = { slug: 'halloween-party', dataNascita: '1995-03-03', marketing: false, handlePr: null };
+
+  // Prima del limite: la richiesta parte e il posto si tiene.
+  const r = await m.pubblico.creaIscrizione({ ...base, nome: 'Lia', cognome: 'Limite', email: 'lia@esempio.it' });
+  assert.ok(r.ok);
+  const id = r.ok ? r.iscrizione.id : '';
+  assert.equal((await m.archivio.leggi()).iscrizioni.find((i) => i.id === id)!.stato, 'in_attesa');
+
+  // Il limite passa (la pagina di pagamento era già aperta).
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: '2026-10-01T00:00:00.000Z' });
+  try {
+    const nuova = await m.pubblico.creaIscrizione({ ...base, nome: 'Max', cognome: 'Tardi', email: 'max@esempio.it' });
+    assert.ok(!nuova.ok && /chiuse dalle/.test(nuova.errore), 'server: niente nuove prevendite dopo il limite');
+    const riprende = await m.pubblico.creaIscrizione({ ...base, nome: 'Lia', cognome: 'Limite', email: 'lia@esempio.it' });
+    assert.ok(!riprende.ok && /chiuse dalle/.test(riprende.errore), 'nemmeno riprendendo la richiesta ancora aperta');
+    const zarro = await sessione('zarro@maremmamusica.test');
+    assert.equal((await m.pubblico.eventoPerSlug('halloween-party'))!.stato.tipo, 'chiusa', 'la pagina della serata mostra la lista chiusa');
+    assert.equal((await m.pubblico.eventoPerSlug('halloween-party', true, zarro.pr!.id))!.stato.tipo, 'chiusa', 'e il link del PR pure');
+
+    // Il pagamento arriva dopo il limite: non diventa un QR, va tra i pagamenti da rimborsare.
+    const esito = await m.prevendita.confermaPagamentoIscrizione(id, 'pi_dopo_limite');
+    assert.equal(esito.esito, 'da_rimborsare');
+    const dopo = (await m.archivio.leggi()).iscrizioni.find((i) => i.id === id)!;
+    assert.notEqual(dopo.stato, 'pagato', 'non diventa una prevendita valida');
+    assert.equal(dopo.pagamentoOnline?.daRimborsare, true);
+    assert.ok((await m.admin.iscrizioniAdmin(admin, { eventoId: ev.id, stato: 'da_rimborsare' })).some((x) => x.iscrizione.id === id));
+  } finally {
+    await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: null });
+  }
+  await m.prevendita.chiudiRimborsoIscrizione(admin, id);
+});

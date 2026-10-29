@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Evento } from '@/lib/dati/tipi';
 import type { EventoPubblico } from '@/lib/dati/pubblico';
 import { chipLista, type StatoLista } from '@/lib/regole';
-import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, orari } from '@/lib/formato';
+import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, ora, orari } from '@/lib/formato';
 import { Freccia, LocandinaInArrivo } from './ui';
 import { BinarioCinetico } from './binario-cinetico';
 
@@ -37,7 +37,7 @@ export function BottoneLista({ ep, className = '', style }: { ep: EventoPubblico
       </PulsanteMorph>
     );
   }
-  const motivo = { dal: ep.stato.tipo === 'dal' && ep.stato.dal ? `Lista dal ${dataPunti(ep.stato.dal)}` : 'Lista chiusa', piena: 'Lista piena', chiusa: 'Lista chiusa', passata: 'Serata passata' }[ep.stato.tipo as 'dal' | 'piena' | 'chiusa' | 'passata'];
+  const motivo = { dal: ep.stato.tipo === 'dal' && ep.stato.dal ? `Lista dal ${dataPunti(ep.stato.dal)}` : 'Lista chiusa', piena: 'Lista piena', chiusa: ep.stato.tipo === 'chiusa' && ep.stato.alle ? `Prevendite chiuse alle ${ora(ep.stato.alle)}` : 'Lista chiusa', passata: 'Serata passata' }[ep.stato.tipo as 'dal' | 'piena' | 'chiusa' | 'passata'];
   return (
     <button type="button" disabled className={`mm-btn mm-btn--clip mm-btn--primario ${className}`} style={style}>{motivo}</button>
   );

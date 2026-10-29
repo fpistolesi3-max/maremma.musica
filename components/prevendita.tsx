@@ -82,7 +82,8 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
                   {inArrivo ? 'La prevendita online apre a breve: torna qui nei prossimi giorni.'
                     : ep.stato.tipo === 'dal' ? (ep.stato.dal ? `La lista apre il ${dataPunti(ep.stato.dal)}. Torna qui quel giorno.` : 'Il prossimo tipo di prevendita esce quando finiscono i posti di quello attuale.')
                     : ep.stato.tipo === 'piena' ? 'I posti in lista sono finiti. Tieni d’occhio Instagram: a volte se ne liberano.'
-                      : 'La lista per questa serata è chiusa.'}
+                      : ep.stato.tipo === 'chiusa' && ep.stato.alle ? `Le prevendite sono chiuse dalle ${ora(ep.stato.alle)}: dopo quell’ora il QR non vale più per entrare.`
+                        : 'La lista per questa serata è chiusa.'}
                 </p>
                 <Link href={`/e/${e.slug}`} className="mm-btn mm-btn--clip mm-btn--linea mm-btn--pieno">Torna alla serata</Link>
               </div>

@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (59 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, mappa), `npm run typecheck`,
+Altri comandi: `npm test` (63 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, mappa), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -146,6 +146,14 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   offline prima del limite e sincronizzato dopo vale, uno fatto dopo no. **I QR dei tavoli non hanno il limite** (da confermare col
   proprietario). Il cliente lo legge nella pagina della serata (riquadro Ingresso e domande), sotto il modulo di prevendita, nella pagina del
   biglietto e nell'email del biglietto ("Valida per entrare entro le 01:00.", `testoLimite`).
+- **La vendita online si chiude all'orario limite.** Dall'01:00 (o dal limite scelto) `statoLista` dà "chiusa" con l'orario ("Prevendite chiuse
+  alle 01:00", pagina della serata, modulo e link del PR) e `creaIscrizione` rifiuta lato server, anche riprendendo una richiesta ancora aperta.
+  Per la prevendita il limite sostituisce l'apertura porte: si compra anche a serata iniziata, fino al limite. Il posto si tiene 30 minuti ma mai
+  oltre il limite (`scadenzaPrevendita`). Le pagine di Stripe aperte prima del limite possono restare aperte fino a 31 minuti (Stripe non accetta
+  meno): se il pagamento arriva dopo il limite `pagamentoIscrizioneValido` lo rifiuta e finisce tra i pagamenti da rimborsare, come già accade
+  agli altri pagamenti arrivati quando non valevano più. Conta l'ora di arrivo del pagamento (webhook), non quella in cui il cliente ha pagato.
+  Senza limite (ingresso libero) restano le regole di prima (chiusura all'apertura). Per i tavoli non cambia niente: `scadenzaPagamentoOnline`
+  e la chiusura delle richieste all'apertura sono quelle di sempre.
 - **Capienza e conteggio degli entrati** (`Evento.capienza`, facoltativa, numero di persone, nella sezione *Porta* accanto all'orario limite; le
   serate vecchie restano senza). `conteggioPorta` in `lib/porta-logica.ts` (pura, con test) dà: `entrati` = prevendite entrate + persone
   entrate con i QR dei tavoli (ogni passaggio una persona; contano anche gli ingressi in cassa storici, che sono gente dentro), `attesi` =

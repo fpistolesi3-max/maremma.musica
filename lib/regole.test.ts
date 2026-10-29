@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps, limitePrevendita, limiteIngresso, testoLimite, istanteDopoApertura } from './regole';
+import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps, chipLista, prevenditeChiuseDa, scadenzaPrevendita, limitePrevendita, limiteIngresso, testoLimite, istanteDopoApertura } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
 import { categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, oltreLimite, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro, isoRoma, spostaGiorni, giorniTra } from './formato';
@@ -200,7 +200,9 @@ test('prevendita: pagamento in ritardo vale solo se c’è ancora posto, altrime
   assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'scaduta' } }), true, 'scaduta da poco ma con posto: vale');
   assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'scaduta' }, altriNelLotto: 100 }), false, 'posti finiti nel frattempo');
   assert.equal(pagamentoIscrizioneValido({ ...base, lotto: lotto({ quantita: null }), altriNelLotto: 9999 }), true, 'lotto senza limite');
-  assert.equal(pagamentoIscrizioneValido({ ...base, adesso: new Date(e.data) }), false, 'serata iniziata');
+  assert.equal(pagamentoIscrizioneValido({ ...base, adesso: new Date(e.data) }), true, 'serata iniziata ma prima dell’orario limite: vale');
+  assert.equal(pagamentoIscrizioneValido({ ...base, adesso: new Date('2026-11-01T00:00:00Z') }), false, 'dopo l’orario limite');
+  assert.equal(pagamentoIscrizioneValido({ ...base, evento: evento({ tipoIngresso: 'libero' }), adesso: new Date(e.data) }), false, 'senza limite vale fino all’apertura');
   assert.equal(pagamentoIscrizioneValido({ ...base, doppione: true }), false, 'ha già un altro QR valido');
   assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'annullato' } }), false, 'ha lasciato il posto');
   assert.equal(pagamentoIscrizioneValido({ ...base, iscrizione: { stato: 'pagato' } }), false, 'pagata due volte');
@@ -364,4 +366,30 @@ test('conteggio della porta: entrati con scan di prevendite e tavoli, attesi, po
   assert.equal(conteggioPorta(elenco, { capienza: null, ora: '2026-11-01T00:30:00Z' }).liberi, null);
   assert.equal(conteggioPorta(elenco, { capienza: 4, limite, ora: '2026-11-01T00:30:00Z' }).liberi, 0, 'mai sotto zero');
   assert.deepEqual(conteggioPorta([], { capienza: 100, ora: '2026-10-31T23:00:00Z' }), { entrati: 0, attesi: 0, liberi: 100, dopoLimite: false });
+});
+
+test('orario limite: dall’01:00 la vendita online è chiusa, il posto si tiene al massimo fino al limite, un pagamento in ritardo non vale', () => {
+  const lotti = [lotto()];
+  const limite = '2026-11-01T00:00:00.000Z'; // l'1 a Roma
+  const prima = new Date('2026-10-31T23:59:00Z');
+  const dopo = new Date('2026-11-01T00:00:00Z');
+  assert.equal(statoLista(evento(), lotti, {}, { adesso: prima }).tipo, 'aperta', 'prima del limite si vende');
+  assert.deepEqual(statoLista(evento(), lotti, {}, { adesso: dopo }), { tipo: 'chiusa', alle: limite }, 'dal limite è chiusa');
+  assert.equal(chipLista(statoLista(evento(), lotti, {}, { adesso: dopo })).testo, 'Prevendite chiuse alle 01:00');
+  assert.equal(statoLista(evento({ tipoIngresso: 'libero' }), lotti, {}, { adesso: dopo }).tipo, 'libero', 'ingresso libero: nessun limite');
+  assert.equal(statoLista(evento(), [], {}, { adesso: dopo }).tipo, 'chiusa', 'anche senza tipi');
+  assert.equal(prevenditeChiuseDa(evento(), prima), null);
+  assert.equal(prevenditeChiuseDa(evento({ prevenditaFinoAlle: '2026-11-01T01:30:00.000Z' }), dopo), null, 'vale il limite scelto per la serata');
+
+  // Il posto si tiene 30 minuti, ma mai oltre il limite.
+  assert.equal(scadenzaPrevendita(new Date('2026-10-31T22:00:00Z'), evento()), '2026-10-31T22:30:00.000Z', 'a serata iniziata (apre alle 21:00Z) il posto si tiene ancora 30 minuti');
+  assert.equal(scadenzaPrevendita(new Date('2026-10-31T23:50:00Z'), evento()), limite, 'a ridosso del limite scade al limite');
+  assert.equal(scadenzaPrevendita(new Date('2026-10-31T19:00:00Z'), evento({ tipoIngresso: 'libero' })), '2026-10-31T19:30:00.000Z', 'senza limite resta il termine di sempre');
+  assert.equal(scadenzaPagamentoOnline(new Date('2026-10-31T22:00:00Z'), evento()), '2026-10-31T21:00:00.000Z', 'i tavoli non cambiano: mai oltre l’apertura');
+
+  // Pagamento arrivato dopo il limite (pagina di pagamento aperta prima): non vale, si restituisce.
+  const ok = { iscrizione: { stato: 'in_attesa' as const }, evento: evento(), lotto: null, altriNelLotto: 0, doppione: false };
+  assert.equal(pagamentoIscrizioneValido({ ...ok, adesso: prima }), true);
+  assert.equal(pagamentoIscrizioneValido({ ...ok, adesso: dopo }), false);
+  assert.equal(pagamentoIscrizioneValido({ ...ok, iscrizione: { stato: 'scaduta' as const }, adesso: dopo }), false, 'anche se era già scaduta');
 });
