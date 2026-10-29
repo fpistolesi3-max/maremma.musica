@@ -65,7 +65,6 @@ test('stile notte: ricolora i livelli noti e lascia in pace gli altri', () => {
 });
 
 test('il worker di MapLibre in public/ è quello della versione installata', () => {
-  const copia = readFileSync('public/maplibre-gl-worker.mjs');
-  const originale = readFileSync('node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs');
-  assert.ok(copia.equals(originale), 'dopo un aggiornamento di maplibre-gl: cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs public/');
+  const leggi = (p: string) => readFileSync(p, 'utf8').split(String.fromCharCode(13)).join(''); // su Windows git può convertire i fine riga
+  assert.equal(leggi('public/maplibre-gl-worker.mjs') === leggi('node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs'), true, 'dopo un aggiornamento di maplibre-gl: cp node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs public/');
 });
