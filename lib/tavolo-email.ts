@@ -5,6 +5,8 @@ import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
 import { dataPunti, euro, giornoSett, numeroEvento, ora, orari } from './formato';
 import { mostraCodice } from './qr-token';
 import { luogoTesto } from './luogo';
+import { TESTO_MOTIVO_RIMBORSO } from './regole';
+import type { MotivoRimborso } from './dati/tipi';
 
 export function linkTavolo(origine: string, id: string, email: string) {
   return `${origine}/tavolo/${id}?email=${encodeURIComponent(email)}`;
@@ -50,13 +52,15 @@ ${bottoneEmail(linkPagamento(origine, p.id, p.email), `Paga ${euro(p.spesaMinima
 }
 
 /** Agli admin: un tavolo è stato pagato sul sito (non c'è niente da fare) o un pagamento va rimborsato. */
-export async function inviaAvvisoAdmin(v: PrenotazioneVista, destinatari: string[], origine: string, caso: 'pagato_online' | 'da_rimborsare') {
+export async function inviaAvvisoAdmin(
+  v: PrenotazioneVista, destinatari: string[], origine: string, caso: 'pagato_online' | 'da_rimborsare', rimborso?: { motivo: MotivoRimborso; importo: number },
+) {
   const { prenotazione: p, evento: e, tavolo: t } = v;
   const chi = `${escapeHtml(`${p.nome} ${p.cognome}`)}`;
   const pr = p.inseritaDa === 'pr' ? ` (inserita dal PR ${escapeHtml(v.lista)})` : '';
   const frase = {
     pagato_online: `${chi} ha pagato online il tavolo ${escapeHtml(t.nome)} per ${escapeHtml(e.nome)}${pr}: ${euro(p.spesaMinima)}. È confermato e il QR è partito, non serve fare niente.`,
-    da_rimborsare: `${chi} ha pagato online ${euro(p.spesaMinima)} per il tavolo ${escapeHtml(t.nome)} quando la prenotazione era già chiusa e il tavolo non era più suo. <strong>Va rimborsato</strong>: lo trovi nello storico dei tavoli della serata.`,
+    da_rimborsare: `${chi} ha pagato online ${euro(rimborso?.importo ?? p.spesaMinima)} per il tavolo ${escapeHtml(t.nome)}, ma il pagamento non vale${rimborso ? `: ${escapeHtml(TESTO_MOTIVO_RIMBORSO[rimborso.motivo].toLowerCase())}` : ''}. <strong>Va rimborsato</strong>: lo trovi nell'elenco dei rimborsi da fare.`,
   }[caso];
   const oggetto = {
     pagato_online: `Tavolo ${t.nome} pagato online`, da_rimborsare: `Da rimborsare: tavolo ${t.nome}`,
@@ -65,7 +69,7 @@ export async function inviaAvvisoAdmin(v: PrenotazioneVista, destinatari: string
 <p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${frase}</p>
 ${riquadro(v, '')}
 <p style="font:400 14px/22px Arial,sans-serif;margin:0 0 24px;color:#e1d7c9;">Telefono ${escapeHtml(p.telefono)} · ${escapeHtml(p.email)}</p>
-${bottoneEmail(`${origine}/admin/eventi/${e.id}/modifica#tavoli`, 'Apri i tavoli →')}`;
+${caso === 'da_rimborsare' ? bottoneEmail(`${origine}/admin/rimborsi?evento=${e.id}`, 'Apri i rimborsi →') : bottoneEmail(`${origine}/admin/eventi/${e.id}/modifica#tavoli`, 'Apri i tavoli →')}`;
   for (const a of destinatari) {
     await inviaEmail({ a, oggetto: `${oggetto} · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail(caso === 'da_rimborsare' ? 'Da rimborsare.' : 'Tavolo pagato.', corpo) });
   }

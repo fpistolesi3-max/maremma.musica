@@ -1,4 +1,4 @@
-import type { Evento, Iscrizione, Lotto, PrenotazioneTavolo } from './dati/tipi';
+import type { Evento, Iscrizione, Lotto, MotivoRimborso, PrenotazioneTavolo } from './dati/tipi';
 import { anniCompiuti, dataIso, dataPunti, euro, isoRoma, ora, spostaGiorni } from './formato';
 
 // Regole di business pure (senza archivio): testate in lib/regole.test.ts.
@@ -218,17 +218,46 @@ export function scadenzaPagamentoOnline(richiesta: Date, evento: Pick<Evento, 'd
  * ancora il pagamento (o è scaduta da poco), non è passato l'orario limite (la serata già iniziata non conta), nel lotto c'è ancora posto e la stessa persona
  * non ha già un altro QR valido. Altrimenti i soldi vanno restituiti.
  */
-export function pagamentoIscrizioneValido(o: {
+export function motivoPagamentoIscrizioneNonValido(o: {
   iscrizione: Pick<Iscrizione, 'stato'>; evento: Pick<Evento, 'data'> & Partial<Pick<Evento, 'prevenditaFinoAlle' | 'tipoIngresso'>>; lotto: Pick<Lotto, 'quantita'> | null;
   altriNelLotto: number; doppione: boolean; adesso?: Date;
-}) {
+}): MotivoRimborso | null {
   const adesso = o.adesso ?? new Date();
-  if (o.iscrizione.stato !== 'in_attesa' && o.iscrizione.stato !== 'scaduta') return false;
+  if (o.iscrizione.stato !== 'in_attesa' && o.iscrizione.stato !== 'scaduta') return 'ordine_chiuso';
   // Con l'orario limite la prevendita vale fino al limite (anche a serata iniziata); senza limite (ingresso libero) fino all'apertura.
-  if (limiteIngresso(o.evento) ? prevenditeChiuseDa(o.evento, adesso) : new Date(o.evento.data).getTime() <= adesso.getTime()) return false;
-  if (o.lotto?.quantita != null && o.altriNelLotto >= o.lotto.quantita) return false;
-  return !o.doppione;
+  if (limiteIngresso(o.evento) ? prevenditeChiuseDa(o.evento, adesso) : new Date(o.evento.data).getTime() <= adesso.getTime()) return 'serata_iniziata';
+  if (o.lotto?.quantita != null && o.altriNelLotto >= o.lotto.quantita) return 'lotto_pieno';
+  return o.doppione ? 'doppione' : null;
 }
+
+export function pagamentoIscrizioneValido(o: Parameters<typeof motivoPagamentoIscrizioneNonValido>[0]) {
+  return motivoPagamentoIscrizioneNonValido(o) === null;
+}
+
+/** Quanto e in che valuta ha pagato il cliente, come lo dice Stripe: centesimi interi (`amount_total`) e valuta in minuscolo. */
+export interface PagamentoRicevuto { centesimi: number; valuta: string }
+
+/** Euro → centesimi interi (niente 0,1 + 0,2). */
+export const inCentesimi = (importo: number) => Math.round(importo * 100);
+
+/**
+ * Il pagamento coincide col prezzo atteso? Senza importo (pagina di prova, controllo che non lo porta) non c'è niente da confrontare:
+ * da Stripe l'importo c'è sempre. Importo o valuta diversi → il pagamento non conferma niente e va restituito.
+ */
+export function importoCorretto(atteso: number, ricevuto: PagamentoRicevuto | undefined | null) {
+  if (!ricevuto) return true;
+  return ricevuto.centesimi === inCentesimi(atteso) && ricevuto.valuta.toLowerCase() === 'eur';
+}
+
+/** Frase per l'admin: perché questo pagamento va restituito. */
+export const TESTO_MOTIVO_RIMBORSO: Record<MotivoRimborso, string> = {
+  serata_iniziata: 'Pagato dopo l’orario limite della prevendita',
+  lotto_pieno: 'Pagato quando i posti del tipo erano finiti',
+  doppione: 'La stessa persona aveva già un QR valido',
+  ordine_chiuso: 'Pagato quando l’ordine era già chiuso (annullato, scaduto o tavolo di un altro)',
+  secondo_pagamento: 'Secondo pagamento per lo stesso ordine, già pagato',
+  importo: 'Importo o valuta diversi dal prezzo: non confermato',
+};
 
 /** Le richieste dei tavoli si chiudono all'apertura: dopo, il termine per pagare sarebbe già passato. */
 export function richiesteTavoliAperte(evento: Pick<Evento, 'data'>, adesso = new Date()) {

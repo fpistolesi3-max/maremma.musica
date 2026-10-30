@@ -3,6 +3,7 @@ import { confermaPagamentoOnline, emailAdmin, pagamentiDaVerificare, salvaSessio
 import { chiudiCheckout, creaCheckout, statoCheckout } from './pagamenti';
 import { inviaAvvisoAdmin, inviaConfermaTavolo, linkTavolo } from './tavolo-email';
 import { dataPunti } from './formato';
+import type { PagamentoRicevuto } from './regole';
 
 // Il giro del pagamento online di un tavolo, dalla pagina di pagamento alle email.
 // Lo usano la richiesta del cliente, il link mandato dal PR, il webhook di Stripe e la pagina di prova.
@@ -22,12 +23,12 @@ export async function apriPagamento(v: PrenotazioneVista, origine: string): Prom
 }
 
 /** Pagamento riuscito: conferma la prenotazione e manda il QR al cliente e l'avviso agli admin (una volta sola). */
-export async function registraPagamento(prenotazioneId: string, pagamento: string, origine: string) {
-  const r = await confermaPagamentoOnline(prenotazioneId, pagamento);
+export async function registraPagamento(prenotazioneId: string, pagamento: string, origine: string, ricevuto?: PagamentoRicevuto | null) {
+  const r = await confermaPagamentoOnline(prenotazioneId, pagamento, new Date(), ricevuto);
   if (r.esito !== 'confermata' && r.esito !== 'da_rimborsare') return r.esito;
   try {
     if (r.esito === 'confermata') await inviaConfermaTavolo(r.vista, origine);
-    await inviaAvvisoAdmin(r.vista, await emailAdmin(), origine, r.esito === 'confermata' ? 'pagato_online' : 'da_rimborsare');
+    await inviaAvvisoAdmin(r.vista, await emailAdmin(), origine, r.esito === 'confermata' ? 'pagato_online' : 'da_rimborsare', r.esito === 'da_rimborsare' ? { motivo: r.motivo, importo: r.importo } : undefined);
   } catch (e) {
     console.error('[tavoli] email dopo il pagamento non inviata', e);
   }
@@ -41,7 +42,7 @@ export async function verificaRitorno(v: PrenotazioneVista, origine: string) {
   if ((v.prenotazione.stato !== 'in_attesa' && v.prenotazione.stato !== 'scaduta') || !sessione || v.prenotazione.pagamentoOnline?.pagamento) return;
   try {
     const s = await statoCheckout(sessione);
-    if (s.pagato && s.pagamento) await registraPagamento(v.prenotazione.id, s.pagamento, origine);
+    if (s.pagato && s.pagamento) await registraPagamento(v.prenotazione.id, s.pagamento, origine, s.ricevuto);
   } catch (e) {
     console.error('[tavoli] verifica del pagamento non riuscita', e);
   }
@@ -57,7 +58,7 @@ export async function verificaSospesi(origine: string) {
   for (const { id, sessione } of await pagamentiDaVerificare()) {
     try {
       const s = await statoCheckout(sessione);
-      if (s.pagato && s.pagamento && (await registraPagamento(id, s.pagamento, origine)) !== 'gia') registrati += 1;
+      if (s.pagato && s.pagamento && (await registraPagamento(id, s.pagamento, origine, s.ricevuto)) !== 'gia') registrati += 1;
     } catch (e) {
       console.error('[tavoli] verifica del pagamento non riuscita', id, e);
     }

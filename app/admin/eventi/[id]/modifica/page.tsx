@@ -14,7 +14,7 @@ import { Tavoli } from '@/components/admin/tavoli';
 import { MappaTavoli } from '@/components/admin/mappa-tavoli';
 import { Sezione } from '@/components/admin/sezione';
 import { CopiaTavoli } from '@/components/admin/copia-tavoli';
-import { RimborsaTardivo } from '@/components/tavoli-azioni';
+import { RimborsaPagamento } from '@/components/admin/rimborsi-client';
 import type { PrenotazioneTavolo } from '@/lib/dati/tipi';
 
 export const metadata = { title: 'Modifica serata' };
@@ -117,10 +117,10 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
                         {p.chiusaAt && ` · ${p.stato === 'scaduta' ? 'DECADUTA' : 'CHIUSA'} ${quandoScade(p.chiusaAt).toUpperCase()}${p.chiusaDa ? ` DA ${p.chiusaDa.toUpperCase()}` : ''}`}
                       </span>
                       {/* Pagato online quando il tavolo era già di un altro: i soldi vanno restituiti. */}
-                      {p.pagamentoOnline?.daRimborsare && (
+                      {p.pagamentoOnline?.daRimborsare && p.pagamentoOnline.pagamento && p.pagamentoOnline.rimborso?.stato !== 'fatto' && (
                         <div className="flex w-full flex-col gap-2 border border-stop-testo px-4 py-3">
-                          <span role="alert" className="text-[14px] leading-5 text-stop-testo">Ha pagato online {euro(p.spesaMinima)} quando la prenotazione era già chiusa e il tavolo non era più suo: va rimborsato.</span>
-                          <RimborsaTardivo id={p.id} nome={`${p.nome} ${p.cognome}`} importo={euro(p.spesaMinima)} />
+                          <span role="alert" className="text-[14px] leading-5 text-stop-testo">Ha pagato online {euro(p.spesaMinima)} quando la prenotazione era già chiusa e il tavolo non era più suo: va rimborsato. <Link href={`/admin/rimborsi?evento=${e.id}`} className="link-sottolineato">Tutti i rimborsi →</Link></span>
+                          <RimborsaPagamento tipo="tavolo" id={p.id} pagamento={p.pagamentoOnline.pagamento} persona={`${p.nome} ${p.cognome}`} importo={euro(p.spesaMinima)} />
                         </div>
                       )}
                     </div>

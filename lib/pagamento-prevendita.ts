@@ -5,6 +5,7 @@ import { emailAdmin } from './dati/tavoli';
 import { chiudiCheckout, creaCheckout, statoCheckout } from './pagamenti';
 import { inviaBiglietto, inviaRimborsoDovuto, linkBiglietto } from './biglietto-email';
 import { dataPunti } from './formato';
+import type { PagamentoRicevuto } from './regole';
 
 // Il giro del pagamento online della prevendita in lista, come lib/pagamento-tavolo.ts per i tavoli.
 // Lo usano il modulo della prevendita, il pulsante "Paga" del biglietto, il webhook di Stripe, il cron e la pagina di prova.
@@ -24,11 +25,11 @@ export async function apriPagamentoIscrizione(b: Biglietto, origine: string): Pr
 }
 
 /** Pagamento riuscito: l'iscrizione vale e parte l'email con il QR (una volta sola); se va rimborsato lo sanno gli admin. */
-export async function registraPagamentoIscrizione(id: string, pagamento: string, origine: string) {
-  const r = await confermaPagamentoIscrizione(id, pagamento);
+export async function registraPagamentoIscrizione(id: string, pagamento: string, origine: string, ricevuto?: PagamentoRicevuto | null) {
+  const r = await confermaPagamentoIscrizione(id, pagamento, new Date(), ricevuto);
   try {
     if (r.esito === 'confermata') await inviaBiglietto(r.biglietto, origine);
-    if (r.esito === 'da_rimborsare') await inviaRimborsoDovuto(r.biglietto, await emailAdmin(), origine);
+    if (r.esito === 'da_rimborsare') await inviaRimborsoDovuto(r.biglietto, await emailAdmin(), origine, r.motivo, r.importo);
   } catch (e) {
     console.error('[prevendita] email dopo il pagamento non inviata', e);
   }
@@ -42,7 +43,7 @@ export async function verificaRitornoIscrizione(b: Biglietto, origine: string) {
   if ((i.stato !== 'in_attesa' && i.stato !== 'scaduta') || !sessione || i.pagamentoOnline?.pagamento) return;
   try {
     const s = await statoCheckout(sessione);
-    if (s.pagato && s.pagamento) await registraPagamentoIscrizione(i.id, s.pagamento, origine);
+    if (s.pagato && s.pagamento) await registraPagamentoIscrizione(i.id, s.pagamento, origine, s.ricevuto);
   } catch (e) {
     console.error('[prevendita] verifica del pagamento non riuscita', e);
   }
@@ -54,7 +55,7 @@ export async function verificaSospesiIscrizioni(origine: string) {
   for (const { id, sessione } of await iscrizioniDaVerificare()) {
     try {
       const s = await statoCheckout(sessione);
-      if (s.pagato && s.pagamento && (await registraPagamentoIscrizione(id, s.pagamento, origine)) !== 'gia') registrati += 1;
+      if (s.pagato && s.pagamento && (await registraPagamentoIscrizione(id, s.pagamento, origine, s.ricevuto)) !== 'gia') registrati += 1;
     } catch (e) {
       console.error('[prevendita] verifica del pagamento non riuscita', id, e);
     }

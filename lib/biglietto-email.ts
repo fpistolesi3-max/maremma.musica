@@ -4,7 +4,8 @@ import type { Biglietto } from './dati/pubblico';
 import type { PrenotazioneVista } from './dati/tavoli';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
 import { dataPunti, euro, giornoSett, nascita, numeroEvento, orari } from './formato';
-import { testoLimite } from './regole';
+import { TESTO_MOTIVO_RIMBORSO, testoLimite } from './regole';
+import type { MotivoRimborso } from './dati/tipi';
 import { mostraCodice } from './qr-token';
 import { luogoTesto } from './luogo';
 
@@ -74,13 +75,13 @@ export async function inviaRecupero(email: string, biglietti: Biglietto[], origi
   });
 }
 
-/** Agli admin: una prevendita è stata pagata quando non valeva più (lotto pieno, serata iniziata, doppione) e va rimborsata. */
-export async function inviaRimborsoDovuto(b: Biglietto, destinatari: string[], origine: string) {
+/** Agli admin: un pagamento per la prevendita non vale (lotto pieno, serata iniziata, doppione, secondo pagamento, importo sbagliato) e va rimborsato. */
+export async function inviaRimborsoDovuto(b: Biglietto, destinatari: string[], origine: string, motivo: MotivoRimborso, importo: number) {
   const { iscrizione: i, evento: e } = b;
   const corpo = `
-<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${escapeHtml(`${i.nome} ${i.cognome}`)} ha pagato online ${euro(i.importo)} per la prevendita di ${escapeHtml(e.nome)} quando non valeva più (tempo scaduto e posti finiti, serata iniziata o già un altro QR). <strong>Va rimborsato</strong>: lo trovi tra le iscrizioni della serata.</p>
+<p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${escapeHtml(`${i.nome} ${i.cognome}`)} ha pagato online ${euro(importo)} per la prevendita di ${escapeHtml(e.nome)}, ma il pagamento non vale: ${escapeHtml(TESTO_MOTIVO_RIMBORSO[motivo].toLowerCase())}. <strong>Va rimborsato</strong>: lo trovi nell'elenco dei rimborsi da fare.</p>
 <p style="font:400 14px/22px Arial,sans-serif;margin:0 0 24px;color:#e1d7c9;">${escapeHtml(i.email)} · Lista ${escapeHtml(b.lista)}</p>
-${bottoneEmail(`${origine}/admin/iscrizioni?evento=${e.id}&stato=da_rimborsare`, 'Apri le iscrizioni →')}`;
+${bottoneEmail(`${origine}/admin/rimborsi?evento=${e.id}`, 'Apri i rimborsi →')}`;
   for (const a of destinatari) {
     await inviaEmail({ a, oggetto: `Da rimborsare: prevendita · ${e.nome} ${dataPunti(e.data)}`, html: guscioEmail('Da rimborsare.', corpo) });
   }
