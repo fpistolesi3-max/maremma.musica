@@ -1,5 +1,6 @@
 import { richiedi } from '@/lib/sessione';
-import { elencoSerate, iscrizioniAdmin } from '@/lib/dati/admin';
+import Link from 'next/link';
+import { daRimborsareAncora, elencoSerate, iscrizioniAdmin } from '@/lib/dati/admin';
 import { dataPunti, euro, nascita, ora, quandoRelativo } from '@/lib/formato';
 import { mostraCodice } from '@/lib/qr-token';
 import { Filtri, TestataAdmin } from '@/components/admin/ui';
@@ -30,7 +31,10 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
   return (
     <>
       <TestataAdmin briciole="ISCRIZIONI" titolo="Iscrizioni" sotto={`${righe.length} RISULTATI · ${attive.length} ATTIVE · ${euro(incassato)} INCASSATI`}
-        azioni={f.evento ? <a className="mm-btn mm-btn--linea" href={`/api/admin/csv/${f.evento}`}>Esporta CSV</a> : undefined} />
+        azioni={<>
+          <Link className="mm-btn mm-btn--muto" href={f.evento ? `/admin/rimborsi?evento=${f.evento}` : '/admin/rimborsi'}>Rimborsi</Link>
+          {f.evento && <a className="mm-btn mm-btn--linea" href={`/api/admin/csv/${f.evento}`}>Esporta CSV</a>}
+        </>} />
       <div className="flex flex-col gap-6 px-4 py-6 md:px-12">
         <Filtri attivi={attivi} azzera="/admin/iscrizioni"><form className="grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-end">
           <div className="mm-campo">
@@ -71,6 +75,7 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
                     {i.pagamentoOnline?.daRimborsare
                       ? <span className="mm-chip mm-chip--incassare">Da rimborsare</span>
                       : <ChipIscrizione stato={i.stato} testo={i.stato === 'entrato' && i.oraCheckIn ? `Entrato ${ora(i.oraCheckIn)}` : undefined} />}
+                    {daRimborsareAncora(i) && !i.pagamentoOnline?.daRimborsare && <div className="mt-1"><Link href={`/admin/rimborsi?evento=${evento.id}`} className="mm-chip mm-chip--incassare no-underline">Pagamento in più da rimborsare</Link></div>}
                     {i.rifiutoIngresso && <div className="mt-1"><span className="mm-chip mm-chip--incassare" title={`Rifiutato da ${i.rifiutoIngresso.da} · ${i.rifiutoIngresso.porta}`}>Rifiutato {ora(i.rifiutoIngresso.ora)}{i.categoria ? ` · ${i.categoria}` : ''}</span></div>}
                   </td>
                   <td data-et="Iscritto" className="whitespace-nowrap font-mono text-[11px] text-osso-2">{quandoRelativo(i.createdAt)}</td>

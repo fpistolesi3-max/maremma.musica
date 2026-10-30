@@ -1,10 +1,10 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { leggi, modifica, segreto } from './archivio';
-import type { Archivio, Evento, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
+import type { Archivio, Evento, MotivoRimborso, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { creaCodice, creaTokenQr } from '../qr-token';
-import { EMAIL_RE, ORE_MINIME_PROMEMORIA_PR, eventoPassato, prenotazioneAttiva, prenotazioneScaduta, richiesteTavoliAperte, scadenzaPagamentoOnline } from '../regole';
+import { EMAIL_RE, ORE_MINIME_PROMEMORIA_PR, eventoPassato, importoCorretto, inCentesimi, prenotazioneAttiva, prenotazioneScaduta, richiesteTavoliAperte, scadenzaPagamentoOnline, type PagamentoRicevuto } from '../regole';
 
 // Prenotazione dei tavoli. Il cliente (o il PR o la crew per lui) chiede un tavolo libero: resta bloccato mentre
 // paga la spesa minima sul sito (tutti i pagamenti passano da lì). A pagamento riuscito la prenotazione si conferma
@@ -163,7 +163,7 @@ export interface PrenotazioneVista {
   lista: string;
 }
 
-function vista(d: Readonly<Archivio>, p: PrenotazioneTavolo): PrenotazioneVista | null {
+export function vista(d: Readonly<Archivio>, p: PrenotazioneTavolo): PrenotazioneVista | null {
   const evento = d.eventi.find((e) => e.id === p.eventoId);
   if (!evento) return null;
   const t = d.tavoli.find((x) => x.id === p.tavoloId);
@@ -199,10 +199,10 @@ export async function prenotazioniAdmin(s: Sessione, eventoId: string): Promise<
 
 /**
  * Annulla e libera il tavolo. L'admin sempre; il PR solo le proprie e solo finché non sono pagate.
- * `rimborso`: solo l'admin e solo su una pagata, i soldi sono stati restituiti (stato "rimborsata").
+ * Una prenotazione pagata non si annulla da qui: si restituiscono i soldi e si chiude in un colpo solo (lib/dati/rimborsi.ts).
  * Restituisce la prenotazione chiusa (per l'email al cliente) o null se era già chiusa.
  */
-export async function annullaPrenotazione(s: Sessione, id: string, rimborso = false): Promise<PrenotazioneVista | null> {
+export async function annullaPrenotazione(s: Sessione, id: string): Promise<PrenotazioneVista | null> {
   return modifica((d) => {
     const p = d.prenotazioni.find((x) => x.id === id);
     if (!p) throw new Error('Prenotazione non trovata');
@@ -210,8 +210,8 @@ export async function annullaPrenotazione(s: Sessione, id: string, rimborso = fa
     const suaInAttesa = s.utente.ruolo === 'pr' && s.pr && p.prId === s.pr.id && p.stato === 'in_attesa';
     if (!admin && !suaInAttesa) throw new Error('non_autorizzato');
     if (!prenotazioneAttiva(p)) return null;
-    if (rimborso && p.stato !== 'confermata') throw new Error('Si rimborsa solo una prenotazione pagata');
-    p.stato = rimborso ? 'rimborsata' : 'annullata';
+    if (p.stato === 'confermata') throw new Error('Questa prenotazione è pagata: usa Annulla e rimborsa');
+    p.stato = 'annullata';
     p.chiusaAt = new Date().toISOString();
     p.chiusaDa = s.utente.email;
     p.avvisoChiusuraAt = p.chiusaAt;   // l'email parte subito, dall'azione
@@ -340,7 +340,7 @@ export async function salvaSessionePagamento(id: string, sessione: string) {
 export type EsitoPagamentoOnline =
   | { esito: 'confermata'; vista: PrenotazioneVista }    // appena confermata: parte l'email con il QR
   | { esito: 'gia' }                                     // già registrato (webhook ripetuto, ritorno del cliente)
-  | { esito: 'da_rimborsare'; vista: PrenotazioneVista } // pagata quando il tavolo era già di un altro
+  | { esito: 'da_rimborsare'; vista: PrenotazioneVista; motivo: MotivoRimborso; importo: number } // non vale: i soldi vanno restituiti
   | { esito: 'sconosciuta' };
 
 /**
@@ -348,19 +348,24 @@ export type EsitoPagamentoOnline =
  * Si può chiamare più volte per lo stesso pagamento. Se la prenotazione è scaduta da poco e il tavolo è ancora
  * libero vale lo stesso; se nel frattempo il tavolo è di un altro (o la prenotazione è stata annullata) il pagamento
  * si registra come da rimborsare e lo vede l'admin.
+ * `ricevuto`: importo e valuta pagati, come li dice Stripe; se non coincidono con la spesa minima il pagamento non conferma niente.
+ * Un pagamento in più su una prenotazione che ne ha già uno non sovrascrive quello vero: si registra a parte, da rimborsare.
  */
-export async function confermaPagamentoOnline(prenotazioneId: string, pagamento: string, adesso = new Date()): Promise<EsitoPagamentoOnline> {
+export async function confermaPagamentoOnline(prenotazioneId: string, pagamento: string, adesso = new Date(), ricevuto?: PagamentoRicevuto | null): Promise<EsitoPagamentoOnline> {
   return modifica((d): EsitoPagamentoOnline => {
     const p = d.prenotazioni.find((x) => x.id === prenotazioneId);
     if (!p) return { esito: 'sconosciuta' };
-    p.pagamentoOnline ??= { sessione: null, pagamento: null, daRimborsare: false };
-    if (p.pagamentoOnline.pagamento === pagamento) return { esito: 'gia' };
-    // Già pagata con un altro pagamento (due pagine di pagamento aperte, pagate entrambe): la prenotazione resta valida
-    // com'è e il pagamento in più non sovrascrive quello vero; va restituito a mano da Stripe.
-    if (p.stato === 'confermata' && p.pagamentoOnline.pagamento) {
-      console.error('[tavoli] secondo pagamento per una prenotazione già pagata: da rimborsare su Stripe', p.id, pagamento);
-      return { esito: 'gia' };
-    }
+    const po = (p.pagamentoOnline ??= { sessione: null, pagamento: null, daRimborsare: false });
+    if (po.pagamento === pagamento || po.inPiu?.some((x) => x.pagamento === pagamento)) return { esito: 'gia' };
+    const inPiu = (motivo: MotivoRimborso): EsitoPagamentoOnline => {
+      const centesimi = ricevuto?.centesimi ?? inCentesimi(p.spesaMinima);
+      (po.inPiu ??= []).push({ pagamento, centesimi, valuta: ricevuto?.valuta ?? 'eur', motivo, at: adesso.toISOString() });
+      return { esito: 'da_rimborsare', vista: vista(d, p)!, motivo, importo: centesimi / 100 };
+    };
+    if (!importoCorretto(p.spesaMinima, ricevuto)) return inPiu('importo');
+    // Ha già un pagamento (due pagine di pagamento aperte, pagate entrambe): la prenotazione resta com'è e il
+    // pagamento in più non sovrascrive quello vero.
+    if (po.pagamento) return inPiu('secondo_pagamento');
     const t = d.tavoli.find((x) => x.id === p.tavoloId);
     const altri = d.prenotazioni.some((x) => x.tavoloId === p.tavoloId && x.id !== p.id && prenotazioneAttiva(x));
     // In attesa (anche col termine appena passato) tiene ancora il tavolo; scaduta lo riprende solo se è rimasto libero.
@@ -368,10 +373,11 @@ export async function confermaPagamentoOnline(prenotazioneId: string, pagamento:
     p.pagatoAt = adesso.toISOString();
     p.metodoPagamento = 'online';
     p.pagatoDa = 'pagamento online';
-    p.pagamentoOnline.pagamento = pagamento;
+    po.pagamento = pagamento;
     if (!valida) {
-      p.pagamentoOnline.daRimborsare = true;
-      return { esito: 'da_rimborsare', vista: vista(d, p)! };
+      po.daRimborsare = true;
+      po.motivo = 'ordine_chiuso';
+      return { esito: 'da_rimborsare', vista: vista(d, p)!, motivo: 'ordine_chiuso', importo: p.spesaMinima };
     }
     p.stato = 'confermata';
     p.chiusaAt = null;
@@ -404,28 +410,6 @@ export async function lasciaTavolo(id: string, email: string): Promise<Prenotazi
     p.avvisoChiusuraAt = p.chiusaAt;
     const t = d.tavoli.find((x) => x.id === p.tavoloId);
     if (t && t.stato === 'riservato') t.stato = 'libero';
-    return vista(d, p);
-  });
-}
-
-/** Per il rimborso (solo admin): l'id del pagamento da restituire, se la prenotazione è stata pagata online. */
-export async function pagamentoOnlineDi(s: Sessione, id: string): Promise<string | null> {
-  if (s.utente.ruolo !== 'admin') throw new Error('non_autorizzato');
-  const p = (await leggi()).prenotazioni.find((x) => x.id === id);
-  return p?.metodoPagamento === 'online' ? p.pagamentoOnline?.pagamento ?? null : null;
-}
-
-/** Pagamento arrivato quando la prenotazione era già chiusa: i soldi sono stati restituiti (stato "rimborsata"). */
-export async function chiudiRimborsoDovuto(s: Sessione, id: string): Promise<PrenotazioneVista | null> {
-  if (s.utente.ruolo !== 'admin') throw new Error('non_autorizzato');
-  return modifica((d) => {
-    const p = d.prenotazioni.find((x) => x.id === id);
-    if (!p?.pagamentoOnline?.daRimborsare) return null;
-    p.pagamentoOnline.daRimborsare = false;
-    p.stato = 'rimborsata';
-    p.chiusaAt = new Date().toISOString();
-    p.chiusaDa = s.utente.email;
-    p.avvisoChiusuraAt = p.chiusaAt;
     return vista(d, p);
   });
 }

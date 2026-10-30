@@ -3,14 +3,13 @@
 import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { sessioneCorrente, type Sessione } from '@/lib/sessione';
+import { origineRichiesta, sessioneCorrente, type Sessione } from '@/lib/sessione';
 import type { NomeModello } from '@/lib/tipi-modelli';
 import {
   applicaModelloTipi, cambiaNominativo, cambiaStatoIscrizione, cambiaStatoPr, copiaTipi, copiaTavoli, creaPr, creaStaff, creaTavoliInSerie, duplicaSerata, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
 } from '@/lib/dati/admin';
 import { salvaMedia } from '@/lib/dati/media';
-import { chiudiRimborsoIscrizione, pagamentoIscrizioneDi } from '@/lib/dati/prevendita';
-import { rimborsa } from '@/lib/pagamenti';
+import { rimborsaPagamento } from '@/lib/rimborso';
 import { isoRoma, slugDa } from '@/lib/formato';
 import { componiData, istanteDopoApertura, LIMITE_PREVENDITA_DEFAULT, pubblicatoDopoSalvataggio } from '@/lib/regole';
 import type { StatoTavolo, TipoIngresso } from '@/lib/dati/tipi';
@@ -251,21 +250,33 @@ export async function eliminaTavoloAzione(id: string) {
   return { ok: 'Tavolo eliminato.' };
 }
 
+/**
+ * `rimborsa` = "Annulla e rimborsa": restituisce i soldi su Stripe e poi chiude l'iscrizione (se il rimborso non va a buon fine
+ * resta com'è; ripetuto non parte due volte). `annulla` senza rimborso vale solo per ciò che non è stato pagato.
+ * L'ingresso in cassa storico (contanti o POS) si restituisce a mano: qui si registra soltanto.
+ */
 export async function azioneIscrizione(id: string, azione: 'annulla' | 'rimborsa' | 'ripristina') {
   const s = await admin();
   try {
     if (azione === 'rimborsa') {
-      // Prevendita pagata online: prima si restituiscono i soldi su Stripe, poi si chiude. Se il rimborso non va
-      // a buon fine l'iscrizione resta com'è. L'ingresso in cassa (contanti o POS) si restituisce a mano.
-      const pagamento = await pagamentoIscrizioneDi(s, id);
-      if (pagamento) await rimborsa(pagamento);
-      if (!(await chiudiRimborsoIscrizione(s, id))) await cambiaStatoIscrizione(s, id, azione);
-    } else {
-      await cambiaStatoIscrizione(s, id, azione);
+      const r = await rimborsaPagamento(s, { tipo: 'prevendita', id }, await origineRichiesta());
+      revalidatePath('/admin', 'layout');
+      return { ok: r.gia ? 'Era già rimborsato.' : 'Rimborsato.' };
     }
+    await cambiaStatoIscrizione(s, id, azione);
   } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/admin', 'layout');
-  return { ok: azione === 'rimborsa' ? 'Rimborsato.' : 'Fatto.' };
+  return { ok: 'Fatto.' };
+}
+
+/** Rimborsa un pagamento dall'elenco "Da rimborsare" (anche un pagamento in più, che non tocca l'ordine). */
+export async function rimborsaPagamentoAzione(tipo: 'prevendita' | 'tavolo', id: string, pagamento: string) {
+  const s = await admin();
+  try {
+    const r = await rimborsaPagamento(s, { tipo, id, pagamento }, await origineRichiesta());
+    revalidatePath('/admin', 'layout');
+    return { ok: r.gia ? 'Era già rimborsato.' : 'Rimborsato.' };
+  } catch (e) { return { errore: (e as Error).message }; }
 }
 
 /** Cambio di nominativo dalla scheda delle iscrizioni. `dataNascita`: AAAA-MM-GG (campo data) oppure GG.MM.AAAA. */

@@ -1,10 +1,9 @@
 import 'server-only';
 import { leggi, modifica } from './archivio';
-import type { Archivio, Iscrizione } from './tipi';
-import type { Sessione } from '../sessione';
+import type { Archivio, MotivoRimborso } from './tipi';
 import { bigliettoDi, type Biglietto } from './pubblico';
 import { anniCompiuti, dataIso } from '../formato';
-import { eventoPassato, giaIscritto, iscrizioneScaduta, pagamentoIscrizioneValido, tienePosto } from '../regole';
+import { eventoPassato, giaIscritto, importoCorretto, inCentesimi, iscrizioneScaduta, motivoPagamentoIscrizioneNonValido, tienePosto, type PagamentoRicevuto } from '../regole';
 
 // Pagamento online della prevendita in lista: stesso giro dei tavoli (lib/dati/tavoli.ts).
 // L'iscrizione nasce "in attesa" con il posto tenuto per pochi minuti; vale (e il QR si vede) solo a pagamento ricevuto.
@@ -68,38 +67,44 @@ export async function salvaSessioneIscrizione(id: string, sessione: string) {
 export type EsitoPagamentoIscrizione =
   | { esito: 'confermata'; biglietto: Biglietto }    // appena pagata: parte l'email con il QR
   | { esito: 'gia' }                                 // già registrato (webhook ripetuto, ritorno del cliente)
-  | { esito: 'da_rimborsare'; biglietto: Biglietto } // arrivato quando non valeva più: i soldi vanno restituiti
+  | { esito: 'da_rimborsare'; biglietto: Biglietto; motivo: MotivoRimborso; importo: number } // non vale: i soldi vanno restituiti
   | { esito: 'sconosciuta' };
 
 /**
  * Pagamento online riuscito (webhook di Stripe, ritorno del cliente, controllo giornaliero o pagina di prova).
  * Si può chiamare più volte per lo stesso pagamento. Arrivato dopo il termine vale lo stesso se nel lotto c'è ancora
  * posto (regola in pagamentoIscrizioneValido); altrimenti si registra come da rimborsare e lo vede l'admin.
+ * `ricevuto`: importo e valuta pagati, come li dice Stripe; se non coincidono col prezzo il pagamento non conferma niente.
+ * Un pagamento in più su un ordine che ne ha già uno non sovrascrive quello vero: si registra a parte, da rimborsare.
  */
-export async function confermaPagamentoIscrizione(id: string, pagamento: string, adesso = new Date()): Promise<EsitoPagamentoIscrizione> {
+export async function confermaPagamentoIscrizione(id: string, pagamento: string, adesso = new Date(), ricevuto?: PagamentoRicevuto | null): Promise<EsitoPagamentoIscrizione> {
   return modifica((d): EsitoPagamentoIscrizione => {
     const i = d.iscrizioni.find((x) => x.id === id);
     if (!i) return { esito: 'sconosciuta' };
     const evento = d.eventi.find((e) => e.id === i.eventoId);
     if (!evento) return { esito: 'sconosciuta' };
-    i.pagamentoOnline ??= { sessione: null, pagamento: null, daRimborsare: false };
-    if (i.pagamentoOnline.pagamento === pagamento) return { esito: 'gia' };
-    // Già pagata con un altro pagamento (due pagine di pagamento aperte, pagate entrambe): il QR resta valido e il
-    // pagamento in più non sovrascrive quello vero; va restituito a mano da Stripe.
-    if ((i.stato === 'pagato' || i.stato === 'entrato') && i.pagamentoOnline.pagamento) {
-      console.error('[prevendita] secondo pagamento per una prevendita già pagata: da rimborsare su Stripe', i.id, pagamento);
-      return { esito: 'gia' };
-    }
+    const po = (i.pagamentoOnline ??= { sessione: null, pagamento: null, daRimborsare: false });
+    if (po.pagamento === pagamento || po.inPiu?.some((x) => x.pagamento === pagamento)) return { esito: 'gia' };
+    const inPiu = (motivo: MotivoRimborso): EsitoPagamentoIscrizione => {
+      const centesimi = ricevuto?.centesimi ?? inCentesimi(i.importo);
+      (po.inPiu ??= []).push({ pagamento, centesimi, valuta: ricevuto?.valuta ?? 'eur', motivo, at: adesso.toISOString() });
+      return { esito: 'da_rimborsare', biglietto: bigliettoDi(d, i)!, motivo, importo: centesimi / 100 };
+    };
+    if (!importoCorretto(i.importo, ricevuto)) return inPiu('importo');
+    // Ha già un pagamento (due pagine di pagamento aperte, pagate entrambe): il QR resta com'è e il pagamento in più
+    // non sovrascrive quello vero.
+    if (po.pagamento) return inPiu('secondo_pagamento');
     const lotto = i.lottoId ? d.lotti.find((l) => l.id === i.lottoId) ?? null : null;
     const altri = d.iscrizioni.filter((x) => x.id !== i.id && x.lottoId != null && x.lottoId === i.lottoId && tienePosto(x, adesso)).length;
     const doppione = Boolean(giaIscritto(d.iscrizioni.filter((x) => x.id !== i.id), i.eventoId, i.cognome, i.dataNascita));
-    const valida = pagamentoIscrizioneValido({ iscrizione: i, evento, lotto, altriNelLotto: altri, doppione, adesso });
+    const motivo = motivoPagamentoIscrizioneNonValido({ iscrizione: i, evento, lotto, altriNelLotto: altri, doppione, adesso });
     i.pagatoAt = adesso.toISOString();
     i.metodoPagamento = 'online';
-    i.pagamentoOnline.pagamento = pagamento;
-    if (!valida) {
-      i.pagamentoOnline.daRimborsare = true;
-      return { esito: 'da_rimborsare', biglietto: bigliettoDi(d, i)! };
+    po.pagamento = pagamento;
+    if (motivo) {
+      po.daRimborsare = true;
+      po.motivo = motivo;
+      return { esito: 'da_rimborsare', biglietto: bigliettoDi(d, i)!, motivo, importo: i.importo };
     }
     i.stato = 'pagato';
     i.scade = null;
@@ -124,31 +129,5 @@ export async function lasciaPosto(id: string, email: string): Promise<boolean> {
     i.stato = 'annullato';
     i.annullatoAt = new Date().toISOString();
     return true;
-  });
-}
-
-// ------------------------------------------------------------------ admin
-
-function soloAdmin(s: Sessione) {
-  if (s.utente.ruolo !== 'admin') throw new Error('non_autorizzato');
-}
-
-/** Per il rimborso: l'id del pagamento online da restituire, se la prevendita è stata pagata sul sito. */
-export async function pagamentoIscrizioneDi(s: Sessione, id: string): Promise<string | null> {
-  soloAdmin(s);
-  const i = (await leggi()).iscrizioni.find((x) => x.id === id);
-  return i?.metodoPagamento === 'online' ? i.pagamentoOnline?.pagamento ?? null : null;
-}
-
-/** Pagamento arrivato quando non valeva più: i soldi sono stati restituiti, l'iscrizione resta "rimborsata". */
-export async function chiudiRimborsoIscrizione(s: Sessione, id: string): Promise<Iscrizione | null> {
-  soloAdmin(s);
-  return modifica((d) => {
-    const i = d.iscrizioni.find((x) => x.id === id);
-    if (!i?.pagamentoOnline?.daRimborsare) return null;
-    i.pagamentoOnline.daRimborsare = false;
-    i.stato = 'rimborsato';
-    i.annullatoAt = new Date().toISOString();
-    return i;
   });
 }

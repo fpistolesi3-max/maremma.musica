@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { bigliettoPubblico } from '@/lib/dati/pubblico';
-import { isAttiva } from '@/lib/regole';
+import { qrMostrabile } from '@/lib/regole';
 import { qrPng } from '@/lib/biglietto-email';
 import { euro, giornoSett, dataPunti, nascita, numeroEvento, orari, parti } from '@/lib/formato';
 import { mostraCodice } from '@/lib/qr-token';
@@ -19,8 +19,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   const email = new URL(req.url).searchParams.get('email');
   const b = await bigliettoPubblico(id, email);
-  // Il QR c'è solo per le iscrizioni valide: una prevendita non ancora pagata non ha biglietto.
-  if (!b || (!isAttiva(b.iscrizione) && !b.iscrizione.metodoPagamento)) return new Response('Biglietto non trovato', { status: 404 });
+  if (!b) return new Response('Biglietto non trovato', { status: 404 });
+  // Rimborsato: il biglietto non vale più e il PDF non si dà.
+  if (b.iscrizione.stato === 'rimborsato' || b.iscrizione.pagamentoOnline?.rimborso?.stato === 'fatto') return new Response('Biglietto rimborsato: non è più valido', { status: 410 });
+  // Il QR c'è solo per le iscrizioni valide: una prevendita non ancora pagata (o da restituire) non ha biglietto.
+  if (!qrMostrabile(b.iscrizione)) return new Response('Biglietto non trovato', { status: 404 });
   // Serata senza telefono: niente QR, quindi niente PDF col QR.
   if (b.evento.senzaTelefono) return new Response('Serata senza telefono: alla porta serve il documento', { status: 404 });
   const { iscrizione: i, evento: e } = b;

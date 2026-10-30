@@ -7,7 +7,8 @@ import type { Sessione } from '../sessione';
 import { calcolaClassifica } from './classifica';
 import { vociEvento } from './porta';
 import { conteggioPorta } from '../porta-logica';
-import { eventoPassato, etaSufficiente, giaIscritto, isAttiva, limiteIngresso, tienePosto, prenotazioneAttiva, prenotazioneScaduta, prezzoDaTipi, prezzoVendibile, nomiInSerie, EMAIL_RE, HANDLE_RE } from '../regole';
+import { vociRimborso, soldiSerata } from './rimborsi';
+import { cosaManca, eventoPassato, etaSufficiente, giaIscritto, isAttiva, limiteIngresso, tienePosto, prenotazioneAttiva, prenotazioneScaduta, prezzoDaTipi, prezzoVendibile, nomiInSerie, EMAIL_RE, HANDLE_RE } from '../regole';
 import { nascita, ora as oraDi, dataCompleta, giorniTra, isoRoma, slugDa, spostaGiorni } from '../formato';
 import { usatiPerLotto } from './pubblico';
 import { applicaScadenze } from './tavoli';
@@ -55,12 +56,20 @@ export async function cruscotto(s: Sessione) {
     };
   })();
   const nomeEvento = (id: string) => d.eventi.find((e) => e.id === id)?.nome ?? '';
-  const daRimborsare = d.iscrizioni.filter((i) => i.pagamentoOnline?.daRimborsare);
-  const tavoliDaRimborsare = d.prenotazioni.filter((p) => p.pagamentoOnline?.daRimborsare);
-  const tavoliRimborso = [...new Set(tavoliDaRimborsare.map((p) => p.eventoId))].map((id) => ({ eventoId: id, nome: nomeEvento(id), n: tavoliDaRimborsare.filter((p) => p.eventoId === id).length }));
+  // Rimborsi da fare (prevendite e tavoli: pagamenti che non valgono, doppi, con importo sbagliato), raggruppati per serata.
+  const daFare = vociRimborso(d).filter((v) => v.stato !== 'rimborsato');
+  const rimborsi = [...new Set(daFare.map((v) => v.eventoId))].map((id) => {
+    const sue = daFare.filter((v) => v.eventoId === id);
+    return { eventoId: id, nome: nomeEvento(id), n: sue.length, importo: sue.reduce((t, v) => t + v.importo, 0) };
+  });
+  const importoSbagliato = daFare.filter((v) => v.motivo === 'importo').length;
   const inAttesa = d.prenotazioni.filter((p) => p.stato === 'in_attesa' && prenotazioneAttiva(p) && !prenotazioneScaduta(p));
   const perSerata = [...new Set(inAttesa.map((p) => p.eventoId))].map((id) => ({ eventoId: id, nome: nomeEvento(id), n: inAttesa.filter((p) => p.eventoId === id).length }));
-  return { prossima: numeri, daRimborsare: daRimborsare.length, tavoliDaRimborsare: tavoliRimborso, tavoliInAttesa: perSerata };
+  // Serate in bozza non ancora passate, con quello che manca prima di pubblicarle (stesso elenco di "Cosa manca" nella modifica).
+  const bozze = d.eventi.filter((e) => !e.pubblicato && !eventoPassato(e)).sort((a, b) => a.data.localeCompare(b.data))
+    .map((e) => ({ eventoId: e.id, nome: e.nome, manca: cosaManca(e, d.lotti.filter((l) => l.eventoId === e.id), d.tavoli.filter((t) => t.eventoId === e.id).length) }))
+    .filter((b) => b.manca.length > 0);
+  return { prossima: numeri, rimborsi, importoSbagliato, tavoliInAttesa: perSerata, bozze };
 }
 
 export async function eventoAdmin(s: Sessione, id: string) {
@@ -103,7 +112,7 @@ export async function serataLive(s: Sessione, eventoId: string) {
   // Soldi: la prevendita si incassa online sul sito; alla porta il sito non incassa più (restano gli ingressi in cassa storici).
   const somma = (xs: Iscrizione[]) => xs.reduce((t, i) => t + i.importo, 0);
   const online = attive.filter((i) => i.metodoPagamento === 'online');
-  const daRimborsare = iscr.filter((i) => i.pagamentoOnline?.daRimborsare);
+  const rimborsiDaFare = vociRimborso(d).filter((v) => v.eventoId === eventoId && v.stato !== 'rimborsato');
   const incassatoOnline = somma(online);
   const incassatoStorico = somma(storico);
 
@@ -147,8 +156,10 @@ export async function serataLive(s: Sessione, eventoId: string) {
     prevendita: {
       pagate: online.length, incassato: incassatoOnline,
       inAttesa: iscr.filter((i) => tienePosto(i) && i.stato === 'in_attesa').length,
-      daRimborsare: { n: daRimborsare.length, importo: somma(daRimborsare) },
     },
+    // Pagamenti da restituire (prevendite e tavoli) e soldi della serata: lordo, rimborsato, netto.
+    rimborsi: { n: rimborsiDaFare.length, importo: rimborsiDaFare.reduce((t, v) => t + v.importo, 0) },
+    soldi: soldiSerata(d, eventoId),
     tavoli: {
       totale: tavoliSerata.length,
       liberi: tavoliSerata.filter((t) => t.stato === 'libero').length,
@@ -180,6 +191,12 @@ export async function serataLive(s: Sessione, eventoId: string) {
   };
 }
 
+/** Ha un pagamento da restituire: quello principale (non valeva più) o uno in più (doppio, importo sbagliato) non ancora rimborsato. */
+export function daRimborsareAncora(i: Pick<Iscrizione, 'pagamentoOnline'>) {
+  const po = i.pagamentoOnline;
+  return Boolean(po?.daRimborsare || po?.inPiu?.some((x) => x.rimborso?.stato !== 'fatto'));
+}
+
 export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; q?: string; stato?: string }) {
   soloAdmin(s);
   const d = await leggi();
@@ -189,9 +206,9 @@ export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; 
     .filter((i) => !filtro.eventoId || i.eventoId === filtro.eventoId)
     // Storico: la prevendita mai completata di chi era poi entrato dalla cassa è chiusa e collegata a quell'ingresso: la persona compare una volta sola.
     // Se il pagamento è arrivato lo stesso, resta visibile tra i rimborsi.
-    .filter((i) => !(i.chiusaDaCassa && i.stato === 'scaduta' && !i.pagamentoOnline?.daRimborsare))
+    .filter((i) => !(i.chiusaDaCassa && i.stato === 'scaduta' && !daRimborsareAncora(i)))
     .filter((i) => !filtro.stato || (filtro.stato === 'porta_storico' ? i.origine === 'cassa'
-      : filtro.stato === 'da_rimborsare' ? Boolean(i.pagamentoOnline?.daRimborsare) : i.stato === filtro.stato))
+      : filtro.stato === 'da_rimborsare' ? daRimborsareAncora(i) : i.stato === filtro.stato))
     .filter((i) => !q || norm(`${i.nome} ${i.cognome} ${i.email} ${i.codice}`).includes(q))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((i) => ({
@@ -201,17 +218,16 @@ export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; 
     }));
 }
 
-export async function cambiaStatoIscrizione(s: Sessione, id: string, azione: 'annulla' | 'rimborsa' | 'ripristina') {
+/** Annulla senza rimborso (solo ciò che non è stato pagato) o ripristina. Il rimborso di ciò che è pagato sta in lib/dati/rimborsi.ts. */
+export async function cambiaStatoIscrizione(s: Sessione, id: string, azione: 'annulla' | 'ripristina') {
   soloAdmin(s);
   await modifica((d) => {
     const i = d.iscrizioni.find((x) => x.id === id);
     if (!i) throw new Error('Iscrizione non trovata');
     const adesso = new Date().toISOString();
     if (azione === 'annulla' && isAttiva(i)) {
+      if (i.metodoPagamento) throw new Error('Questa prevendita è pagata: usa Annulla e rimborsa');
       i.stato = 'annullato'; i.annullatoAt = adesso;
-    } else if (azione === 'rimborsa' && i.metodoPagamento && (isAttiva(i) || i.stato === 'annullato')) {
-      // Online: i soldi sono già stati restituiti su Stripe (azioneIscrizione). Ingresso in cassa storico: si restituiscono a mano, qui si registra.
-      i.stato = 'rimborsato'; i.annullatoAt = adesso;
     } else if (azione === 'ripristina' && i.stato === 'annullato') {
       // Una prevendita lasciata senza pagare non torna valida: sarebbe un QR regalato.
       if (i.pagamentoOnline && !i.metodoPagamento) throw new Error('Questa prevendita non è mai stata pagata: non si può riattivare');
@@ -569,7 +585,7 @@ export async function csvEvento(s: Sessione, eventoId: string) {
       i.origine === 'cassa' ? 'Ingresso alla porta (storico)' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica',
       i.lottoId ? d.lotti.find((l) => l.id === i.lottoId)?.nome : '', i.categoria ?? '',
       i.importo.toFixed(2).replace('.', ','), i.stato, i.metodoPagamento ? PAGAMENTO[i.metodoPagamento] : '',
-      i.pagatoAt ? `${dataCompleta(i.pagatoAt)} ${oraDi(i.pagatoAt)}` : '', i.pagamentoOnline?.daRimborsare ? 'sì' : '',
+      i.pagatoAt ? `${dataCompleta(i.pagatoAt)} ${oraDi(i.pagatoAt)}` : '', daRimborsareAncora(i) ? 'sì' : '',
       `${dataCompleta(i.createdAt)} ${oraDi(i.createdAt)}`, i.oraCheckIn ? oraDi(i.oraCheckIn) : '', i.porta ?? '',
       i.rifiutoIngresso ? `${oraDi(i.rifiutoIngresso.ora)} · ${i.rifiutoIngresso.porta} · ${i.rifiutoIngresso.da}` : '',
       i.consensoMarketing ? 'sì' : 'no', i.etaAllaSerata != null ? String(i.etaAllaSerata) : '',
