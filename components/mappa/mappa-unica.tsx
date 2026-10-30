@@ -21,7 +21,7 @@ function Pin({ d, e }: { d: DatiMappa; e: Etichetta }) {
 }
 
 /**
- * L'unica mappa di "Come arrivare" (MapLibre + OpenFreeMap + rilievo Mapzen/AWS, senza chiavi né cookie).
+ * L'unica mappa di "Come arrivare" (MapLibre + OpenFreeMap, senza chiavi né cookie).
  * Si muove con i gesti, senza pulsanti: sul telefono un dito scorre la pagina e due dita zoomano e spostano la mappa;
  * sul computer si trascina e la rotella zooma quando il puntatore si è mosso sulla mappa (se la mappa arriva sotto il puntatore
  * mentre scorri la pagina, la rotella continua a scorrere la pagina). La libreria si scarica solo quando il riquadro sta per

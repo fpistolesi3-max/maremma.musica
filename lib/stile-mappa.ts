@@ -1,16 +1,15 @@
 /**
- * Lo stile della mappa unica di "Come arrivare", scritto da zero sui tasselli vettoriali di OpenFreeMap (schema OpenMapTiles)
- * più il rilievo ombreggiato dai DEM "terrarium" di Mapzen su AWS. Niente chiavi, niente cookie. Senza dipendenze, per i test.
+ * Lo stile della mappa unica di "Come arrivare", scritto da zero sui tasselli vettoriali di OpenFreeMap (schema OpenMapTiles).
+ * Niente rilievo ombreggiato (scelta del proprietario). Niente chiavi, niente cookie. Senza dipendenze, per i test.
  *
- * Da lontano: costa, mare, rilievo, paesi e grandi strade. Da vicino: tutte le strade con il nome, edifici, parcheggi, numeri civici.
+ * Da lontano: costa, mare, paesi e grandi strade. Da vicino: tutte le strade con il nome, edifici, parcheggi, numeri civici.
  */
 
 const osso = (a: number) => `rgba(225,215,201,${a})`;
 
-// Il sito di notte: terra quasi nera, mare blu notte, colline in rilievo appena illuminate, strade e nomi in osso.
+// Il sito di notte: terra quasi nera, mare blu notte, strade e nomi in osso.
 const t = {
   terra: '#11141a', mare: '#0c2236', costa: osso(0.38), bosco: '#131b17', campi: '#15181d', abitato: '#1a1e25', edificio: '#232831', bordoEdificio: '#2e343e',
-  ombra: '#020305', luce: 'rgba(225,215,201,0.2)', accento: '#05070a', rilievo: 0.55,
   strada: osso, involucro: '#0c0f13', traghetto: 'rgba(111,156,192,0.55)', ferrovia: osso(0.3),
   testo: '#e1d7c9', testo2: 'rgba(225,215,201,0.66)', alone: '#0b0e12', testoMare: '#6f9cc0', parcheggio: '#e1d7c9', suParcheggio: '#0c0f14',
 };
@@ -22,7 +21,6 @@ export const ATTRIBUZIONI = [
   { nome: '© OpenStreetMap', href: 'https://www.openstreetmap.org/copyright' },
   { nome: 'OpenMapTiles', href: 'https://openmaptiles.org/' },
   { nome: 'OpenFreeMap', href: 'https://openfreemap.org' },
-  { nome: 'rilievo Mapzen/AWS', href: 'https://registry.opendata.aws/terrain-tiles/' },
 ];
 
 const NOME = ['coalesce', ['get', 'name:it'], ['get', 'name:latin'], ['get', 'name']];
@@ -50,30 +48,12 @@ export function stileMappa() {
     glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources: {
       omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' },
-      dem: {
-        // tasselli da 256 px letti come 512: si scarica un livello di zoom più in basso (circa un quarto delle tessere), rilievo appena più morbido
-        type: 'raster-dem', encoding: 'terrarium', tileSize: 512, maxzoom: 12,
-        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-      },
     },
     layers: [
       { id: 'terra', type: 'background', paint: { 'background-color': t.terra } },
       { id: 'abitato', type: 'fill', source: 'omt', 'source-layer': 'landuse', filter: classe('residential', 'suburb', 'neighbourhood', 'commercial', 'industrial', 'retail'), paint: { 'fill-color': t.abitato, 'fill-opacity': lineare(8, 0.9, 15, 0.5) } },
       { id: 'campi', type: 'fill', source: 'omt', 'source-layer': 'landcover', minzoom: 11, filter: classe('farmland', 'grass'), paint: { 'fill-color': t.campi, 'fill-outline-color': t.abitato } },
       { id: 'bosco', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: classe('wood', 'forest'), paint: { 'fill-color': t.bosco, 'fill-opacity': 0.8 } },
-      // il rilievo sta sopra la terra e sotto il mare: colline e montagne, ovunque sia la serata
-      {
-        id: 'rilievo', type: 'hillshade', source: 'dem',
-        paint: {
-          'hillshade-method': 'multidirectional',
-          'hillshade-exaggeration': lineare(7, t.rilievo + 0.15, 12, t.rilievo, 14, t.rilievo * 0.4, 15.5, 0), // da vicino il rilievo sparisce: i DEM sono troppo grossolani
-          'hillshade-shadow-color': [t.ombra, t.ombra, t.ombra, t.ombra],
-          'hillshade-highlight-color': [t.luce, t.luce, t.luce, t.luce],
-          'hillshade-illumination-direction': [315, 270, 0, 225],
-          'hillshade-illumination-altitude': [40, 35, 35, 30],
-          'hillshade-accent-color': t.accento,
-        },
-      },
       { id: 'mare', type: 'fill', source: 'omt', 'source-layer': 'water', filter: nonTunnel, paint: { 'fill-color': t.mare } },
       { id: 'costa', type: 'line', source: 'omt', 'source-layer': 'water', filter: ['all', nonTunnel, ['match', ['geometry-type'], ['Polygon', 'MultiPolygon'], true, false]], paint: { 'line-color': t.costa, 'line-width': lineare(6, 0.5, 12, 1, 16, 1.6) } },
       { id: 'fiumi', type: 'line', source: 'omt', 'source-layer': 'waterway', minzoom: 9, filter: classe('river', 'canal'), paint: { 'line-color': t.mare, 'line-width': largo(9, 0.8, 14, 2.5, 18, 6) } },

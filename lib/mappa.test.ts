@@ -86,13 +86,14 @@ test('zoom iniziale: la stessa distanza attorno al pin su telefono e computer, i
   assert.ok(zoomZona(504, 43) > zoomZona(343, 43), 'riquadro più largo, zoom più vicino');
 });
 
-test('stile della mappa: solo OpenFreeMap e rilievo Mapzen/AWS, senza chiavi, con le attribuzioni', () => {
+test('stile della mappa: solo OpenFreeMap, senza rilievo né chiavi, con le attribuzioni', () => {
   const s = stileMappa();
   const indirizzi = JSON.stringify([s.glyphs, s.sources]);
-  for (const u of indirizzi.match(/https:\/\/[^"/]+/g) ?? []) assert.ok(['https://tiles.openfreemap.org', 'https://s3.amazonaws.com'].includes(u), u);
+  for (const u of indirizzi.match(/https:\/\/[^"/]+/g) ?? []) assert.equal(u, 'https://tiles.openfreemap.org', u);
   assert.ok(!/key=|token=/i.test(indirizzi), 'nessuna chiave');
-  assert.deepEqual(ATTRIBUZIONI.map((a) => a.nome), ['© OpenStreetMap', 'OpenMapTiles', 'OpenFreeMap', 'rilievo Mapzen/AWS']);
+  assert.deepEqual(ATTRIBUZIONI.map((a) => a.nome), ['© OpenStreetMap', 'OpenMapTiles', 'OpenFreeMap']);
   const id = s.layers.map((l) => l.id);
   assert.equal(new Set(id).size, id.length, 'livelli con nomi unici');
-  for (const l of ['rilievo', 'mare', 'nomi-strade', 'parcheggi', 'citta']) assert.ok(id.includes(l), l);
+  for (const l of ['mare', 'nomi-strade', 'parcheggi', 'citta']) assert.ok(id.includes(l), l);
+  assert.ok(!s.layers.some((l) => l.type === 'hillshade'), 'niente rilievo ombreggiato');
 });
