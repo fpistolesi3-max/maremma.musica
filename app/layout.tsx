@@ -21,7 +21,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="it">
+    // data-intro su <html> lo mette lo script dell'intro prima dell'idratazione (app/(sito)/layout.tsx)
+    <html lang="it" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { attendiFineIntro } from '@/lib/intro/regole';
 
 const GLIFI = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&/<>+*';
 
@@ -17,7 +18,8 @@ export function TitoloDecodifica({ testo, className = '', as: Tag = 'span', rita
 
   useEffect(() => {
     let vivo = true;
-    document.fonts.ready.then(() => { if (vivo) setFontPronti(true); });
+    // se c'è l'intro del brand la decodifica parte dopo, così si vede invece di finire sotto la copertura
+    Promise.all([document.fonts.ready, attendiFineIntro()]).then(() => { if (vivo) setFontPronti(true); });
     return () => { vivo = false; };
   }, []);
 
