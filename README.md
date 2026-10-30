@@ -188,6 +188,19 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
 - Admin: `/admin` home con la prossima serata e le cose da fare (rimborsi, tavoli in attesa) · serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con tipi di prevendita e tavoli (spesa minima, zona, posti, stato, mappa con piantina del locale) · PR · iscrizioni
   (annulla/rimborsa/CSV) · staff.
 
+## Animazioni
+
+Solo sulle pagine pubbliche, mai alla porta né nelle aree riservate; tutte rispettano `prefers-reduced-motion`. Quelle della pagina (caricamento della home, titoli che si decodificano, copertina viva, nastro, entrate allo scroll, pulsanti) sono in CSS o in piccoli componenti senza librerie.
+
+### Intro del brand "Mai Mollare"
+
+All'apertura del sito parte un'intro di 2,8 s (uscita compresa) disegnata con **p5.js** su un canvas sopra la pagina, poi si toglie e lascia vedere il sito. Le versioni sono tre, tutte nel codice: **giradischi** (in uso: lo slogan scende dal piatto, fa lo scratch e poi sta accanto al disco; uscita a spazzata, il braccio del giradischi), **classico** (tipografia cinetica e blob; uscita a tenda o a blob) e **techno** (a scatti su 128 BPM, glitch a fette; uscita a strisce). Per cambiare versione basta `INTRO` in `lib/intro/regole.ts`. Palette dell'intro: 4 colori, `#111`, `#EFEBE3`, petrolio `#12555A`, arancio `#F05A28`; niente gradienti. Caratteri: Archivo Black per lo slogan, DM Serif Display (logo vettoriale del classico) e Martian Mono (techno), in `public/fonts/` con licenza OFL; il logo è `public/img/logo-maremma-musica-intro.webp` (il PNG originale compresso, 71 KB).
+- **Quando parte**: alla prima pagina pubblica della sessione (`sessionStorage`, chiave `mm-intro`); l'avvio della web app installata è una sessione nuova, quindi parte anche lì. Mai sul biglietto (`/biglietto`), mai con `prefers-reduced-motion`, mai nelle aree riservate (hanno altri layout). Nella stessa sessione **sostituisce il caricamento della home**, e i titoli che si decodificano partono dopo l'uscita (`attendiFineIntro`).
+- **Come**: uno script inline nel layout delle pagine pubbliche (`scriptIntro`) decide prima del primo disegno e mette `data-intro` su `<html>`: la copertura nera c'è dal primo fotogramma, senza lampo del sito. `components/intro-brand.tsx` carica con un import dinamico `lib/intro/avvio.ts`, che porta p5, i font e il logo: **mai nel bundle comune**. Un tocco, un clic, la rotella o un tasto la saltano.
+- **Se qualcosa va storto**: se l'animazione non parte entro 2 s dall'apertura della pagina, o c'è un errore, si va dritti al sito; senza JS la copertura sparisce da sola (CSS).
+- **Peso**, solo quando l'intro parte: p5 circa 256 KB compressi, modulo dell'intro 6 KB, logo 71 KB, Archivo Black 19 KB.
+- **Disegno** in `lib/intro/sketch.ts`: tutto dipende dal tempo, quindi ogni fotogramma si ridisegna uguale (utile per esportare il video per i social). Composizione responsive: 1920×1080 è il riferimento, sul telefono in verticale testo e disco si ricompongono.
+
 ## Da completare con il cliente (`TODO: cliente` nel codice)
 
 Location, orari, prezzo e posti di Halloween Party · regolamento del premio · ragione sociale e P.IVA ·

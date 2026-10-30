@@ -367,6 +367,17 @@ a.mm-btn--primario:hover, a.mm-btn--primario:active { color: var(--su-arancio); 
 @keyframes mm-cari-fine { 0%, 70% { clip-path: inset(0 0 0 0); } 99% { clip-path: inset(0 0 100% 0); } 100% { clip-path: inset(0 0 100% 0); visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .mm-caricamento { display: none; } }
 
+/* Intro del brand (components/intro-brand.tsx): c'è solo se lo script inline ha messo data-intro su <html>.
+   Copre la pagina dal primo fotogramma con il nero dell'intro (#111, palette dell'intro); nella stessa sessione sostituisce il caricamento.
+   Se il JS non prende il controllo in tempo (data-intro ancora vuoto), la copertura sparisce da sola. */
+.mm-intro { display: none; }
+html[data-intro] .mm-intro { display: block; position: fixed; inset: 0; z-index: 200; background: #111; touch-action: none; }
+html[data-intro=""] .mm-intro { animation: mm-intro-attesa 0s linear 2.2s forwards; }
+html[data-intro="in-corso"] .mm-intro { background: transparent; }
+html[data-intro] .mm-caricamento { display: none; }
+.mm-intro canvas { display: block; }
+@keyframes mm-intro-attesa { to { visibility: hidden; } }
+
 /* Entrate allo scroll: lo stato "prima" lo mette solo il JS, senza JS tutto è visibile. */
 .mm-rivela { transition: clip-path .7s cubic-bezier(.2,.7,.2,1) calc(var(--i, 0) * 90ms), transform .7s cubic-bezier(.2,.7,.2,1) calc(var(--i, 0) * 90ms), opacity .5s calc(var(--i, 0) * 90ms); }
 .mm-rivela--prima { clip-path: inset(100% 0 0 0); transform: translateY(32px); opacity: 0; }
