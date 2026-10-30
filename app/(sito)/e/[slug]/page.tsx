@@ -9,6 +9,9 @@ import { dataPunti, esceTra, euro, giornoSett, giornoSettLungo, meseCorto, meseL
 import { BottoneLista, Locandina, PuoIscriversi } from '@/components/evento';
 import { Disco, Freccia } from '@/components/ui';
 import { ComeArrivare } from '@/components/come-arrivare';
+import { fotoSerataPubblica } from '@/lib/dati/foto';
+import { GrigliaFoto } from '@/components/foto-serata';
+import { NotaFoto } from '@/components/foto-privacy';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +41,7 @@ export default async function PaginaEvento({ params }: Props) {
   const puo = PuoIscriversi(ep.stato);
   const tavoli = (await tavoliPubblici(e.slug))?.tavoli ?? [];
   const tavoliLiberi = tavoli.filter((t) => t.libero);
+  const fotoSerata = await fotoSerataPubblica(e.id);
 
   const domande = [
     ...(e.highlight?.toLowerCase().includes('premio') ? [{ d: `Come si vince il ${e.highlight.toLowerCase().replace(/ alla.*$/, '')}?`, r: 'Regolamento in arrivo: chi vota, a che ora si premia e come si ritira il premio.' /* TODO: cliente — regolamento premio */ }] : []),
@@ -135,6 +139,18 @@ export default async function PaginaEvento({ params }: Props) {
           </div>
         </div>
       </section>
+
+      {/* FOTO: solo a serata finita e se ce ne sono */}
+      {fotoSerata && (
+        <section id="foto" className="contenitore flex scroll-mt-4 flex-col gap-5 border-t border-linea pb-14 pt-10 md:gap-8 md:pb-24 md:pt-16">
+          <div className="flex items-end justify-between gap-4">
+            <h2 className="m-0 font-display text-[48px] font-black uppercase leading-[.86] md:text-[72px]">Le <span className="text-arancio">foto</span></h2>
+            <span className="font-mono text-[11px] leading-4 text-osso-2 md:text-[13px]">{String(fotoSerata.foto.length).padStart(2, '0')} FOTO</span>
+          </div>
+          <GrigliaFoto foto={fotoSerata.foto.map(({ id, urlGrande, urlMini, larghezza, altezza }) => ({ id, urlGrande, urlMini, larghezza, altezza }))} titolo={e.nome} data={dataPunti(e.data)} credito={fotoSerata.credito} />
+          <NotaFoto serata={`${e.nome} ${dataPunti(e.data)}`} />
+        </section>
+      )}
 
       {/* COME ARRIVARE */}
       <ComeArrivare e={e} coordinate={coordinate} visibile={visibile} />

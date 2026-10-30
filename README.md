@@ -9,14 +9,14 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (84 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, mappa ed etichetta), `npm run typecheck`,
+Altri comandi: `npm test` (98 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
 ## Dati
 
 Per ora niente database: tutto sta in `.data/db.json`, creato e riempito da solo al primo avvio
-(`lib/dati/seed.ts`). Le locandine caricate dall'admin finiscono in `.data/media/`.
+(`lib/dati/seed.ts`). Le locandine caricate dall'admin finiscono in `.data/media/`; le foto delle serate in `.data/media/foto/` e i loro dati in `.data/foto.json`.
 Tutto l'accesso ai dati passa da `lib/dati/*` e ogni funzione controlla il ruolo di chi chiede,
 come faranno le policy RLS: il PR riceve solo i propri iscritti, lo staff porta vede l'elenco ma dei PR
 solo il nome della lista, l'admin vede tutto. Quando si passa a Supabase lo schema con le stesse regole
@@ -69,6 +69,37 @@ Le voci sono solo navigazione: i permessi restano in `richiedi` e `lib/dati/*`.
 ### Serata in copertina
 
 *Modifica serata → In copertina nella home* (campo `inCopertina` dell'evento) sceglie quale serata la home mostra a tutto schermo. Una sola alla volta: spuntandola si toglie dalle altre (`salvaEvento`, solo admin); nella lista serate dell'admin porta il segno "Copertina". Se nessuna è scelta, o la scelta è in bozza o già passata, si mostra la prossima data; con due scelte per errore vince la più vicina (`sceltaCopertina` in `lib/regole.ts`). "Prossime date" e il nastro restano in ordine di data e includono anche la serata in copertina. Supabase: `supabase/migrations/20261027000000_serata_in_copertina.sql` (colonna `eventi.in_copertina`; RLS invariata).
+
+### Foto delle serate
+
+Sezione **Foto** nella scheda della serata (`/admin/eventi/[id]`, riquadro con le prime miniature) e pagina di lavoro `/admin/eventi/[id]/foto`
+(solo admin). Si caricano molte foto insieme (coda da 3, avanzamento per foto, "Riprova" solo su quella fallita), si scelgono fino a 4
+**in evidenza** (se non ne scegli, il sito usa le prime 4 visibili), si ordina con "← Prima / Dopo →", si **nasconde** o si **elimina**.
+Campo facoltativo "Foto di …" (un credito per serata, max 80 caratteri). Massimo 150 foto per serata. La pagina mostra anche lo spazio occupato.
+
+- **Cosa vede il pubblico**: pagina della serata passata (`/e/[slug]#foto`) con griglia e vista a schermo intero (scorrimento col dito, frecce,
+  tastiera, Esc; `components/foto-serata.tsx`, senza librerie); **Galleria** con locandina, le foto in evidenza e "Vedi tutte (N)";
+  **home** con le foto in evidenza delle ultime serate. Le foto si vedono solo se la serata è pubblicata **e finita** e la foto non è nascosta.
+  Senza foto vere non compare nessun riquadro "da fornire": la sezione della home sparisce e la Galleria dice "Le foto arriveranno presto".
+  Testo alternativo automatico: "Foto della serata X del gg.mm, numero n di N".
+- **Come si caricano**: il browser riduce ogni foto (lato lungo 2000 px + miniatura 600 px, sempre JPEG ridisegnato: **EXIF e posizione GPS non
+  arrivano mai sul server**, `components/admin/riduci-foto.ts`) e la manda **direttamente a Supabase Storage** con un indirizzo firmato che il server
+  rilascia solo a un admin (`preparaFoto`), senza passare dalla funzione Vercel (limite 4,5 MB). Poi il server controlla che i due file ci siano e
+  pesino meno di 1,5 MB (`confermaFoto`) e solo allora la foto compare. I caricamenti rimasti a metà (pagina chiusa) si ripuliscono dopo un'ora,
+  alla prossima apertura della pagina Foto. In sviluppo, senza Supabase, i file vanno su disco (`/api/admin/foto/carica`, servite da `/media/foto/…`).
+- **Dove stanno i dati**: NON nella riga `archivio_mvp` (si riscrive a ogni vendita). Tabella `foto_serate` (una riga per foto) e `serate_foto_credito`,
+  bucket pubblico `foto-serate`; tutto da `lib/dati/foto.ts` con il controllo del ruolo admin, regole pure in `lib/foto.ts`. Con lo schema
+  relazionale basta aggiungere la chiave esterna `evento_id → eventi(id) on delete cascade` (vedi commento nella migrazione).
+- **Spazio**: circa 600 KB a foto (grande ~500 KB + miniatura ~60 KB): 60 foto ≈ 36 MB, 100 foto ≈ 60 MB. Nel piano gratuito di Supabase (1 GB di
+  Storage) entrano circa 16–27 serate. Il pubblico scarica quasi solo miniature.
+- **Eliminazione**: "Elimina" toglie file e dati di una foto; "Elimina tutte le foto della serata" (`eliminaFotoSerata`) le toglie tutte e azzera il
+  credito. **Una serata oggi non si può eliminare dall'app** (si può solo togliere dalla pubblicazione, e allora le sue foto spariscono dal sito): quando
+  si aggiungerà "Elimina serata" dovrà chiamare `eliminaFotoSerata`. Dopo l'eliminazione l'immagine può restare visibile per un po' a chi ha il
+  link diretto (cache dello Storage).
+- **Privacy**: in fondo alla Galleria e alla griglia della serata c'è "Ti riconosci e vuoi togliere una foto? Scrivici" (`mailto:` a
+  `maremmamusica@gmail.com`; chi scrive viene accontentato eliminando la foto dalla pagina Foto). **L'informativa privacy va completata con
+  il trattamento delle foto (persone riconoscibili, base giuridica, tempi di conservazione, richieste di rimozione) e verificata dal consulente**
+  prima di pubblicare foto vere: serate con minori o categorie particolari vanno valutate a parte.
 
 ### Serate senza telefono (ingresso con documento)
 Per le serate dove il telefono non si porta: *Modifica serata → Ingresso senza telefono (con documento)* (campo `senzaTelefono` dell'evento). La prevendita si compra online come sempre (Stripe, nome, cognome e data di nascita obbligatori, un biglietto per persona).
@@ -245,7 +276,7 @@ All'apertura del sito parte un'intro di 2,8 s (uscita compresa) disegnata su un 
 ## Da completare con il cliente (`TODO: cliente` nel codice)
 
 Location, orari, prezzo e posti di Halloween Party · regolamento del premio · ragione sociale e P.IVA ·
-testi di chi siamo, residenti, foto · servizio email · revisione legale di privacy e termini.
+testi di chi siamo, residenti · foto delle serate (da caricare dalla scheda serata) e informativa sulle foto · servizio email · revisione legale di privacy e termini.
 Le serate Solchi e Capodanno, i PR e le persone in lista sono esempi dei mockup: da togliere prima del lancio.
 
 ## Istanza online di test (Vercel + Supabase)
@@ -253,7 +284,7 @@ Le serate Solchi e Capodanno, i PR e le persone in lista sono esempi dei mockup:
 Serve per provare il sito dal telefono, sempre all'ultima versione. Ogni push sul branch collegato aggiorna l'indirizzo in 1–2 minuti.
 
 1. **Supabase** → nuovo progetto (regione EU). Applica le migrazioni di `supabase/migrations/` (SQL editor, o `supabase db push`);
-   per ora serve solo `20261005000000_archivio_mvp.sql` (tabella provvisoria + bucket `locandine`). Le migrazioni dei tavoli
+   per ora servono `20261005000000_archivio_mvp.sql` (tabella provvisoria + bucket `locandine`) e `20261030000000_foto_serate.sql` (tabelle `foto_serate` e `serate_foto_credito`, RLS senza policy, bucket pubblico `foto-serate` solo JPEG/WebP fino a 1,5 MB: non servono altre regole, si carica solo con gli indirizzi firmati dal server). Le migrazioni dei tavoli
    (`20261006…`–`20261012…`) e della prevendita online (`20261013…`) sono per lo schema relazionale, con le stesse regole di
    `lib/dati/tavoli.ts`, `lib/dati/prevendita.ts` e `lib/dati/porta.ts`. Sull'archivio provvisorio i dati vecchi (in lista senza
    aver pagato, pagati al PR) si sistemano da soli alla lettura: diventano pagati online con un pagamento di prova.
