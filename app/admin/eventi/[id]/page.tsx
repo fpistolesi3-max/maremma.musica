@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
 import { serataLive } from '@/lib/dati/admin';
 import { canaliSerata } from '@/lib/dati/gestione-pr';
+import { riepilogoFoto } from '@/lib/dati/foto';
 import { dataPunti, euro, giornoSett, numeroEvento, ora, orari } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
 import { eventoPassato, testoPrezzoTipi } from '@/lib/regole';
@@ -21,6 +22,7 @@ export default async function SerataLive({ params }: Props) {
   const l = await serataLive(s, id);
   if (!l) notFound();
   const canali = await canaliSerata(s, id);
+  const foto = await riepilogoFoto(s, id);
   const e = l.evento;
   const max = Math.max(1, ...l.perMezzora.map((x) => x.n));
   const adesso = Date.now();
@@ -37,6 +39,7 @@ export default async function SerataLive({ params }: Props) {
           <Link className="mm-btn mm-btn--primario" href={`/admin/eventi/${e.id}/modifica`}>Modifica serata</Link>
           <MenuAltro>
             <Link href={`/admin/eventi/${e.id}/duplica`}>Duplica serata</Link>
+            <Link href={`/admin/eventi/${e.id}/foto`}>Foto della serata</Link>
             <Link href={`/admin/iscrizioni?evento=${e.id}`}>Tutte le vendite</Link>
             <a href={`/api/admin/csv/${e.id}`}>Esporta CSV</a>
             {e.senzaTelefono && <Link href={`/admin/eventi/${e.id}/lista`}>Lista da stampare</Link>}
@@ -95,6 +98,26 @@ export default async function SerataLive({ params }: Props) {
           <Numero etichetta="Prevendite vendute" valore={String(l.inLista)} nota={l.perTipo.length > 0 ? l.perTipo.map((t) => `${t.nome.toUpperCase()} ${t.venduti}`).join(' · ') : undefined} />
           <Numero etichetta="Entrati alla porta" valore={String(l.entrati)} colore="text-ok" nota={`${l.entratiDaLista} DA PREVENDITE${l.tavoli.totale > 0 ? ` · ${l.tavoli.entrati} PERSONE DAI TAVOLI` : ''}`} bordo />
         </div>
+      </section>
+
+      <section aria-label="Foto della serata" className="flex flex-col gap-3 border-b border-linea px-4 py-6 md:px-12">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Foto</h2>
+          <Link href={`/admin/eventi/${e.id}/foto`} className="link-sottolineato whitespace-nowrap py-2">Gestisci le foto →</Link>
+        </div>
+        {foto.totale === 0 ? (
+          <p className="m-0 text-[14px] text-osso-2">Nessuna foto. Dopo la serata carica quelle belle: compaiono sulla pagina della serata, nella Galleria e in home.</p>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1">
+              {foto.anteprime.map((f) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={f.id} src={f.urlMini} alt="" className="h-14 w-14 object-cover" />
+              ))}
+            </div>
+            <span className="font-mono text-[12px] leading-4 text-osso-2">{foto.totale} FOTO{foto.nascoste ? ` · ${foto.nascoste} NASCOSTE` : ''}</span>
+          </div>
+        )}
       </section>
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">

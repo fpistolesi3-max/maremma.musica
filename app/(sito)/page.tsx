@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { eventiPubblici } from '@/lib/dati/pubblico';
+import { serateConFoto } from '@/lib/dati/foto';
+import { fotoPerHome, testoAltFoto } from '@/lib/foto';
 import { chipLista } from '@/lib/regole';
 import { giorno2, giornoSettLungo, meseCorto, numeroEvento, orari, dataPunti } from '@/lib/formato';
 import { ConCifraArancio, Locandina, Nastro, RigaEvento, luogo } from '@/components/evento';
@@ -13,7 +15,8 @@ import { PulsanteMorph } from '@/components/pulsante-morph';
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const { prossimi, passati, copertina: primo } = await eventiPubblici();
+  const { prossimi, copertina: primo } = await eventiPubblici();
+  const foto = fotoPerHome(await serateConFoto());
 
   return (
     <>
@@ -107,27 +110,33 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* SERATE PASSATE */}
-      <section id="serate" className="contenitore flex flex-col gap-5 pb-14 md:gap-10 md:pb-[120px]">
-        <div className="flex items-end justify-between">
-          <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Serate<br /><span className="text-arancio">passate</span></h2>
-          <Link href="/galleria" className="link-sottolineato hidden md:inline">Tutte le foto →</Link>
-        </div>
-        <div className="grid grid-cols-2 grid-rows-[220px_150px] gap-2 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-[260px_260px] md:gap-4">
-          <div className="mm-foto col-span-2 md:col-span-1 md:row-span-2">Foto serata · consolle · da fornire</div>
-          <div className="mm-foto">Foto · pubblico</div>
-          {passati[0] ? (
-            <Link href={`/e/${passati[0].slug}`} className="relative overflow-hidden md:row-span-2">
-              <Locandina e={passati[0]} className="absolute inset-0 h-full w-full" alt={`Locandina della serata del ${dataPunti(passati[0].data)}: ${passati[0].nome}`} />
-              <span className="absolute inset-x-0 bottom-0 bg-vinile px-[10px] py-2 font-mono text-[10px] leading-3 text-osso md:p-[14px] md:text-[11px] md:leading-[14px]">
-                {dataPunti(passati[0].data)} · {passati[0].nome.toUpperCase()}
-              </span>
-            </Link>
-          ) : <div className="mm-foto">Foto · location</div>}
-          <div className="mm-foto hidden md:flex">Foto · location di giorno</div>
-        </div>
-        <Link href="/galleria" className="link-sottolineato py-3 md:hidden">Tutte le foto →</Link>
-      </section>
+      {/* SERATE PASSATE: solo con foto vere; senza foto la sezione non c'è */}
+      {foto.length > 0 && (
+        <section id="serate" className="contenitore flex flex-col gap-5 pb-14 md:gap-10 md:pb-[120px]">
+          <div className="flex items-end justify-between">
+            <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Serate<br /><span className="text-arancio">passate</span></h2>
+            <Link href="/galleria" className="link-sottolineato hidden md:inline">Tutte le foto →</Link>
+          </div>
+          <div className={foto.length >= 4
+            ? 'grid grid-cols-2 grid-rows-[220px_150px] gap-2 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-[260px_260px] md:gap-4'
+            : `grid grid-cols-2 gap-2 md:gap-4 ${['', 'md:grid-cols-1', 'md:grid-cols-2', 'md:grid-cols-3'][foto.length]}`}>
+            {foto.map(({ evento: e, foto: f }, i) => {
+              const mosaico = foto.length >= 4;
+              const posto = mosaico ? ['col-span-2 md:col-span-1 md:row-span-2', '', 'md:row-span-2', 'hidden md:block'][i] : `aspect-[4/3] ${foto.length === 1 ? 'col-span-2 md:col-span-1' : ''}`;
+              return (
+                <Link key={f.id} href={`/e/${e.slug}#foto`} className={`relative block overflow-hidden bg-[#111419] ${posto}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={f.urlMini} alt={testoAltFoto(e.nome, dataPunti(e.data))} width={f.larghezza} height={f.altezza} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                  <span className="absolute inset-x-0 bottom-0 bg-vinile px-[10px] py-2 font-mono text-[10px] leading-3 text-osso md:p-[14px] md:text-[11px] md:leading-[14px]">
+                    {dataPunti(e.data)} · {e.nome.toUpperCase()}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+          <Link href="/galleria" className="link-sottolineato py-3 md:hidden">Tutte le foto →</Link>
+        </section>
+      )}
     </>
   );
 }
