@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (75 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, mappa ed etichetta), `npm run typecheck`,
+Altri comandi: `npm test` (83 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, mappa ed etichetta), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -61,8 +61,10 @@ Le voci sono solo navigazione: i permessi restano in `richiedi` e `lib/dati/*`.
   poi scade e torna libero. Il QR c'è (a schermo e per email) solo a pagamento ricevuto: webhook `/api/pagamenti/stripe`,
   ritorno del cliente sulla pagina del biglietto e controllo giornaliero del cron, come per i tavoli. Chi riprova prima di
   pagare ritrova la stessa iscrizione. Un pagamento arrivato tardi vale se nel lotto c'è ancora posto e la serata non è
-  iniziata, altrimenti è "da rimborsare" (email agli admin, filtro nelle Iscrizioni). Il rimborso lo fa solo l'admin
-  ("Rimborsa" restituisce i soldi su Stripe); il cliente non annulla da solo. Lotti a 0 € e serate libere: QR subito.
+  iniziata, altrimenti è "da rimborsare" (email agli admin, elenco in `/admin/rimborsi`). Il pagamento deve anche avere
+  l'importo e la valuta del prezzo (centesimi esatti, euro), altrimenti non conferma niente (vedi *Rimborsi* qui sotto). Il rimborso
+  lo fa solo l'admin ("Annulla e rimborsa" per ciò che è pagato, "Annulla" solo per ciò che non lo è); il cliente non annulla da solo.
+  Lotti a 0 € e serate libere: QR subito.
 
 ### Serata in copertina
 
@@ -114,8 +116,8 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   ancora da pagare, "Manda il link su WhatsApp" (al numero del cliente) e "Copia il link per pagare". Anche il link dei tavoli
   del PR (`/tavoli/[serata]?pr=…`) il sito lo ricorda per 3 giorni, come quello della lista. La conferma arriva dal webhook
   `/api/pagamenti/stripe` (firma con `STRIPE_WEBHOOK_SECRET`) e, se tarda, dal ritorno del cliente sulla sua pagina. Un pagamento
-  arrivato quando il tavolo era già di un altro finisce nello storico come "da rimborsare"; "Rimborsa" restituisce i soldi
-  su Stripe. Senza chiave Stripe, in sviluppo e sull'istanza di prova, c'è la pagina finta `/dev/pagamento`: tutto il giro
+  arrivato quando il tavolo era già di un altro, doppio o con importo sbagliato finisce tra i "Da rimborsare"
+  (`/admin/rimborsi`); "Annulla e rimborsa" su un tavolo pagato restituisce i soldi su Stripe e libera il tavolo. Senza chiave Stripe, in sviluppo e sull'istanza di prova, c'è la pagina finta `/dev/pagamento`: tutto il giro
   senza soldi veri. Sul sito vero senza `STRIPE_SECRET_KEY` i tavoli si vedono ma non si prenotano. Una volta al giorno il cron
   chiede a Stripe l'esito delle pagine di pagamento rimaste senza risposta, così un tavolo pagato non torna libero se il webhook
   non arriva. Non esiste "Segna pagato": un tavolo diventa "in attesa" o "pagato" solo con una prenotazione pagata sul sito.
@@ -180,13 +182,52 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   lo staff alla porta trova la lista di un PR con "Cerca per nome" e non vede i numeri dei PR.
 - I PR non incassano: niente "Ha pagato" e niente consegne di soldi. Il PR vede nella sua area solo i clienti che hanno
   pagato (o sono entrati); la classifica conta solo le prevendite pagate. Serata live dell'admin: prevendita incassata
-  online e tavoli a parte (più gli ingressi in cassa storici, se ci sono), più le prevendite da rimborsare.
+  online e tavoli a parte (più gli ingressi in cassa storici, se ci sono), più i pagamenti da rimborsare. Sotto, il **Riepilogo** della serata:
+  incassato lordo, rimborsato e netto (`soldiSerata` in `lib/dati/rimborsi.ts`, dai dati esistenti, in centesimi interi),
+  prevendite vendute per tipo, tavoli pagati, entrati alla porta.
 - Canali `/gestione/canali` (solo admin): chi si iscrive senza PR, per canale (Instagram, Facebook, TikTok,
   WhatsApp, Google, locandina, diretto). Il canale si riconosce dal social di provenienza o dal link
   etichettato `/e/[slug]?da=instagram` (la pagina dà i link pronti da copiare). Anche nella serata live
   dell'admin e alla porta ("Lista: Maremma Musica · da Instagram").
-- Admin: `/admin` home con la prossima serata e le cose da fare (rimborsi, tavoli in attesa) · serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con tipi di prevendita e tavoli (spesa minima, zona, posti, stato, mappa con piantina del locale) · PR · iscrizioni
-  (annulla/rimborsa/CSV) · staff.
+- Admin: `/admin` home con la prossima serata e le cose da fare (rimborsi da fare, pagamenti con importo sbagliato, tavoli in attesa, serate in bozza con "Cosa manca"; ogni voce porta al punto giusto) · serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con tipi di prevendita e tavoli (spesa minima, zona, posti, stato, mappa con piantina del locale) · PR · iscrizioni
+  (annulla e rimborsa/CSV) · rimborsi (`/admin/rimborsi`) · staff.
+
+## Rimborsi
+
+Tutto sta in `lib/dati/rimborsi.ts` (dati, solo admin) e `lib/rimborso.ts` (chiamata a Stripe ed email).
+
+- **Da rimborsare** (`/admin/rimborsi`, anche filtrato per serata o motivo): ogni pagamento che non vale, con persona, importo, motivo e pulsante
+  "Rimborsa". Ci finiscono: pagato quando il lotto era pieno, la serata già iniziata, la persona aveva già un QR, il tavolo era di un altro
+  (`motivo` sul pagamento principale); un **secondo pagamento** per un ordine già pagato e un pagamento con **importo o valuta diversi** dal prezzo
+  (`inPiu` sul pagamento online). Questi ultimi non toccano l'ordine: non sovrascrivono il pagamento vero e non confermano niente. In fondo gli ultimi
+  50 restituiti.
+- **Idempotenza**: un rimborso passa da due scritture, "in corso" *prima* di chiamare Stripe (con la chiave `mm-rimborso-…`, mandata a Stripe come
+  `Idempotency-Key`) e "fatto" dopo. Doppio clic o due admin insieme: il secondo viene fermato ("già in corso", 30 s). Errore di rete o 5xx: l'esito è
+  ignoto, resta "in corso" e il nuovo tentativo riusa la **stessa chiave**, quindi Stripe non rimborsa due volte. Rifiuto netto di Stripe (4xx): non resta
+  niente in corso e il tentativo dopo ha una chiave nuova. `charge_already_refunded` vale come fatto.
+- **Webhook `charge.refunded`**: un rimborso *totale* fatto da noi o dalla Dashboard di Stripe si registra una volta sola e, se è il pagamento principale,
+  chiude l'ordine (QR spento, tavolo libero). Parziale: ignorato.
+- **Annulla e rimborsa**: per ciò che è stato pagato resta solo questo (con conferma); l'ordine si chiude solo dopo che Stripe ha confermato, se il rimborso
+  fallisce resta com'è. "Annulla" senza rimborso solo per ciò che non è pagato (il server rifiuta l'annullo di un ordine pagato). Un ingresso in cassa
+  storico (contanti/POS) si restituisce a mano: si registra soltanto. Rimborsa solo l'admin.
+- **Commissione di Stripe**: il rimborso è sempre dell'importo intero pagato dal cliente; la commissione che Stripe ha già trattenuto non torna indietro
+  ed è a carico di Maremma Musica.
+- **Modalità prova**: i pagamenti `prova_…` si "rimborsano" subito senza chiamare nessuno. Per provare i pagamenti in più apri
+  `/dev/pagamento?doppio=1&p=<id>&email=<email>` (aggiungi `&t=i` per una prevendita): "Secondo pagamento" e "Importo sbagliato".
+
+## Da provare con Stripe vero
+
+Finché non c'è l'account Stripe questi punti sono coperti solo dai test (con `fetch` simulato) e dalla pagina di prova:
+
+1. Webhook: aggiungere l'evento `charge.refunded` accanto a `checkout.session.completed` (Dashboard → Webhook), stesso segreto `STRIPE_WEBHOOK_SECRET`.
+2. Pagamento con carta di prova: `amount_total` e `currency` arrivano nel webhook e coincidono col prezzo; un importo diverso non conferma.
+3. Rimborso dal pulsante: `POST /v1/refunds` con `payment_intent` e `Idempotency-Key`; il cliente vede il rimborso e arriva `charge.refunded`.
+4. Rimborso doppio: ripetere il clic subito e dopo qualche minuto → un solo rimborso nella Dashboard.
+5. Rimborso fatto dalla Dashboard di Stripe (non dal sito): l'iscrizione/il tavolo si chiude da solo e libera il tavolo.
+6. Doppio pagamento reale (due pagine di pagamento aperte e pagate): compare tra i "Da rimborsare" e l'ordine resta valido.
+7. Errore di rete durante il rimborso (interrompere la connessione): resta "in corso", il tentativo dopo non raddoppia.
+8. Rimborso di un pagamento già interamente rimborsato: Stripe risponde `charge_already_refunded` e il sito lo segna fatto.
+9. Rimborso parziale fatto dalla Dashboard: il sito non chiude niente.
 
 ## Da completare con il cliente (`TODO: cliente` nel codice)
 
