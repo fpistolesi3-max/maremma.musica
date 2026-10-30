@@ -101,15 +101,6 @@ export function stileMappa() {
         paint: { 'text-color': t.suParcheggio, 'text-halo-color': t.parcheggio, 'text-halo-width': 4 },
       },
       {
-        id: 'cime', type: 'symbol', source: 'omt', 'source-layer': 'mountain_peak', minzoom: 8,
-        filter: ['all', ['has', 'name'], ['>', ['coalesce', ['get', 'ele'], 0], 400]],
-        layout: {
-          'text-field': ['format', '▲ ', {}, NOME, {}, ['concat', '\n', ['to-string', ['get', 'ele']], ' m'], { 'font-scale': 0.8 }],
-          'text-font': REGOLARE, 'text-size': 10, 'text-transform': 'uppercase', 'text-letter-spacing': 0.12, 'text-max-width': 9,
-        },
-        paint: { 'text-color': t.testo2, 'text-halo-color': t.alone, 'text-halo-width': 1.4 },
-      },
-      {
         id: 'isole', type: 'symbol', source: 'omt', 'source-layer': 'place', filter: classe('island'), minzoom: 8,
         layout: { 'text-field': NOME, 'text-font': CORSIVO, 'text-size': 11, 'text-transform': 'uppercase', 'text-letter-spacing': 0.25 },
         paint: { 'text-color': t.testo2, 'text-halo-color': t.alone, 'text-halo-width': 1.4 },
