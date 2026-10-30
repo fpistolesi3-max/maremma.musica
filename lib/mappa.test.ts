@@ -96,4 +96,5 @@ test('stile della mappa: solo OpenFreeMap, senza rilievo né chiavi, con le attr
   assert.equal(new Set(id).size, id.length, 'livelli con nomi unici');
   for (const l of ['mare', 'nomi-strade', 'parcheggi', 'citta']) assert.ok(id.includes(l), l);
   assert.ok(!s.layers.some((l) => l.type === 'hillshade'), 'niente rilievo ombreggiato');
+  assert.ok(!s.layers.some((l) => (l as { 'source-layer'?: string })['source-layer'] === 'mountain_peak'), 'niente etichette delle cime');
 });
