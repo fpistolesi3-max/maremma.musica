@@ -15,6 +15,15 @@ export type StatoLista =
 export const ATTIVE: Iscrizione['stato'][] = ['in_lista', 'pagato', 'entrato'];
 export const isAttiva = (i: Pick<Iscrizione, 'stato'>) => ATTIVE.includes(i.stato);
 
+/**
+ * Il QR (e il PDF) della prevendita si mostra solo a chi è stato davvero in lista: pagato, gratis o entrato (anche barrato, se annullato
+ * dopo il pagamento). Mai dopo il rimborso (anche se registrato solo sul pagamento), mai se il pagamento va restituito, mai senza aver pagato.
+ */
+export function qrMostrabile(i: Pick<Iscrizione, 'stato' | 'metodoPagamento' | 'pagamentoOnline'>) {
+  if (i.stato === 'rimborsato' || i.pagamentoOnline?.rimborso?.stato === 'fatto' || i.pagamentoOnline?.daRimborsare) return false;
+  return isAttiva(i) || Boolean(i.metodoPagamento) || (i.stato === 'annullato' && !i.pagamentoOnline);
+}
+
 /** In attesa di pagamento col termine passato: il posto è tornato libero (anche se nessuno l'ha ancora segnata "scaduta"). */
 export function iscrizioneScaduta(i: Pick<Iscrizione, 'stato' | 'scade'>, adesso = new Date()) {
   return i.stato === 'in_attesa' && (!i.scade || new Date(i.scade).getTime() <= adesso.getTime());

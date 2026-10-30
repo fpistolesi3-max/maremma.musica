@@ -103,7 +103,7 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
                 <span className="font-mono text-[11px] leading-none tracking-[.06em] text-stop-testo">✕ {{ scaduta: 'TERMINE PASSATO', annullata: 'PRENOTAZIONE ANNULLATA', rimborsata: 'PRENOTAZIONE RIMBORSATA' }[v.prenotazione.stato]}</span>
                 <h1 className="m-0 font-display text-[64px] font-black uppercase leading-[.84]">Tavolo <span className="text-arancio">libero.</span></h1>
                 <p className="m-0 text-[17px] leading-[26px] text-osso-2">
-                  {{ scaduta: 'Il pagamento non è arrivato in tempo e il tavolo è tornato libero.', annullata: 'Questa prenotazione è stata annullata.', rimborsata: 'Questa prenotazione è stata annullata e la spesa minima ti è stata restituita.' }[v.prenotazione.stato]} Puoi chiederne un altro, se ce ne sono.
+                  {{ scaduta: 'Il pagamento non è arrivato in tempo e il tavolo è tornato libero.', annullata: 'Questa prenotazione è stata annullata.', rimborsata: 'Questa prenotazione è stata annullata e la spesa minima ti è stata restituita (di solito i soldi si vedono entro 5–10 giorni lavorativi).' }[v.prenotazione.stato]} Puoi chiederne un altro, se ce ne sono.
                 </p>
                 <Link href={`/tavoli/${v.evento.slug}`} className="mm-btn mm-btn--clip mm-btn--linea self-start">Vedi i tavoli liberi</Link>
               </>

@@ -150,6 +150,7 @@ test('rimborso ripetuto: doppio clic e nuovo tentativo non lo fanno partire due 
   assert.match(String((esiti.find((e) => e.status === 'rejected') as PromiseRejectedResult).reason), /già in corso/);
   const fatto = await iscrizione(i.id);
   assert.deepEqual([fatto.stato, fatto.pagamentoOnline!.rimborso!.stato, fatto.pagamentoOnline!.daRimborsare], ['rimborsato', 'fatto', false]);
+  assert.equal(m.regole.qrMostrabile(fatto), false, 'dopo il rimborso il biglietto non mostra più il QR');
   // Un clic dopo: già rimborsato, niente da fare
   assert.deepEqual(await m.rimborso.rimborsaPagamento(admin, lista(i.id), ORIGINE), { gia: true });
   assert.equal((await m.rimborsi.avviaRimborso(admin, lista(i.id))).esito, 'gia');
