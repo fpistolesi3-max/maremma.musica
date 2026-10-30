@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { modalitaProva } from './prova';
+import type { PagamentoRicevuto } from './regole';
 
 // Pagamento online di tavoli e prevendite: le prevendite si pagano sempre con Stripe, alla serata si paga solo da bere.
 // Con STRIPE_SECRET_KEY si usa Stripe Checkout (carta, Apple Pay, Google Pay); senza chiave, in sviluppo e
@@ -17,15 +18,24 @@ export function modoPagamentoOnline(): ModoPagamento | null {
 
 const API = 'https://api.stripe.com/v1';
 
-async function stripe<T>(metodo: 'GET' | 'POST', percorso: string, campi?: Record<string, string>): Promise<T> {
+/** Risposta di errore di Stripe: `stato` è il codice HTTP, `codice` quello di Stripe (es. charge_already_refunded). */
+export class ErroreStripe extends Error {
+  constructor(messaggio: string, readonly stato: number, readonly codice?: string) { super(messaggio); }
+}
+
+async function stripe<T>(metodo: 'GET' | 'POST', percorso: string, campi?: Record<string, string>, chiave?: string): Promise<T> {
   const r = await fetch(`${API}${percorso}`, {
     method: metodo,
-    headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded',
+      // Stessa chiave = stessa operazione: se la richiesta si ripete (errore di rete, doppio clic) Stripe non la fa due volte.
+      ...(chiave ? { 'Idempotency-Key': chiave } : {}),
+    },
     body: campi ? new URLSearchParams(campi).toString() : undefined,
     cache: 'no-store',
   });
-  const dati = (await r.json()) as T & { error?: { message?: string } };
-  if (!r.ok) throw new Error(`Pagamento: ${dati.error?.message ?? r.status}`);
+  const dati = (await r.json().catch(() => ({}))) as T & { error?: { message?: string; code?: string } };
+  if (!r.ok) throw new ErroreStripe(`Pagamento: ${dati.error?.message ?? r.status}`, r.status, dati.error?.code);
   return dati;
 }
 
@@ -66,10 +76,15 @@ export async function creaCheckout(o: {
 }
 
 /** La pagina di pagamento è stata pagata? Serve al ritorno del cliente, se il webhook non è ancora arrivato. */
-export async function statoCheckout(id: string): Promise<{ pagato: boolean; pagamento: string | null }> {
-  if (id.startsWith('prova_') || modoPagamentoOnline() !== 'stripe') return { pagato: false, pagamento: null };
-  const s = await stripe<{ payment_status: string; payment_intent: string | null }>('GET', `/checkout/sessions/${encodeURIComponent(id)}`);
-  return { pagato: s.payment_status === 'paid', pagamento: s.payment_intent };
+export async function statoCheckout(id: string): Promise<{ pagato: boolean; pagamento: string | null; ricevuto: PagamentoRicevuto | null }> {
+  if (id.startsWith('prova_') || modoPagamentoOnline() !== 'stripe') return { pagato: false, pagamento: null, ricevuto: null };
+  const s = await stripe<{ payment_status: string; payment_intent: string | null; amount_total?: number | null; currency?: string | null }>('GET', `/checkout/sessions/${encodeURIComponent(id)}`);
+  return { pagato: s.payment_status === 'paid', pagamento: s.payment_intent, ricevuto: ricevutoDa(s.amount_total, s.currency) };
+}
+
+/** Importo e valuta di una sessione di Stripe; null se mancano (allora non c'è niente da confrontare). */
+export function ricevutoDa(centesimi: number | null | undefined, valuta: string | null | undefined): PagamentoRicevuto | null {
+  return typeof centesimi === 'number' && valuta ? { centesimi, valuta } : null;
 }
 
 /** Chiude una pagina di pagamento ancora aperta (se ne apre una nuova: due pagine pagate sarebbero un doppio addebito). Se è già chiusa o pagata non fa niente. */
@@ -78,11 +93,30 @@ export async function chiudiCheckout(id: string | null | undefined) {
   try { await stripe('POST', `/checkout/sessions/${encodeURIComponent(id)}/expire`, {}); } catch { /* già chiusa o pagata */ }
 }
 
-/** Restituisce i soldi di un pagamento online (intero). Quelli di prova non vanno da nessuna parte. */
-export async function rimborsa(pagamento: string) {
-  if (pagamento.startsWith('prova_')) return;
-  if (modoPagamentoOnline() !== 'stripe') throw new Error('Per rimborsare un pagamento online serve la chiave di Stripe');
-  await stripe('POST', '/refunds', { payment_intent: pagamento });
+export type EsitoRimborso =
+  | { esito: 'fatto' }                     // i soldi tornano al cliente (o erano già tornati)
+  | { esito: 'respinto'; errore: string }  // Stripe ha detto di no: non è partito niente, si ritenta con una chiave nuova
+  | { esito: 'incerto'; errore: string };  // rete o errore di Stripe: non si sa se è partito, si riprova con la STESSA chiave
+
+/**
+ * Restituisce i soldi di un pagamento online (intero; la commissione di Stripe non torna indietro e resta a carico di Maremma Musica).
+ * `chiave`: chiave di idempotenza, la stessa a ogni tentativo dello stesso rimborso. Quelli di prova non vanno da nessuna parte.
+ */
+export async function rimborsa(pagamento: string, chiave: string): Promise<EsitoRimborso> {
+  if (pagamento.startsWith('prova_')) return { esito: 'fatto' };
+  if (modoPagamentoOnline() !== 'stripe') return { esito: 'respinto', errore: 'Per rimborsare un pagamento online serve la chiave di Stripe' };
+  try {
+    await stripe('POST', '/refunds', { payment_intent: pagamento }, chiave);
+    return { esito: 'fatto' };
+  } catch (e) {
+    if (e instanceof ErroreStripe) {
+      if (e.codice === 'charge_already_refunded') return { esito: 'fatto' };
+      // 409: la stessa richiesta è ancora in corso; 5xx: errore di Stripe. In entrambi i casi l'esito è ignoto.
+      if (e.stato === 409 || e.stato >= 500) return { esito: 'incerto', errore: e.message };
+      return { esito: 'respinto', errore: e.message };
+    }
+    return { esito: 'incerto', errore: 'Connessione a Stripe interrotta' };
+  }
 }
 
 /**

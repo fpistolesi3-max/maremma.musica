@@ -393,3 +393,19 @@ test('orario limite: dall’01:00 la vendita online è chiusa, il posto si tiene
   assert.equal(pagamentoIscrizioneValido({ ...ok, adesso: dopo }), false);
   assert.equal(pagamentoIscrizioneValido({ ...ok, iscrizione: { stato: 'scaduta' as const }, adesso: dopo }), false, 'anche se era già scaduta');
 });
+
+test('QR della prevendita: mai dopo il rimborso, mai se da restituire, mai senza aver pagato', async () => {
+  const { qrMostrabile } = await import('./regole');
+  const po = { sessione: null, pagamento: 'pi_1', daRimborsare: false };
+  assert.equal(qrMostrabile({ stato: 'pagato', metodoPagamento: 'online', pagamentoOnline: po }), true, 'pagata');
+  assert.equal(qrMostrabile({ stato: 'entrato', metodoPagamento: 'online', pagamentoOnline: po }), true, 'entrata');
+  assert.equal(qrMostrabile({ stato: 'in_lista', metodoPagamento: null, pagamentoOnline: null }), true, 'gratis');
+  assert.equal(qrMostrabile({ stato: 'annullato', metodoPagamento: 'online', pagamentoOnline: po }), true, 'annullata dopo il pagamento: resta barrato');
+  assert.equal(qrMostrabile({ stato: 'rimborsato', metodoPagamento: 'online', pagamentoOnline: po }), false, 'rimborsata');
+  assert.equal(qrMostrabile({ stato: 'rimborsato', metodoPagamento: 'porta_contanti', pagamentoOnline: null }), false, 'rimborsata in cassa (storico)');
+  const fatto = { ...po, rimborso: { stato: 'fatto' as const, chiave: 'k', avviatoAt: '', fattoAt: '', da: null } };
+  assert.equal(qrMostrabile({ stato: 'pagato', metodoPagamento: 'online', pagamentoOnline: fatto }), false, 'rimborso registrato anche se lo stato non è ancora cambiato');
+  assert.equal(qrMostrabile({ stato: 'scaduta', metodoPagamento: 'online', pagamentoOnline: { ...po, daRimborsare: true } }), false, 'da restituire');
+  assert.equal(qrMostrabile({ stato: 'in_attesa', metodoPagamento: null, pagamentoOnline: { ...po, pagamento: null } }), false, 'non pagata');
+  assert.equal(qrMostrabile({ stato: 'annullato', metodoPagamento: null, pagamentoOnline: { ...po, pagamento: null } }), false, 'lasciata senza pagare');
+});

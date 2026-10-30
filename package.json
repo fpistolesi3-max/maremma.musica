@@ -9,7 +9,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "dati:reset": "node -e \"require('fs').rmSync('.data',{recursive:true,force:true})\"",
-    "test": "tsx --conditions=react-server --test lib/regole.test.ts lib/dati/permessi.test.ts lib/dati/archivio-remoto.test.ts lib/mappa.test.ts lib/etichetta.test.ts"
+    "test": "tsx --conditions=react-server --test lib/regole.test.ts lib/dati/permessi.test.ts lib/dati/rimborsi.test.ts lib/dati/archivio-remoto.test.ts lib/mappa.test.ts lib/etichetta.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

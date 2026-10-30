@@ -98,12 +98,29 @@ export type StatoPrenotazione = 'in_attesa' | 'confermata' | 'annullata' | 'rimb
  */
 export type MetodoTavolo = 'bonifico' | 'satispay' | 'contanti' | 'pos' | 'online';
 
+/** Perché un pagamento non vale e va restituito. */
+export type MotivoRimborso = 'serata_iniziata' | 'lotto_pieno' | 'doppione' | 'ordine_chiuso' | 'secondo_pagamento' | 'importo';
+
+/**
+ * Stato della restituzione di un pagamento. Si scrive prima di chiamare Stripe ("in_corso", con la chiave che Stripe usa per
+ * non rimborsare due volte) e dopo la risposta ("fatto"). Un nuovo tentativo dopo un errore di rete riusa la stessa chiave.
+ */
+export interface Rimborso { stato: 'in_corso' | 'fatto'; chiave: string; avviatoAt: string; fattoAt: string | null; da: string | null }
+
+/** Pagamento in più su un ordine che aveva già il suo (secondo clic su "Paga") o con importo/valuta sbagliati: non conferma niente, va solo restituito. */
+export interface PagamentoInPiu { pagamento: string; centesimi: number; valuta: string; motivo: MotivoRimborso; at: string; rimborso?: Rimborso | null }
+
 /**
  * Pagamento online di una prenotazione. `sessione`: l'ultima pagina di pagamento aperta (Stripe o di prova);
  * `pagamento`: l'id del pagamento riuscito, serve per il rimborso; `daRimborsare`: il pagamento è arrivato quando
- * la prenotazione era già chiusa e il tavolo di un altro, quindi i soldi vanno restituiti.
+ * la prenotazione era già chiusa e il tavolo di un altro, quindi i soldi vanno restituiti (`motivo` dice perché).
+ * `rimborso`: la restituzione di `pagamento`. `inPiu`: gli altri pagamenti arrivati per lo stesso ordine.
+ * I campi dopo `daRimborsare` sono facoltativi: i dati salvati prima restano validi.
  */
-export interface PagamentoOnline { sessione: string | null; pagamento: string | null; daRimborsare: boolean }
+export interface PagamentoOnline {
+  sessione: string | null; pagamento: string | null; daRimborsare: boolean;
+  motivo?: MotivoRimborso | null; rimborso?: Rimborso | null; inPiu?: PagamentoInPiu[];
+}
 
 /**
  * Richiesta di un tavolo. Nasce "in attesa": il tavolo è fermo ma la spesa minima va pagata in anticipo

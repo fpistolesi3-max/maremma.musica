@@ -78,11 +78,24 @@ export default async function SerataLive({ params }: Props) {
         <Numero etichetta="Incassato" valore={euro(l.incassato)} nota={`${euro(l.prevendita.incassato)} PREVENDITA ONLINE${l.portaStorico.ingressi ? ` · ${euro(l.portaStorico.incassato)} ALLA PORTA (STORICO)` : ''}`} bordo />
         <Numero etichetta="Ancora fuori" valore={String(l.fuori)} nota={l.prevendita.inAttesa ? `DELLA LISTA · ${l.prevendita.inAttesa} STANNO PAGANDO` : 'DELLA LISTA'} bordo />
       </div>
-      {l.prevendita.daRimborsare.n > 0 && (
-        <Link href={`/admin/iscrizioni?evento=${e.id}&stato=da_rimborsare`} className="mx-4 mt-4 block border border-attesa px-4 py-3 text-[14px] text-attesa no-underline md:mx-12">
-          {l.prevendita.daRimborsare.n === 1 ? '1 prevendita pagata' : `${l.prevendita.daRimborsare.n} prevendite pagate`} quando non valeva più: {euro(l.prevendita.daRimborsare.importo)} da restituire. Apri →
+      {l.rimborsi.n > 0 && (
+        <Link href={`/admin/rimborsi?evento=${e.id}`} className="mx-4 mt-4 block border border-attesa px-4 py-3 text-[14px] text-attesa no-underline md:mx-12">
+          {l.rimborsi.n === 1 ? '1 pagamento da restituire' : `${l.rimborsi.n} pagamenti da restituire`}: {euro(l.rimborsi.importo)} (arrivati quando non valevano, doppi o con importo sbagliato). Apri →
         </Link>
       )}
+      <section aria-label="Riepilogo della serata" className="flex flex-col gap-3 border-b border-linea px-4 py-6 md:px-12">
+        <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Riepilogo</h2>
+        <div className="grid grid-cols-2 border border-linea lg:grid-cols-4">
+          <Numero etichetta="Incassato lordo" valore={euro(l.soldi.lordo)} nota={`${euro(l.soldi.prevendite)} PREVENDITE · ${euro(l.soldi.tavoli)} TAVOLI${l.soldi.porta ? ` · ${euro(l.soldi.porta)} PORTA (STORICO)` : ''}`} />
+          <Numero etichetta="Rimborsato" valore={euro(l.soldi.rimborsato)} colore={l.soldi.rimborsato ? 'text-attesa' : undefined} nota="GIÀ RESTITUITO AI CLIENTI" bordo />
+          <Numero etichetta="Netto" valore={euro(l.soldi.netto)} colore="text-ok" nota={l.soldi.daRestituire ? `DI CUI ${euro(l.soldi.daRestituire)} ANCORA DA RESTITUIRE` : 'LORDO MENO RIMBORSI'} bordo />
+          <Numero etichetta="Tavoli pagati" valore={`${l.tavoli.pagati}/${l.tavoli.totale}`} nota={`${euro(l.tavoli.incassato)} INCASSATI`} bordo />
+        </div>
+        <div className="grid grid-cols-2 border border-linea lg:grid-cols-4">
+          <Numero etichetta="Prevendite vendute" valore={String(l.inLista)} nota={l.perTipo.length > 0 ? l.perTipo.map((t) => `${t.nome.toUpperCase()} ${t.venduti}`).join(' · ') : undefined} />
+          <Numero etichetta="Entrati alla porta" valore={String(l.entrati)} colore="text-ok" nota={`${l.entratiDaLista} DA PREVENDITE${l.tavoli.totale > 0 ? ` · ${l.tavoli.entrati} PERSONE DAI TAVOLI` : ''}`} bordo />
+        </div>
+      </section>
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex min-w-0 flex-col gap-9 px-4 py-7 md:px-12">

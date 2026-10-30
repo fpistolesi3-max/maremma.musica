@@ -11,10 +11,12 @@ export const metadata = { title: 'Serate' };
 export default async function AdminSerate() {
   const s = await richiedi(['admin'], '/admin');
   const [serate, c] = await Promise.all([elencoSerate(s), cruscotto(s)]);
+  // Ogni voce porta dritta al punto giusto: rimborsi della serata, pagamenti con importo sbagliato, tavoli in attesa, "Cosa manca" delle bozze.
   const daFare = [
-    c.daRimborsare > 0 && { chiave: 'rimb', testo: `${c.daRimborsare} ${c.daRimborsare === 1 ? 'pagamento da rimborsare' : 'pagamenti da rimborsare'}`, href: '/admin/iscrizioni?stato=da_rimborsare' },
-    ...c.tavoliDaRimborsare.map((t) => ({ chiave: `rt-${t.eventoId}`, testo: `${t.n} ${t.n === 1 ? 'tavolo da rimborsare' : 'tavoli da rimborsare'} · ${t.nome}`, href: `/admin/eventi/${t.eventoId}/modifica#tavoli` })),
+    ...c.rimborsi.map((r) => ({ chiave: `rimb-${r.eventoId}`, testo: `${r.n} ${r.n === 1 ? 'rimborso da fare' : 'rimborsi da fare'} · ${euro(r.importo)} · ${r.nome}`, href: `/admin/rimborsi?evento=${r.eventoId}` })),
+    c.importoSbagliato > 0 && { chiave: 'importo', testo: `${c.importoSbagliato} ${c.importoSbagliato === 1 ? 'pagamento con importo sbagliato' : 'pagamenti con importo sbagliato'}: non confermati, vanno restituiti`, href: '/admin/rimborsi?motivo=importo' },
     ...c.tavoliInAttesa.map((t) => ({ chiave: t.eventoId, testo: `${t.n} ${t.n === 1 ? 'tavolo' : 'tavoli'} in attesa di pagamento · ${t.nome}`, href: `/admin/eventi/${t.eventoId}/modifica#tavoli` })),
+    ...c.bozze.map((b) => ({ chiave: `bozza-${b.eventoId}`, testo: `Bozza «${b.nome}»: ${b.manca.length === 1 ? 'manca 1 cosa' : `mancano ${b.manca.length} cose`} (${b.manca.map((m) => ({ tipi: 'tipi di prevendita', locandina: 'locandina', tavoli: 'tavoli' })[m.id]).join(', ')})`, href: `/admin/eventi/${b.eventoId}/modifica#${b.manca[0].ancora}` })),
   ].filter((x): x is { chiave: string; testo: string; href: string } => Boolean(x));
   const p = c.prossima;
   return (
@@ -37,7 +39,7 @@ export default async function AdminSerate() {
       )}
       <section aria-label="Da fare" className="flex flex-col gap-2 border-b border-linea px-4 py-5 md:px-12">
         <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">DA FARE</span>
-        {daFare.length === 0 && <span className="text-[14px] text-osso-2">Niente in sospeso: nessun rimborso e nessun tavolo da confermare.</span>}
+        {daFare.length === 0 && <span className="text-[14px] text-osso-2">Niente in sospeso: nessun rimborso, nessun tavolo da confermare, nessuna bozza incompleta.</span>}
         {daFare.map((x) => (
           <Link key={x.chiave} href={x.href} className="flex items-center justify-between gap-3 border border-linea bg-notte-2 px-4 py-3 text-[15px] no-underline">
             <span><span className="mm-chip mm-chip--incassare mr-3">Da fare</span>{x.testo}</span><span aria-hidden="true">→</span>

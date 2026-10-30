@@ -6,11 +6,12 @@ import { redirect } from 'next/navigation';
 import { COOKIE_PR } from '@/lib/costanti';
 import { origineRichiesta, sessioneCorrente } from '@/lib/sessione';
 import {
-  adminPrenotaTavolo, annullaPrenotazione, chiudiRimborsoDovuto, daPagareOnline, lasciaTavolo, pagamentoOnlineDi, prPrenotaTavolo, prenotaTavolo,
+  adminPrenotaTavolo, annullaPrenotazione, daPagareOnline, lasciaTavolo, prPrenotaTavolo, prenotaTavolo,
   prenotazionePubblica, type DatiPrenotazione,
 } from '@/lib/dati/tavoli';
 import { inviaChiusuraTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tavolo-email';
-import { modoPagamentoOnline, rimborsa } from '@/lib/pagamenti';
+import { modoPagamentoOnline } from '@/lib/pagamenti';
+import { rimborsaPagamento } from '@/lib/rimborso';
 import { apriPagamento } from '@/lib/pagamento-tavolo';
 
 export interface StatoTavoloModulo {
@@ -80,37 +81,32 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   redirect(`${linkTavolo('', p.id, p.email)}&nuovo=1`);
 }
 
-/** `rimborso`: era pagata e i soldi sono stati restituiti (solo admin). Al cliente arriva l'email. */
-export async function annullaPrenotazioneAzione(id: string, rimborso = false): Promise<{ ok?: string; errore?: string }> {
+/** Annulla una prenotazione non pagata (l'admin sempre, il PR la sua in attesa). Al cliente arriva l'email. Quella pagata si chiude con `annullaERimborsaTavoloAzione`. */
+export async function annullaPrenotazioneAzione(id: string): Promise<{ ok?: string; errore?: string }> {
   const s = await sessioneCorrente();
   if (!s) return { errore: 'Sessione scaduta: rientra.' };
   try {
-    // Pagata online: prima si restituiscono i soldi sul servizio di pagamento, poi si chiude. Se il rimborso
-    // non va a buon fine la prenotazione resta com'è.
-    const pagamento = rimborso ? await pagamentoOnlineDi(s, id) : null;
-    if (pagamento) await rimborsa(pagamento);
-    const v = await annullaPrenotazione(s, id, rimborso);
+    const v = await annullaPrenotazione(s, id);
     if (v) { try { await inviaChiusuraTavolo(v, await origineRichiesta()); } catch (e) { console.error('[tavoli] invio email non riuscito', e); } }
   } catch (e) {
     return { errore: (e as Error).message === 'non_autorizzato' ? 'Non puoi annullare questa prenotazione.' : (e as Error).message };
   }
   revalidatePath('/', 'layout');
-  return { ok: rimborso ? 'Rimborso segnato: il tavolo è di nuovo libero.' : 'Prenotazione annullata: il tavolo è di nuovo libero.' };
+  return { ok: 'Prenotazione annullata: il tavolo è di nuovo libero.' };
 }
 
-/** Pagamento online arrivato quando la prenotazione era già chiusa: si restituiscono i soldi (solo admin). */
-export async function rimborsaPagamentoTardivoAzione(id: string): Promise<{ ok?: string; errore?: string }> {
+/**
+ * "Annulla e rimborsa" (solo admin): prima si restituiscono i soldi, poi la prenotazione si chiude come rimborsata, il tavolo
+ * torna libero e il cliente riceve l'email. Se il rimborso non va a buon fine resta com'è; ripetuto non parte due volte.
+ */
+export async function annullaERimborsaTavoloAzione(id: string): Promise<{ ok?: string; errore?: string }> {
   const s = await sessioneCorrente();
   if (!s || s.utente.ruolo !== 'admin') return { errore: 'Sessione scaduta: rientra.' };
   try {
-    const pagamento = await pagamentoOnlineDi(s, id);
-    if (!pagamento) return { errore: 'Nessun pagamento online da rimborsare' };
-    await rimborsa(pagamento);
-    const v = await chiudiRimborsoDovuto(s, id);
-    if (v) { try { await inviaChiusuraTavolo(v, await origineRichiesta()); } catch (e) { console.error('[tavoli] invio email non riuscito', e); } }
+    const r = await rimborsaPagamento(s, { tipo: 'tavolo', id }, await origineRichiesta());
+    revalidatePath('/', 'layout');
+    return { ok: r.gia ? 'Era già rimborsato.' : 'Rimborsato: il tavolo è di nuovo libero.' };
   } catch (e) { return { errore: (e as Error).message }; }
-  revalidatePath('/', 'layout');
-  return { ok: 'Rimborsato.' };
 }
 
 /** Il cliente lascia libero il tavolo prima di pagare, dalla sua pagina. */

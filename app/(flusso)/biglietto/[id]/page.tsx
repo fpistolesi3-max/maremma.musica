@@ -4,10 +4,9 @@ import { bigliettoPubblico, type Biglietto } from '@/lib/dati/pubblico';
 import { applicaScadenzeIscrizioni } from '@/lib/dati/prevendita';
 import { verificaRitornoIscrizione } from '@/lib/pagamento-prevendita';
 import { linkPagaBiglietto } from '@/lib/biglietto-email';
-import { testoLimite } from '@/lib/regole';
+import { qrMostrabile, testoLimite } from '@/lib/regole';
 import { lasciaPostoAzione } from '@/app/azioni/prevendita';
 import { origineRichiesta } from '@/lib/sessione';
-import { isAttiva } from '@/lib/regole';
 import { euro, numeroEvento, ora } from '@/lib/formato';
 import { BigliettoQr } from '@/components/biglietto';
 import { CampoLink, RicordaBiglietto } from '@/components/client';
@@ -34,8 +33,8 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
     await verificaRitornoIscrizione(b, await origineRichiesta());
     b = await bigliettoPubblico(id, email);
   }
-  // Il QR (anche barrato, se annullato dopo) c'è solo per chi è stato davvero in lista: pagato, gratis o entrato.
-  const conQr = Boolean(b && (isAttiva(b.iscrizione) || b.iscrizione.metodoPagamento || (b.iscrizione.stato === 'annullato' && !b.iscrizione.pagamentoOnline)));
+  // Il QR (anche barrato, se annullato dopo) c'è solo per chi è stato davvero in lista e non è stato rimborsato.
+  const conQr = Boolean(b && qrMostrabile(b.iscrizione));
   const appenaPagato = Boolean(nuovo || pagato);
 
   return (
@@ -54,7 +53,7 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
           <p className="m-0 text-[17px] leading-[26px] text-osso-2">Il link è incompleto o l&apos;email non corrisponde. Scrivi l&apos;email con cui ti sei iscritto: ti rimandiamo i tuoi QR.</p>
           <ModuloRecupero email={email ?? ''} />
         </main>
-      ) : !conQr || b.iscrizione.pagamentoOnline?.daRimborsare ? (
+      ) : !conQr ? (
         <SenzaQr b={b} pagato={Boolean(pagato)} annullato={Boolean(annullato)} errore={Boolean(errore)} />
       ) : (
         <main className="mx-auto flex w-full max-w-[440px] flex-grow flex-col md:max-w-[960px] md:flex-row md:items-start md:gap-16 md:px-8 md:pt-10">
@@ -113,10 +112,14 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
   // Pagato ma la conferma non è ancora arrivata: la pagina si ricarica da sola tra qualche secondo.
   const inVerifica = attesa && pagato;
   const daRimborsare = Boolean(i.pagamentoOnline?.daRimborsare);
-  const etichetta = daRimborsare ? 'PAGAMENTO DA RESTITUIRE' : i.stato === 'scaduta' ? 'TEMPO SCADUTO' : i.stato === 'rimborsato' ? 'RIMBORSATO' : 'POSTO LASCIATO';
+  const rimborsato = i.stato === 'rimborsato' || i.pagamentoOnline?.rimborso?.stato === 'fatto';
+  const etichetta = daRimborsare ? 'PAGAMENTO DA RESTITUIRE' : rimborsato ? 'RIMBORSATO' : i.stato === 'scaduta' ? 'TEMPO SCADUTO' : 'POSTO LASCIATO';
   const spiega = daRimborsare
     ? 'Il pagamento è arrivato quando il posto non era più tuo: ti restituiamo i soldi sulla stessa carta, non devi fare niente.'
-    : i.stato === 'rimborsato' ? 'Ti abbiamo restituito i soldi sulla carta con cui hai pagato.'
+    : rimborsato
+      ? (i.metodoPagamento === 'online'
+        ? `Ti abbiamo restituito ${euro(i.importo)} sulla carta con cui hai pagato. Il QR non vale più. I tempi dipendono dalla banca: di solito i soldi si vedono entro 5–10 giorni lavorativi.`
+        : `Ti abbiamo restituito ${euro(i.importo)}. Il QR non vale più.`)
       : i.stato === 'scaduta' ? 'Il pagamento non è arrivato in tempo e il posto è tornato libero. Se ci sono ancora posti puoi riprovare.'
         : 'Hai lasciato il posto senza pagare. Se ci sono ancora posti puoi riprovare.';
   return (
@@ -149,9 +152,9 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
       ) : (
         <>
           <span className="font-mono text-[11px] leading-none tracking-[.06em] text-stop-testo">✕ {etichetta}</span>
-          <h1 className="m-0 font-display text-[56px] font-black uppercase leading-[.86]">Niente <span className="text-arancio">QR.</span></h1>
+          <h1 className="m-0 font-display text-[56px] font-black uppercase leading-[.86]">{rimborsato ? <>Soldi <span className="text-arancio">restituiti.</span></> : <>Niente <span className="text-arancio">QR.</span></>}</h1>
           <p className="m-0 text-[17px] leading-[26px] text-osso-2">{spiega}</p>
-          {!daRimborsare && i.stato !== 'rimborsato' && (
+          {!daRimborsare && !rimborsato && (
             <Link href={`/e/${b.evento.slug}${b.prHandle ? `/${b.prHandle}` : ''}`} className="mm-btn mm-btn--clip mm-btn--linea self-start">Torna alla serata</Link>
           )}
         </>

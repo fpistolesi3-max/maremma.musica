@@ -155,9 +155,12 @@ test('prevendita online: posto fermo, pagamento, ritardo da rimborsare, porta, p
   // Pagamento (webhook): vale una volta sola anche se arriva due volte
   assert.equal((await m.prevendita.confermaPagamentoIscrizione(id, 'pi_lista_1')).esito, 'confermata');
   assert.equal((await m.prevendita.confermaPagamentoIscrizione(id, 'pi_lista_1')).esito, 'gia');
-  assert.equal((await m.prevendita.confermaPagamentoIscrizione(id, 'pi_lista_doppio')).esito, 'gia', 'secondo pagamento: il QR resta valido');
+  const secondo = await m.prevendita.confermaPagamentoIscrizione(id, 'prova_lista_doppio');
+  assert.deepEqual([secondo.esito, secondo.esito === 'da_rimborsare' && secondo.motivo, secondo.esito === 'da_rimborsare' && secondo.importo], ['da_rimborsare', 'secondo_pagamento', 10], 'secondo pagamento: il QR resta valido e i soldi vanno restituiti');
+  assert.equal((await m.prevendita.confermaPagamentoIscrizione(id, 'prova_lista_doppio')).esito, 'gia', 'lo stesso pagamento in più conta una volta');
   const pagata = (await m.archivio.leggi()).iscrizioni.find((i) => i.id === id)!;
-  assert.deepEqual([pagata.stato, pagata.metodoPagamento, pagata.pagamentoOnline!.pagamento], ['pagato', 'online', 'pi_lista_1']);
+  assert.deepEqual([pagata.stato, pagata.metodoPagamento, pagata.pagamentoOnline!.pagamento, pagata.pagamentoOnline!.daRimborsare], ['pagato', 'online', 'pi_lista_1', false], 'il pagamento in più non sovrascrive quello vero');
+  assert.deepEqual(pagata.pagamentoOnline!.inPiu!.map((x) => [x.pagamento, x.centesimi, x.motivo]), [['prova_lista_doppio', 1000, 'secondo_pagamento']]);
   const live1 = (await m.admin.serataLive(admin, halloween.id))!;
   assert.equal(live1.classifica.find((c) => c.prId === zarro.pr!.id)!.inLista, prima + 1, 'conta per il PR del link');
   assert.equal(live1.prevendita.incassato, live0.prevendita.incassato + 10);
@@ -181,14 +184,18 @@ test('prevendita online: posto fermo, pagamento, ritardo da rimborsare, porta, p
     const l = d.lotti.find((x) => x.id === i.lottoId)!;
     l.quantita = d.iscrizioni.filter((x) => x.lottoId === l.id && ['in_lista', 'pagato', 'entrato'].includes(x.stato)).length;
   });
-  assert.equal((await m.prevendita.confermaPagamentoIscrizione(uid, 'pi_ugo')).esito, 'da_rimborsare');
+  const ugo = await m.prevendita.confermaPagamentoIscrizione(uid, 'prova_ugo');
+  assert.deepEqual([ugo.esito, ugo.esito === 'da_rimborsare' && ugo.motivo], ['da_rimborsare', 'lotto_pieno']);
   assert.equal((await m.archivio.leggi()).iscrizioni.find((i) => i.id === uid)!.stato, 'scaduta', 'non diventa valida');
-  assert.equal((await m.admin.serataLive(admin, halloween.id))!.prevendita.daRimborsare.n, 1);
+  assert.equal((await m.admin.serataLive(admin, halloween.id))!.rimborsi.n, 2, 'Ugo (lotto pieno) e il secondo pagamento di Paola');
   // Il rimborso lo fa solo l'admin
-  await assert.rejects(m.prevendita.pagamentoIscrizioneDi(staff, uid), /non_autorizzato/);
-  await assert.rejects(m.prevendita.chiudiRimborsoIscrizione(zarro, uid), /non_autorizzato/);
-  assert.equal(await m.prevendita.pagamentoIscrizioneDi(admin, uid), 'pi_ugo');
-  assert.equal((await m.prevendita.chiudiRimborsoIscrizione(admin, uid))!.stato, 'rimborsato');
+  const rb = await import('./rimborsi');
+  await assert.rejects(rb.avviaRimborso(staff, { tipo: 'prevendita', id: uid }), /non_autorizzato/);
+  await assert.rejects(rb.avviaRimborso(zarro, { tipo: 'prevendita', id: uid }), /non_autorizzato/);
+  await assert.rejects(rb.rimborsiAdmin(staff), /non_autorizzato/);
+  const rimborsoUgo = await import('../rimborso');
+  await rimborsoUgo.rimborsaPagamento(admin, { tipo: 'prevendita', id: uid }, 'http://prova');
+  assert.equal((await m.archivio.leggi()).iscrizioni.find((i) => i.id === uid)!.stato, 'rimborsato');
   await m.archivio.modifica((d) => { d.lotti.find((x) => x.eventoId === halloween.id)!.quantita = null; });
 
   // Lascia il posto senza pagare: non si può riattivare (sarebbe un QR regalato)
@@ -363,7 +370,7 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   assert.ok(new Date(p1.scade).getTime() <= new Date(ev.data).getTime(), 'il termine non supera l’apertura');
   assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'A1')!.stato, 'riservato');
   // Paga sul sito: confermata da sola
-  assert.equal((await tv.confermaPagamentoOnline(p1.id, 'pi_a1')).esito, 'confermata');
+  assert.equal((await tv.confermaPagamentoOnline(p1.id, 'prova_a1')).esito, 'confermata');
   const stessoNumero = await tv.prenotaTavolo({ ...chi, email: 'ugo@esempio.it', telefono: '+39 333-1234567', tavoloId: await id('A2') }, 'test-pr');
   assert.ok(!stessoNumero.ok && stessoNumero.campo === 'telefono', 'stesso telefono con un’altra email: non tiene fermo un secondo tavolo');
   const r2 = await tv.prenotaTavolo({ ...chi, email: 'ugo@esempio.it', telefono: '347 1112223', tavoloId: await id('A2') }, 'test-pr');
@@ -401,10 +408,11 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   await assert.rejects(m.admin.salvaTavolo(admin, { ...base, nome: 'A9', stato: 'riservato' }), /libero o non in vendita/);
   await assert.rejects(tv.prenotazioniAdmin(staff, ev.id), /non_autorizzato/);
   // Pagato sul sito: con la prenotazione attiva lo stato del tavolo non si cambia a mano né si elimina
-  assert.equal((await tv.confermaPagamentoOnline(p1.id, 'pi_a1')).esito, 'gia', 'lo stesso pagamento conta una volta');
-  assert.equal((await tv.confermaPagamentoOnline(p1.id, 'pi_a1_doppio')).esito, 'gia', 'secondo pagamento: la prenotazione resta valida');
+  assert.equal((await tv.confermaPagamentoOnline(p1.id, 'prova_a1')).esito, 'gia', 'lo stesso pagamento conta una volta');
+  assert.equal((await tv.confermaPagamentoOnline(p1.id, 'prova_a1_doppio')).esito, 'da_rimborsare', 'secondo pagamento: la prenotazione resta valida, i soldi vanno restituiti');
   const p1dopo = (await m.archivio.leggi()).prenotazioni.find((x) => x.id === p1.id)!;
-  assert.deepEqual([p1dopo.stato, p1dopo.pagamentoOnline!.pagamento, p1dopo.pagamentoOnline!.daRimborsare], ['confermata', 'pi_a1', false]);
+  assert.deepEqual([p1dopo.stato, p1dopo.pagamentoOnline!.pagamento, p1dopo.pagamentoOnline!.daRimborsare], ['confermata', 'prova_a1', false]);
+  assert.deepEqual(p1dopo.pagamentoOnline!.inPiu!.map((x) => [x.pagamento, x.centesimi, x.motivo]), [['prova_a1_doppio', 20000, 'secondo_pagamento']]);
   await assert.rejects(async () => m.admin.salvaTavolo(admin, { ...base, id: await id('A1'), nome: 'A1', posti: 3 }), /prenotato per 4 persone/, 'posti sotto il gruppo prenotato');
   await m.admin.salvaTavolo(admin, { ...base, id: await id('A1'), nome: 'A1', stato: 'libero', posti: 4 });
   assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'A1')!.stato, 'confermato');
@@ -425,19 +433,22 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   assert.equal((await tv.chiuseDaAvvisare()).some((v) => v.prenotazione.id === p2), false);
 
   // Pagamento arrivato poco dopo il termine e tavolo ancora libero: vale lo stesso, senza nessuno che lo segni a mano
-  const riattivata = (await tv.confermaPagamentoOnline(p2, 'pi_a2'));
+  const riattivata = (await tv.confermaPagamentoOnline(p2, 'prova_a2'));
   assert.equal(riattivata.esito, 'confermata');
   const pagataTardi = (await tv.prenotazionePubblica(p2, 'ugo@esempio.it'))!.prenotazione;
   assert.deepEqual([pagataTardi.stato, pagataTardi.metodoPagamento, pagataTardi.chiusaAt], ['confermata', 'online', null]);
   assert.equal((await m.admin.eventoAdmin(admin, ev.id))!.tavoli.find((t) => t.nome === 'A2')!.stato, 'confermato');
 
-  // Rimborso: solo l'admin e solo su una pagata; il tavolo si libera, la porta la vede rimborsata
-  await assert.rejects(tv.annullaPrenotazione(zarro, p2, true), /non_autorizzato/);
-  const rimborsata = (await tv.annullaPrenotazione(admin, p2, true))!.prenotazione;
-  assert.deepEqual([rimborsata.stato, rimborsata.chiusaDa], ['rimborsata', 'admin@maremmamusica.test']);
+  // Annulla e rimborsa: solo l'admin; una pagata non si annulla senza rimborso; il tavolo si libera, la porta la vede rimborsata
+  const { rimborsaPagamento } = await import('../rimborso');
+  await assert.rejects(rimborsaPagamento(zarro, { tipo: 'tavolo', id: p2 }, 'http://prova'), /non_autorizzato/);
+  await assert.rejects(tv.annullaPrenotazione(admin, p2), /Annulla e rimborsa/, 'pagata: niente annullo senza rimborso');
+  assert.deepEqual(await rimborsaPagamento(admin, { tipo: 'tavolo', id: p2 }, 'http://prova'), { gia: false });
+  const rimborsata = (await tv.prenotazionePubblica(p2, 'ugo@esempio.it'))!.prenotazione;
+  assert.deepEqual([rimborsata.stato, rimborsata.chiusaDa, rimborsata.pagamentoOnline!.rimborso!.stato], ['rimborsata', 'admin@maremmamusica.test', 'fatto']);
   assert.equal((await m.porta.elencoPorta(staff, ev.id)).find((v) => v.id === p2)!.stato, 'rimborsato');
   assert.equal((await tv.chiuseDaAvvisare()).some((v) => v.prenotazione.id === p2), false, 'annullata o rimborsata: l’email parte dall’azione, non dal cron');
-  assert.equal(await tv.annullaPrenotazione(admin, p2), null, 'già chiusa: niente da fare');
+  assert.deepEqual(await rimborsaPagamento(admin, { tipo: 'tavolo', id: p2 }, 'http://prova'), { gia: true }, 'già rimborsata: niente da fare');
 
   // Scaduta ma nel frattempo il tavolo è di un altro: il pagamento va rimborsato. Una in attesa non si rimborsa.
   const r3 = await tv.prenotaTavolo({ ...chi, email: 'tre@esempio.it', telefono: '320 3000003', tavoloId: await id('A2') }, null);
@@ -446,10 +457,10 @@ test('tavoli: richiesta, PR a cui è affidato, pagamento, scadenza, permessi e m
   const r4 = await tv.prenotaTavolo({ ...chi, email: 'quattro@esempio.it', telefono: '320 4000004', tavoloId: await id('A2') }, null);
   assert.ok(r4.ok);
   assert.equal((await tv.confermaPagamentoOnline(p3, 'pi_a3')).esito, 'da_rimborsare', 'pagata quando il tavolo era già di un altro');
-  await assert.rejects(tv.annullaPrenotazione(admin, r4.ok ? r4.prenotazione.id : '', true), /solo una prenotazione pagata/);
+  await assert.rejects(rimborsaPagamento(admin, { tipo: 'tavolo', id: r4.ok ? r4.prenotazione.id : '' }, 'http://prova'), /niente da rimborsare/);
 
-  // L'admin annulla anche una pagata: il tavolo si libera
-  await tv.annullaPrenotazione(admin, p1.id);
+  // L'admin annulla e rimborsa una pagata: il tavolo si libera
+  await rimborsaPagamento(admin, { tipo: 'tavolo', id: p1.id }, 'http://prova');
   assert.equal((await tv.tavoliPubblici('halloween-party'))!.tavoli.find((t) => t.nome === 'A1')!.libero, true);
   // Con prenotazioni nello storico il tavolo non si elimina (lo schema le tiene legate): si mette non in vendita
   await assert.rejects(async () => m.admin.eliminaTavolo(admin, await id('A1')), /storico/);
@@ -491,7 +502,7 @@ test('porta e tavoli: un QR per il gruppo, una persona a passaggio, non pagato n
   const nonPagato = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm0');
   assert.ok(nonPagato.esito === 'non_valido' && /non ancora pagato/.test(nonPagato.motivo));
 
-  await tv.confermaPagamentoOnline(p.id, 'pi_porta');
+  await tv.confermaPagamentoOnline(p.id, 'prova_porta');
   const primo = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm1');
   assert.ok(primo.esito === 'entrato' && primo.voce.tavolo!.entrati === 1 && primo.incassato === 0);
   // La stessa sincronizzazione ripetuta non fa entrare un'altra persona
@@ -506,7 +517,7 @@ test('porta e tavoli: un QR per il gruppo, una persona a passaggio, non pagato n
   assert.equal((await m.admin.serataLive(admin, ev.id))!.tavoli.entrati, 2);
 
   // Annullata: il QR non vale più
-  await tv.annullaPrenotazione(admin, p.id);
+  await (await import('../rimborso')).rimborsaPagamento(admin, { tipo: 'tavolo', id: p.id }, 'http://prova');
   assert.equal((await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm4')).esito, 'annullato');
 });
 
@@ -587,9 +598,8 @@ test('tavoli: pagamento online, tavolo fermo pochi minuti, conferma automatica, 
   const daVerificare = (await tv.pagamentiDaVerificare()).map((x) => x.sessione);
   assert.ok(daVerificare.includes('cs_sospeso') && !daVerificare.includes('cs_prova_1'), 'la pagata non si richiede');
   await tv.lasciaTavolo(p2b.id, 'sospeso@esempio.it');
-  // Il rimborso online sa quale pagamento restituire; solo l'admin
-  assert.equal(await tv.pagamentoOnlineDi(admin, p2.id), 'pi_1');
-  await assert.rejects(tv.pagamentoOnlineDi(staff, p2.id), /non_autorizzato/);
+  // Il rimborso online lo fa solo l'admin
+  await assert.rejects((await import('./rimborsi')).avviaRimborso(staff, { tipo: 'tavolo', id: p2.id }), /non_autorizzato/);
 
   // Il cliente lascia il tavolo prima di pagare: solo con la sua email, e il tavolo si libera subito
   const r3 = await tv.prenotaTavolo({ ...chi, email: 'ivo@esempio.it', telefono: '331 5550002', tavoloId: await id('O2') }, null);
@@ -612,12 +622,15 @@ test('tavoli: pagamento online, tavolo fermo pochi minuti, conferma automatica, 
   await m.archivio.modifica((d) => { d.prenotazioni.find((p) => p.id === p5.id)!.scade = new Date(Date.now() - 1000).toISOString(); });
   const altro = await tv.prenotaTavolo({ ...chi, email: 'zoe@esempio.it', telefono: '331 5550005', tavoloId: await id('O3') }, null);
   assert.ok(altro.ok);
-  assert.equal((await tv.confermaPagamentoOnline(p5.id, 'pi_5')).esito, 'da_rimborsare');
+  assert.equal((await tv.confermaPagamentoOnline(p5.id, 'prova_5')).esito, 'da_rimborsare');
   const dopo = (await tv.prenotazionePubblica(p5.id, 'ugo2@esempio.it'))!.prenotazione;
-  assert.deepEqual([dopo.stato, dopo.pagamentoOnline!.daRimborsare, dopo.pagamentoOnline!.pagamento], ['scaduta', true, 'pi_5']);
-  await assert.rejects(tv.chiudiRimborsoDovuto(staff, p5.id), /non_autorizzato/);
-  assert.equal((await tv.chiudiRimborsoDovuto(admin, p5.id))!.prenotazione.stato, 'rimborsata');
-  assert.equal(await tv.chiudiRimborsoDovuto(admin, p5.id), null, 'già rimborsata');
+  assert.deepEqual([dopo.stato, dopo.pagamentoOnline!.daRimborsare, dopo.pagamentoOnline!.pagamento], ['scaduta', true, 'prova_5']);
+  const { rimborsaPagamento: rimborsa5 } = await import('../rimborso');
+  await assert.rejects(rimborsa5(staff, { tipo: 'tavolo', id: p5.id }, 'http://prova'), /non_autorizzato/);
+  await rimborsa5(admin, { tipo: 'tavolo', id: p5.id }, 'http://prova');
+  assert.equal((await tv.prenotazionePubblica(p5.id, 'ugo2@esempio.it'))!.prenotazione.stato, 'rimborsata');
+  assert.deepEqual(await rimborsa5(admin, { tipo: 'tavolo', id: p5.id }, 'http://prova'), { gia: true }, 'già rimborsata');
+  assert.equal((await tv.prenotazionePubblica(p5.id, 'ugo2@esempio.it'))!.prenotazione.pagamentoOnline!.daRimborsare, false);
 
   // Inserita dal PR: il cliente riceve il link e ha 24 ore
   const r6 = await tv.prPrenotaTavolo(pr, { ...chi, email: 'cliente.pr@esempio.it', telefono: '331 5550006', tavoloId: await id('O4') });
@@ -768,15 +781,22 @@ test('cruscotto admin: solo l’admin, con la prossima serata e i rimborsi da fa
   await assert.rejects(m.admin.cruscotto(await sessione('test-pr@maremmamusica.test')), /non_autorizzato/);
   const c = await m.admin.cruscotto(await sessione('admin@maremmamusica.test'));
   const d = await m.archivio.leggi();
-  assert.equal(c.daRimborsare, d.iscrizioni.filter((i) => i.pagamentoOnline?.daRimborsare).length);
-  const prima = c.tavoliDaRimborsare.reduce((t, x) => t + x.n, 0);
-  const pr0 = d.prenotazioni.find((p) => !p.pagamentoOnline?.daRimborsare);
+  const daFare = (await import('./rimborsi')).vociRimborso(d).filter((v) => v.stato !== 'rimborsato');
+  assert.equal(c.rimborsi.reduce((t, x) => t + x.n, 0), daFare.length, 'prevendite e tavoli, tutti i rimborsi da fare');
+  const prima = c.rimborsi.reduce((t, x) => t + x.n, 0);
+  const pr0 = d.prenotazioni.find((p) => !p.pagamentoOnline?.daRimborsare && !p.pagamentoOnline?.inPiu?.length);
   assert.ok(pr0, 'serve una prenotazione nei dati di prova');
-  await m.archivio.modifica((x) => { x.prenotazioni.find((p) => p.id === pr0.id)!.pagamentoOnline = { sessione: null, pagamento: 'pi_cruscotto', daRimborsare: true }; });
+  await m.archivio.modifica((x) => { x.prenotazioni.find((p) => p.id === pr0.id)!.pagamentoOnline = { sessione: null, pagamento: 'pi_cruscotto', daRimborsare: true, motivo: 'importo' }; });
   const dopo = await m.admin.cruscotto(await sessione('admin@maremmamusica.test'));
-  const tavoli = dopo.tavoliDaRimborsare.find((x) => x.eventoId === pr0.eventoId);
-  assert.equal(dopo.tavoliDaRimborsare.reduce((t, x) => t + x.n, 0), prima + 1, 'il tavolo da rimborsare compare nel cruscotto');
-  assert.ok(tavoli && tavoli.n >= 1);
+  assert.equal(dopo.rimborsi.reduce((t, x) => t + x.n, 0), prima + 1, 'il rimborso del tavolo compare nel cruscotto');
+  assert.ok(dopo.rimborsi.find((x) => x.eventoId === pr0.eventoId)!.n >= 1);
+  assert.equal(dopo.importoSbagliato, c.importoSbagliato + 1, 'e anche tra i pagamenti con importo sbagliato');
+  // Le bozze con "Cosa manca" compaiono con quello che manca
+  const { id: _i, createdAt: _c, updatedAt: _u, piantinaUrl: _p, numero: _n, ...datiBozza } = d.eventi.find((e) => e.slug === 'halloween-party')!;
+  const bozza = await m.admin.salvaEvento(await sessione('admin@maremmamusica.test'), null, { ...datiBozza, slug: 'bozza-cruscotto', nome: 'Bozza cruscotto', pubblicato: false, locandinaUrl: null });
+  const conBozza = await m.admin.cruscotto(await sessione('admin@maremmamusica.test'));
+  const vocePerBozza = conBozza.bozze.find((b) => b.eventoId === bozza.id);
+  assert.ok(vocePerBozza && vocePerBozza.manca.some((x) => x.id === 'locandina') && vocePerBozza.manca.some((x) => x.id === 'tavoli'), 'bozza incompleta: manca la locandina e i tavoli');
 });
 
 test('prevendita non completata: alla porta compare una volta, "non pagato", non entra nemmeno dal server', async () => {
@@ -996,7 +1016,7 @@ test('orario limite: dopo il limite non si vende più, nemmeno riprendendo una r
     assert.equal((await m.pubblico.eventoPerSlug('halloween-party', true, zarro.pr!.id))!.stato.tipo, 'chiusa', 'e il link del PR pure');
 
     // Il pagamento arriva dopo il limite: non diventa un QR, va tra i pagamenti da rimborsare.
-    const esito = await m.prevendita.confermaPagamentoIscrizione(id, 'pi_dopo_limite');
+    const esito = await m.prevendita.confermaPagamentoIscrizione(id, 'prova_dopo_limite');
     assert.equal(esito.esito, 'da_rimborsare');
     const dopo = (await m.archivio.leggi()).iscrizioni.find((i) => i.id === id)!;
     assert.notEqual(dopo.stato, 'pagato', 'non diventa una prevendita valida');
@@ -1005,5 +1025,5 @@ test('orario limite: dopo il limite non si vende più, nemmeno riprendendo una r
   } finally {
     await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: null });
   }
-  await m.prevendita.chiudiRimborsoIscrizione(admin, id);
+  await (await import('../rimborso')).rimborsaPagamento(admin, { tipo: 'prevendita', id }, 'http://prova');
 });
