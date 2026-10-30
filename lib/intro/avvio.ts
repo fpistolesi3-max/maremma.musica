@@ -1,5 +1,6 @@
-// Avvio dell'intro nel browser. Questo modulo (con p5) si carica solo quando l'intro parte: mai nel bundle comune.
+// Avvio dell'intro nel browser. Questo modulo si carica solo quando l'intro parte (import dinamico): mai nel bundle comune.
 import { DURATA, creaIntro } from './sketch';
+import { Pennello } from './pennello';
 import { INTRO } from './regole';
 
 const LOGO = '/img/logo-maremma-musica-intro.webp';
@@ -27,46 +28,49 @@ async function caricaFont(famiglia: string) {
 }
 
 function caricaLogo() {
-  return new Promise<void>((ok, ko) => {
+  return new Promise<HTMLImageElement>((ok, ko) => {
     const img = new Image();
-    img.onload = () => ok();
+    img.onload = () => ok(img);
     img.onerror = ko;
     img.src = LOGO;
   });
 }
 
 /**
- * Carica p5, font e logo in parallelo, poi disegna l'intro nel contenitore.
+ * Carica font e logo in parallelo, poi disegna l'intro su un canvas nel contenitore, a ogni fotogramma (requestAnimationFrame).
  * La promessa si risolve al primo fotogramma con la funzione che ferma tutto; a fine animazione chiama finita().
  */
 export async function avviaIntro(contenitore: HTMLElement, finita: () => void): Promise<() => void> {
   const usaPng = INTRO.logo === 'png' || INTRO.stile !== 'classico';
-  const [{ default: P5 }] = await Promise.all([
-    import('p5'),
+  const [immagineLogo] = await Promise.all([
+    usaPng ? caricaLogo() : Promise.resolve(undefined),
     ...FONT_PER_STILE[INTRO.stile].map(caricaFont),
-    usaPng ? caricaLogo() : Promise.resolve(),
   ]);
 
+  const canvas = document.createElement('canvas');
+  contenitore.appendChild(canvas);
+  const p = new Pennello(canvas);
+  const misura = () => p.dimensiona(contenitore.clientWidth, contenitore.clientHeight, Math.min(2, window.devicePixelRatio || 1));
+  misura();
+  window.addEventListener('resize', misura);
+  p.noiseSeed(7);
+  const intro = creaIntro(p, { ...INTRO, immagineLogo });
+
+  let raf = 0;
+  const ferma = () => {
+    cancelAnimationFrame(raf);
+    window.removeEventListener('resize', misura);
+    canvas.remove();
+  };
   return new Promise((partita) => {
-    let intro: ReturnType<typeof creaIntro> | null = null;
     let inizio = 0;
-    const istanza = new P5((p) => {
-      p.setup = async () => {
-        p.pixelDensity(Math.min(2, window.devicePixelRatio || 1));
-        p.createCanvas(contenitore.clientWidth, contenitore.clientHeight);
-        p.noiseSeed(7);
-        // il logo è già nella cache del browser: qui si converte solo in immagine di p5
-        const immagineLogo = usaPng ? await p.loadImage(LOGO) : undefined;
-        intro = creaIntro(p, { ...INTRO, immagineLogo });
-      };
-      p.draw = () => {
-        if (!intro) return;
-        if (!inizio) { inizio = p.millis(); partita(() => istanza.remove()); }
-        const t = (p.millis() - inizio) / 1000;
-        intro.disegna(t);
-        if (t >= DURATA) { p.noLoop(); finita(); }
-      };
-      p.windowResized = () => p.resizeCanvas(contenitore.clientWidth, contenitore.clientHeight);
-    }, contenitore);
+    const passo = (ora: number) => {
+      if (!inizio) { inizio = ora; partita(ferma); }
+      const t = (ora - inizio) / 1000;
+      intro.disegna(t);
+      if (t >= DURATA) { finita(); return; }
+      raf = requestAnimationFrame(passo);
+    };
+    raf = requestAnimationFrame(passo);
   });
 }

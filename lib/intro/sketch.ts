@@ -1,7 +1,7 @@
-// Intro "Mai Mollare" disegnata con p5.js (instance mode).
+// Intro "Mai Mollare" disegnata su Canvas 2D (pennello.ts, stesse funzioni e stesso disegno della prima versione in p5.js).
 // Tutto dipende dal tempo t in secondi: ogni fotogramma si ridisegna identico (export video, screenshot).
 // Palette dell'intro: solo 4 colori, niente gradienti, niente trasparenze.
-import type P5 from 'p5';
+import type { Pennello } from './pennello';
 import type { StileIntro, UscitaIntro } from './regole';
 
 const NOTTE = '#111111';
@@ -33,7 +33,7 @@ function lunghezze(punti: Punto[]) {
 }
 const MM_LUN = lunghezze(MM_SX);
 
-// misure con il canvas nativo: textWidth di p5 non dà l'avanzamento vero (spazi sbagliati tra le lettere)
+// misure dell'avanzamento vero del testo, su un canvas a parte (non tocca lo stato del disegno)
 let misuratore: CanvasRenderingContext2D | null = null;
 function larghezza(testo: string, famiglia: string, sz: number) {
   misuratore ??= document.createElement('canvas').getContext('2d')!;
@@ -45,7 +45,7 @@ export type OpzioniIntro = {
   stile: StileIntro;
   uscita: UscitaIntro;
   logo: 'png' | 'vettoriale';
-  immagineLogo?: P5.Image;
+  immagineLogo?: HTMLImageElement;
   colore?: string;
 };
 
@@ -66,9 +66,9 @@ function misure(w: number, h: number) {
 }
 
 /** Restituisce disegna(t), da chiamare con il tempo in secondi; da DURATA in poi il canvas è vuoto. */
-export function creaIntro(p: P5, opzioni: OpzioniIntro) {
+export function creaIntro(p: Pennello, opzioni: OpzioniIntro) {
   const COLORE = opzioni.colore ?? PETROLIO;
-  const ctx = () => p.drawingContext as CanvasRenderingContext2D;
+  const ctx = () => p.drawingContext;
 
   // blob: cerchio deformato dal rumore di Perlin; amp 0 = cerchio perfetto
   function blob(x: number, y: number, r: number, amp: number, seme: number, t: number, punti = 96) {
@@ -103,7 +103,7 @@ export function creaIntro(p: P5, opzioni: OpzioniIntro) {
     const x0 = L.cx - larghezza(testo, 'Archivo Black', sz) / 2;
     const cap = sz * 0.72;
     const c = ctx();
-    // push/pop di p5 (non save/restore nativi): così lo stato dei colori di p5 resta allineato al canvas
+    // push/pop del pennello (non save/restore nativi): così il suo stato dei colori resta allineato al canvas
     p.push();
     c.beginPath();
     c.rect(0, base - cap - sz * 0.06, L.w, cap + sz * 0.12);
@@ -632,6 +632,7 @@ export function creaIntro(p: P5, opzioni: OpzioniIntro) {
 
   return {
     disegna(t: number) {
+      p.nuovoFotogramma();
       if (t >= DURATA) { p.clear(); return; }
       uscite[opzioni.uscita](misure(p.width, p.height), t);
     },
