@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { MenuTelefono } from './client';
-import { MarchioLink } from './ui';
+import { IconaInstagram, MarchioLink } from './ui';
 
 // Testata e piede del sito pubblico (mockup Home desktop / telefono).
 
@@ -10,10 +10,12 @@ const VOCI = [
   { href: '/galleria', testo: 'Galleria' },
 ];
 
+const INSTAGRAM = 'https://www.instagram.com/maremma.musica/';
+
 export function Testata() {
   return (
     <header className="relative z-30 border-b border-linea bg-notte">
-      <div className="contenitore flex h-16 items-center gap-3 md:h-24 md:gap-12">
+      <div className="contenitore flex h-16 items-center gap-2 md:h-24 md:gap-12">
         <div className="flex-grow md:flex-grow-0"><MarchioLink /></div>
         <nav aria-label="Principale" className="hidden flex-grow justify-center gap-9 md:flex">
           {VOCI.map((v) => (
@@ -22,8 +24,13 @@ export function Testata() {
             </Link>
           ))}
         </nav>
-        <Link href="/biglietto" className="px-[6px] py-[14px] font-sans text-[12px] font-semibold uppercase leading-none tracking-[.12em] no-underline md:hidden">Il mio QR</Link>
-        <Link href="/biglietto" className="mm-btn mm-btn--clip mm-btn--linea hidden md:inline-flex" style={{ minHeight: 40, padding: '0 18px', fontSize: 13 }}>Il mio QR</Link>
+        <div className="flex items-center md:gap-3">
+          <a href={INSTAGRAM} aria-label="Maremma Musica su Instagram" title="Instagram @maremma.musica" className="grid h-11 w-9 place-items-center text-osso-2 no-underline hover:text-osso md:h-10 md:w-10">
+            <IconaInstagram className="h-[22px] w-[22px]" />
+          </a>
+          <Link href="/biglietto" className="whitespace-nowrap px-[6px] py-[14px] font-sans text-[12px] font-semibold uppercase leading-none tracking-[.12em] no-underline md:hidden">Il mio QR</Link>
+          <Link href="/biglietto" className="mm-btn mm-btn--clip mm-btn--linea hidden md:inline-flex" style={{ minHeight: 40, padding: '0 18px', fontSize: 13 }}>Il mio QR</Link>
+        </div>
         {/* Menu telefono: <details>, si apre anche senza JavaScript (browser di Instagram) */}
         <MenuTelefono className="group md:hidden">
           <summary className="grid h-11 w-11 cursor-pointer list-none place-items-center rounded-sm border border-linea-forte text-osso [&::-webkit-details-marker]:hidden" aria-label="Menu">
@@ -51,7 +58,6 @@ export function Piede() {
           <div className="flex flex-col gap-[10px] md:w-[260px] md:gap-[14px]">
             <span className="etichetta">Contatti</span>
             <a href="mailto:maremmamusica@gmail.com" className="font-mono text-[13px] leading-5 no-underline md:text-[14px]">maremmamusica@gmail.com</a>
-            <a href="https://www.instagram.com/maremma.musica/" className="font-mono text-[13px] leading-5 no-underline md:text-[14px]">Instagram @maremma.musica</a>
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:contents">
             <div className="contents md:flex md:w-[180px] md:flex-col md:gap-[14px]">

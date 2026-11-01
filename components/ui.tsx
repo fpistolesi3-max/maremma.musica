@@ -13,7 +13,8 @@ export function MarchioLink({ piccolo = false }: { piccolo?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-[10px] no-underline md:gap-[14px]" aria-label="Maremma Musica, home">
       <Monogramma className={piccolo ? 'h-[30px] w-[28px]' : 'h-[30px] w-[28px] md:h-[36px] md:w-[34px]'} />
-      <span className="font-sans text-[11px] font-semibold leading-none tracking-logo text-osso md:text-[13px] md:tracking-[.26em]">MAREMMA MUSICA</span>
+      {/* Sotto i 375 px (testata con Instagram e "Il mio QR") il nome va su due righe per starci. */}
+      <span className="whitespace-nowrap font-sans text-[11px] font-semibold leading-none tracking-logo text-osso max-[374px]:leading-[1.25] md:text-[13px] md:tracking-[.26em]">MAREMMA<br className="min-[375px]:hidden" /> MUSICA</span>
     </Link>
   );
 }
@@ -29,6 +30,14 @@ export function Freccia() {
 export function IconaIndietro() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+  );
+}
+
+export function IconaInstagram({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="17" height="17" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.2" cy="6.8" r="0.9" fill="currentColor" stroke="none" />
+    </svg>
   );
 }
 
