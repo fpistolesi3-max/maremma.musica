@@ -240,6 +240,10 @@ if (URL_SB && CHIAVE) collegaSupabase(clienteSupabase(URL_SB, CHIAVE));
 const vista = (f: Foto): FotoVista => ({ ...f, urlGrande: deposito.urlPubblico(percorsoGrande(f.eventoId, f.id)), urlMini: deposito.urlPubblico(percorsoMini(f.eventoId, f.id)) });
 const percorsiDi = (f: Pick<Foto, 'eventoId' | 'id'>) => [percorsoGrande(f.eventoId, f.id), percorsoMini(f.eventoId, f.id)];
 
+// Le foto sono un di più: se non si leggono (Supabase giù, tabella non ancora creata) le pagine pubbliche e la serata live
+// dell'admin si aprono lo stesso, senza foto, e l'errore resta nei log. La pagina Foto dell'admin invece l'errore lo mostra.
+const fotoNonLette = (e: unknown) => console.error('[foto] foto delle serate non lette, pagina senza foto', e);
+
 // ── Admin ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 async function serataEsistente(eventoId: string): Promise<Evento> {
@@ -262,9 +266,16 @@ export async function fotoAdmin(s: Sessione, eventoId: string) {
 /** Riquadro "Foto" della scheda serata: quante sono, quante nascoste e le prime miniature. */
 export async function riepilogoFoto(s: Sessione, eventoId: string) {
   soloAdmin(s);
-  const foto = (await store.perSerate([eventoId])).filter((f) => f.pronta).sort(perOrdine);
+  let foto: Foto[];
+  try {
+    foto = (await store.perSerate([eventoId])).filter((f) => f.pronta).sort(perOrdine);
+  } catch (e) {
+    // È la pagina della serata live: senza foto deve aprirsi lo stesso. L'errore si vede nella pagina Foto.
+    fotoNonLette(e);
+    return { totale: 0, nascoste: 0, anteprime: [], nonLette: true };
+  }
   const anteprime = foto.filter((f) => f.inEvidenza).concat(foto.filter((f) => !f.inEvidenza)).slice(0, 4);
-  return { totale: foto.length, nascoste: foto.filter((f) => f.nascosta).length, anteprime: anteprime.map(vista) };
+  return { totale: foto.length, nascoste: foto.filter((f) => f.nascosta).length, anteprime: anteprime.map(vista), nonLette: false };
 }
 
 /**
@@ -423,11 +434,16 @@ function raggruppa(eventi: readonly Evento[], tutte: Foto[], crediti: Record<str
 export async function serateConFoto(eventi: readonly Evento[], { max }: { max?: number } = {}): Promise<SerataConFoto[]> {
   const out: SerataConFoto[] = [];
   const candidate = eventi.filter(visibileAlPubblico);
-  for (const blocco of gruppi(candidate, SERATE_PER_VOLTA)) {
-    if (max !== undefined && out.length >= max) break;
-    const ids = blocco.map((e) => e.id);
-    const [foto, crediti] = await Promise.all([store.perSerate(ids, { soloVisibili: true }), store.crediti(ids)]);
-    out.push(...raggruppa(blocco, foto, crediti));
+  try {
+    for (const blocco of gruppi(candidate, SERATE_PER_VOLTA)) {
+      if (max !== undefined && out.length >= max) break;
+      const ids = blocco.map((e) => e.id);
+      const [foto, crediti] = await Promise.all([store.perSerate(ids, { soloVisibili: true }), store.crediti(ids)]);
+      out.push(...raggruppa(blocco, foto, crediti));
+    }
+  } catch (e) {
+    fotoNonLette(e);
+    return [];
   }
   return max === undefined ? out : out.slice(0, max);
 }
@@ -435,6 +451,11 @@ export async function serateConFoto(eventi: readonly Evento[], { max }: { max?: 
 /** Le foto di una serata sola, se è pubblicata e finita. */
 export async function fotoSerataPubblica(evento: Evento): Promise<SerataConFoto | null> {
   if (!visibileAlPubblico(evento)) return null;
-  const [foto, credito] = await Promise.all([store.perSerate([evento.id], { soloVisibili: true }), store.credito(evento.id)]);
-  return raggruppa([evento], foto, { [evento.id]: credito })[0] ?? null;
+  try {
+    const [foto, credito] = await Promise.all([store.perSerate([evento.id], { soloVisibili: true }), store.credito(evento.id)]);
+    return raggruppa([evento], foto, { [evento.id]: credito })[0] ?? null;
+  } catch (e) {
+    fotoNonLette(e);
+    return null;
+  }
 }
