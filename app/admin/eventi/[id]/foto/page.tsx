@@ -14,8 +14,23 @@ type Props = { params: Promise<{ id: string }> };
 export default async function PaginaFoto({ params }: Props) {
   const { id } = await params;
   const s = await richiedi(['admin'], `/admin/eventi/${id}/foto`);
-  const f = await fotoAdmin(s, id).catch(() => null);
-  if (!f) notFound();
+  let errore: string | null = null;
+  const f = await fotoAdmin(s, id).catch((e: unknown) => {
+    if (e instanceof Error && e.message === 'Serata non trovata') return null;
+    console.error('[foto] pagina Foto non letta', e);
+    errore = e instanceof Error ? e.message : 'Errore sconosciuto';
+    return null;
+  });
+  if (!f && !errore) notFound();
+  if (!f) {
+    return (
+      <div className="px-4 py-6 md:px-12">
+        <h1 className="m-0 font-display text-[26px] font-black uppercase leading-none">Foto non disponibili</h1>
+        <p className="mt-4 max-w-[640px] text-[14px] text-osso-2">Non riesco a leggere le foto di questa serata: {errore}. Se è la prima volta dopo l&apos;aggiornamento, controlla che la migrazione delle foto sia stata applicata su Supabase.</p>
+        <Link className="mm-btn mm-btn--muto mt-4 inline-block" href={`/admin/eventi/${id}`}>← Torna alla serata</Link>
+      </div>
+    );
+  }
   const e = f.evento;
   return (
     <>
