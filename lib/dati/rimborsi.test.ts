@@ -7,6 +7,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { fissaOrologio } from './orologio-test';
+
+// Il seed ha date relative a "adesso": con l'orologio fisso i test non dipendono dal giorno in cui girano.
+fissaOrologio();
 const cartella = mkdtempSync(path.join(tmpdir(), 'mm-rimborsi-'));
 process.env.MM_CARTELLA_DATI = cartella;
 
