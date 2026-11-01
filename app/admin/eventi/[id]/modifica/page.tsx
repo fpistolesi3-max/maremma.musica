@@ -46,8 +46,9 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
       <TestataAdmin briciole={`SERATE / ${numeroEvento(e.numero)}`} titolo={e.nome}
         chip={<ChipSerata pubblicata={e.pubblicato} />}
         sotto={copia ? 'COPIA CREATA IN BOZZA ✓ · CONTROLLA LE DATE E PUBBLICA QUANDO È PRONTA' : salvato ? 'SALVATO ✓ · DATI, TIPI E TAVOLI' : undefined}
-        azioni={<><a className="mm-btn mm-btn--muto" href="#lotti">Prevendite</a><a className="mm-btn mm-btn--muto" href="#tavoli">Tavoli</a><Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}`}>Serata live</Link><Link className="mm-btn mm-btn--muto" href={`/e/${e.slug}`} target="_blank">Vedi pagina</Link></>} />
-      <FormSerata key={e.updatedAt} manca={manca} prezzoTesto={prezzoOra ? testoPrezzoTipi(prezzoOra) : undefined} pr={x.pr.map((p) => ({ id: p.id, nome: p.nomeDisplay, stato: p.stato }))} v={{
+        azioni={<><a className="mm-btn mm-btn--muto" href="#lotti">Ingresso</a><a className="mm-btn mm-btn--muto" href="#tavoli">Tavoli</a><Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}`}>Serata live</Link><Link className="mm-btn mm-btn--muto" href={`/e/${e.slug}`} target="_blank">Vedi pagina</Link></>} />
+      <FormSerata key={e.updatedAt} manca={manca} prezzoTesto={prezzoOra ? testoPrezzoTipi(prezzoOra) : undefined}
+        notaTipi={`${x.lotti.length} ${x.lotti.length === 1 ? 'TIPO' : 'TIPI'}${prezzoOra ? ` · ${testoPrezzoTipi(prezzoOra).toUpperCase()}` : ''}`} pr={x.pr.map((p) => ({ id: p.id, nome: p.nomeDisplay, stato: p.stato }))} v={{
         id: e.id, numero: e.numero == null ? '' : String(e.numero), nome: e.nome, slug: e.slug,
         giorno: dataIso(e.data), apertura: ora(e.data), chiusura: e.dataFine ? ora(e.dataFine) : '',
         lineup: e.lineup.join('\n'), highlight: e.highlight ?? '', dressCode: e.dressCode ?? '', descrizione: e.descrizione ?? '',
@@ -55,17 +56,15 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         locationSegreta: e.locationSegreta, infoArrivo: e.infoArrivo ?? '',
         tipoIngresso: e.tipoIngresso === 'libero' ? 'libero' : 'lista', prezzoLista: String(e.prezzoLista), prevenditaFinoAlle: ora(limitePrevendita(e)), capienza: e.capienza == null ? '' : String(e.capienza), senzaTelefono: e.senzaTelefono, inCopertina: e.inCopertina === true, etaMinima: String(e.etaMinima),
         locandinaUrl: e.locandinaUrl ?? '', pubblicato: e.pubblicato, prAbilitati: e.prAbilitati,
-      }}>
-        <Sezione id="lotti" n="06" titolo="Tipi di prevendita" nota={`${x.lotti.length} ${x.lotti.length === 1 ? 'TIPO' : 'TIPI'}${prezzoOra ? ` · ${testoPrezzoTipi(prezzoOra).toUpperCase()}` : ''}`}>
-          <span className="text-[14px] text-osso-2">Il cliente non sceglie: il sito vende il primo tipo aperto, con posti liberi, nell&apos;ordine qui sotto. Una categoria (es. Donne) si controlla alla porta: lo staff la vede sulla scheda. Il prezzo si paga online, al momento dell&apos;iscrizione.</span>
-          <Lotti eventoId={e.id} lotti={x.lotti.map((l) => ({
-            id: l.id, nome: l.nome, prezzo: l.prezzo, quantita: l.quantita, usati: x.usati[l.id] ?? 0,
-            dataInizio: locale(l.dataInizio), dataFine: locale(l.dataFine), visibileDaPr: l.visibileDaPr, ordine: l.ordine,
-            categoria: l.categoria ?? '', confermaCategoria: l.confermaCategoria, uscitaGiorniPrima: l.uscitaGiorniPrima, fineOrePrima: l.fineOrePrima,
-            dopoPrecedente: l.dopoPrecedente, prAbilitati: l.prAbilitati,
-          }))} pr={x.pr.filter((p) => p.stato === 'attivo').map((p) => ({ id: p.id, nome: p.nomeDisplay }))} altreSerate={await serateConTipi(s, id)} />
-        </Sezione>
-        <Sezione id="tavoli" n="07" titolo="Tavoli" forza={Boolean(richiesta)} nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
+      }} tipi={
+        <Lotti eventoId={e.id} lotti={x.lotti.map((l) => ({
+          id: l.id, nome: l.nome, prezzo: l.prezzo, quantita: l.quantita, usati: x.usati[l.id] ?? 0,
+          dataInizio: locale(l.dataInizio), dataFine: locale(l.dataFine), visibileDaPr: l.visibileDaPr, ordine: l.ordine,
+          categoria: l.categoria ?? '', confermaCategoria: l.confermaCategoria, uscitaGiorniPrima: l.uscitaGiorniPrima, fineOrePrima: l.fineOrePrima,
+          dopoPrecedente: l.dopoPrecedente, prAbilitati: l.prAbilitati,
+        }))} pr={x.pr.filter((p) => p.stato === 'attivo').map((p) => ({ id: p.id, nome: p.nomeDisplay }))} altreSerate={await serateConTipi(s, id)} />
+      } tavoli={
+        <Sezione id="tavoli" n="04" titolo="Tavoli" forza={Boolean(richiesta)} nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
           <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} PRENOTATI{inAttesa > 0 && <span className="text-attesa"> · {inAttesa} IN ATTESA DI PAGAMENTO</span>}</>
         )}>
           <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata online con Stripe: tutti i pagamenti passano dal sito. Il cliente paga sul sito, o dal link che riceve se la richiesta la inserisce il PR o la crew, e la prenotazione si conferma da sola. Se non paga in tempo il tavolo torna libero. Per un tavolo venduto a voce usa &quot;Prenota per un cliente&quot;: al cliente arriva il link per pagare.</span>
@@ -130,7 +129,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
             </details>
           )}
         </Sezione>
-      </FormSerata>
+      } />
     </>
   );
 }
