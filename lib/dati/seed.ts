@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import type { Archivio, Evento, Iscrizione, Lotto, Pr, Utente } from './tipi';
 import { creaCodice, creaTokenQr } from '../qr-token';
+import { dataIso, isoRoma, spostaGiorni } from '../formato';
 
 // Dati di partenza, creati al primo avvio in .data/db.json.
 // Per ripartire da zero: `npm run dati:reset` e riavvia `npm run dev`.
 //
 // Halloween Party è la serata vera (dal piano d'azione e dalla locandina).
 // Le altre serate, i PR e le persone in lista sono ESEMPI dei mockup: da togliere prima del lancio.
+//
+// Le date sono relative a "adesso": in sviluppo c'è sempre una serata in vendita tra qualche giorno.
+// Con l'orologio dei test a 20.10.2026 coincidono con le date della locandina (Halloween 31.10).
 
 const TIPO_BASE = { categoria: null, confermaCategoria: false, uscitaGiorniPrima: null, fineOrePrima: null, dopoPrecedente: false, prAbilitati: null } as const;
 const ora = () => new Date().toISOString();
@@ -20,13 +24,15 @@ function evento(p: Partial<Evento> & Pick<Evento, 'slug' | 'nome' | 'data'>): Ev
   };
 }
 
-export function datiIniziali(segreto: string): Archivio {
+export function datiIniziali(segreto: string, adesso = new Date()): Archivio {
+  /** Il giorno di Roma di `adesso` spostato di N giorni, a quell'ora di Roma. */
+  const fra = (giorni: number, orario: string) => isoRoma(dataIso(spostaGiorni(adesso.toISOString(), giorni)), orario);
   const halloween = evento({
     numero: 25,
     slug: 'halloween-party',
     nome: 'Halloween Party',
-    data: '2026-10-31T22:00:00+01:00',          // TODO: cliente — orario di apertura
-    dataFine: '2026-11-01T04:00:00+01:00',      // TODO: cliente — orario di chiusura
+    data: fra(11, '22:00'),                   // TODO: cliente — orario di apertura
+    dataFine: fra(12, '04:00'),               // TODO: cliente — orario di chiusura
     location: null,                              // TODO: cliente — location (non è sulla locandina)
     comune: null,                                // TODO: cliente — comune
     highlight: 'Premio 500 € alla maschera migliore',
@@ -39,17 +45,17 @@ export function datiIniziali(segreto: string): Archivio {
   });
   const solchi = evento({ // ESEMPIO dai mockup
     numero: 26, slug: 'solchi', nome: 'Solchi',
-    data: '2026-11-07T23:00:00+01:00', dataFine: '2026-11-08T04:00:00+01:00',
+    data: fra(18, '23:00'), dataFine: fra(19, '04:00'),
     comune: 'Massa Marittima', prezzoLista: 12,
   });
   const capodanno = evento({ // ESEMPIO dai mockup
     numero: 27, slug: 'capodanno-in-pineta', nome: 'Capodanno in pineta',
-    data: '2026-12-31T22:00:00+01:00', dataFine: '2027-01-01T06:00:00+01:00',
+    data: fra(72, '22:00'), dataFine: fra(73, '06:00'),
     location: 'Pineta', comune: 'Maremma', locationSegreta: true, prezzoLista: 15,
   });
   const ricky = evento({ // serata passata, dalla locandina del Design System
     numero: 24, slug: 'ricky-le-roy-monteverdi', nome: 'Ricky Le Roy',
-    data: '2026-09-19T22:00:00+02:00', dataFine: '2026-09-20T03:00:00+02:00',
+    data: fra(-31, '22:00'), dataFine: fra(-30, '03:00'),
     location: 'Campo G. Scirea', comune: 'Monteverdi M.mo', lat: 43.1512, lng: 10.7713,
     tipoIngresso: 'libero', lineup: ['Ricky Le Roy', 'B&G Twins', 'Alex Ferro'],
     locandinaUrl: '/img/locandine/ricky-le-roy-monteverdi-19-09.png',
@@ -57,11 +63,11 @@ export function datiIniziali(segreto: string): Archivio {
 
   const lotti: Lotto[] = [
     { id: randomUUID(), eventoId: halloween.id, nome: 'Lista', prezzo: 10, quantita: 400, // TODO: cliente — posti
-      dataInizio: null, dataFine: '2026-10-31T21:00:00+01:00', visibileDaPr: true, ordine: 0, ...TIPO_BASE },
+      dataInizio: null, dataFine: fra(11, '21:00'), visibileDaPr: true, ordine: 0, ...TIPO_BASE },
     { id: randomUUID(), eventoId: solchi.id, nome: 'Lista', prezzo: 12, quantita: 400,
       dataInizio: null, dataFine: null, visibileDaPr: true, ordine: 0, ...TIPO_BASE },
     { id: randomUUID(), eventoId: capodanno.id, nome: 'Lista', prezzo: 15, quantita: 600,
-      dataInizio: '2026-12-01T00:00:00+01:00', dataFine: null, visibileDaPr: true, ordine: 0, ...TIPO_BASE },
+      dataInizio: fra(42, '00:00'), dataFine: null, visibileDaPr: true, ordine: 0, ...TIPO_BASE },
   ];
 
   const pr: Pr[] = [
@@ -106,7 +112,7 @@ export function datiIniziali(segreto: string): Archivio {
   // Esempi: tutte prevendite pagate online (pagamento di prova).
   const iscrizioni: Iscrizione[] = esempi.map(([nome, cognome, dataNascita, p, oreFa, canale]) => {
     const id = randomUUID();
-    const creata = new Date(Date.now() - oreFa * 3_600_000);
+    const creata = new Date(adesso.getTime() - oreFa * 3_600_000);
     return {
       id, eventoId: halloween.id, lottoId: lottoHalloween.id, categoria: null, prId: p?.id ?? null,
       nome, cognome, dataNascita, email: `${nome}.${cognome}@esempio.it`.toLowerCase(),
