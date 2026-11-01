@@ -13,7 +13,8 @@ export function MarchioLink({ piccolo = false }: { piccolo?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-[10px] no-underline md:gap-[14px]" aria-label="Maremma Musica, home">
       <Monogramma className={piccolo ? 'h-[30px] w-[28px]' : 'h-[30px] w-[28px] md:h-[36px] md:w-[34px]'} />
-      <span className="whitespace-nowrap font-sans text-[11px] font-semibold leading-none tracking-logo text-osso md:text-[13px] md:tracking-[.26em]">MAREMMA MUSICA</span>
+      {/* Sotto i 375 px (testata con Instagram e "Il mio QR") il nome va su due righe per starci. */}
+      <span className="whitespace-nowrap font-sans text-[11px] font-semibold leading-none tracking-logo text-osso max-[374px]:leading-[1.25] md:text-[13px] md:tracking-[.26em]">MAREMMA<br className="min-[375px]:hidden" /> MUSICA</span>
     </Link>
   );
 }
