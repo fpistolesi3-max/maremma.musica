@@ -115,7 +115,7 @@ export default async function Home() {
         <section id="serate" className="contenitore flex flex-col gap-5 pb-14 md:gap-10 md:pb-[120px]">
           <div className="flex items-end justify-between">
             <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Serate<br /><span className="text-arancio">passate</span></h2>
-            <Link href="/galleria" className="link-sottolineato hidden md:inline">Tutte le foto →</Link>
+            <Link href="/eventi#archivio" className="link-sottolineato hidden md:inline">Tutte le foto →</Link>
           </div>
           <div className={foto.length >= 4
             ? 'grid grid-cols-2 grid-rows-[220px_150px] gap-2 md:grid-cols-[2fr_1fr_1fr] md:grid-rows-[260px_260px] md:gap-4'
@@ -134,7 +134,7 @@ export default async function Home() {
               );
             })}
           </div>
-          <Link href="/galleria" className="link-sottolineato py-3 md:hidden">Tutte le foto →</Link>
+          <Link href="/eventi#archivio" className="link-sottolineato py-3 md:hidden">Tutte le foto →</Link>
         </section>
       )}
     </>

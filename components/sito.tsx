@@ -7,7 +7,6 @@ import { IconaInstagram, MarchioLink } from './ui';
 const VOCI = [
   { href: '/eventi', testo: 'Serate' },
   { href: '/chi-siamo', testo: 'Crew' },
-  { href: '/galleria', testo: 'Galleria' },
 ];
 
 const INSTAGRAM = 'https://www.instagram.com/maremma.musica/';

@@ -1,15 +1,23 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { eventiPubblici } from '@/lib/dati/pubblico';
+import { serateConFoto } from '@/lib/dati/foto';
 import { chipLista } from '@/lib/regole';
+import { testoAltFoto } from '@/lib/foto';
 import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, orari, parti } from '@/lib/formato';
 import { Locandina, luogo } from '@/components/evento';
+import { Parallasse } from '@/components/parallasse';
+import { NotaFoto } from '@/components/foto-privacy';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Serate', description: 'Le prossime serate techno di Maremma Musica e l’archivio di quelle passate.' };
 
 export default async function Eventi() {
   const { prossimi, passati } = await eventiPubblici();
+  // Le serate passate con foto vengono prima, con qualche anteprima (era la Galleria); le altre restano nella griglia.
+  const conFoto = await serateConFoto(passati);
+  const idConFoto = new Set(conFoto.map((x) => x.evento.id));
+  const altre = passati.filter((e) => !idConFoto.has(e.id));
   return (
     <>
       <section className="contenitore flex flex-col gap-6 pb-14 pt-8 md:gap-10 md:pb-24 md:pt-14">
@@ -46,8 +54,29 @@ export default async function Eventi() {
         <div className="contenitore flex flex-col gap-6 pb-14 pt-12 md:gap-10 md:pb-24 md:pt-16">
           <h2 className="m-0 font-display text-[56px] font-black uppercase leading-[.86] md:text-[96px]">Serate<br /><span className="text-arancio">passate</span></h2>
           {passati.length === 0 && <p className="text-osso-2">L’archivio si riempie dopo la prima serata.</p>}
+          {conFoto.map(({ evento: e, foto, evidenza }) => (
+            <div key={e.id} className="flex flex-col gap-4">
+              <div className="flex items-baseline justify-between gap-4 border-t border-linea pt-4">
+                <Link href={`/e/${e.slug}`} className="font-display text-[32px] font-black uppercase leading-none no-underline md:text-[44px]">{e.nome}</Link>
+                <span className="dato flex-none text-osso-2">{dataPunti(e.data)}.{String(parti(e.data).anno).slice(2)}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
+                <Parallasse className="aspect-[3/4]" velocita={0.1}><Locandina e={e} className="absolute inset-0 h-full w-full" alt={`Locandina: ${e.nome}`} /></Parallasse>
+                {evidenza.slice(0, 3).map((f, i) => (
+                  <Parallasse key={f.id} className="aspect-[3/4] bg-[#111419]" velocita={i % 2 ? 0.06 : -0.06}>
+                    <Link href={`/e/${e.slug}#foto`} className="absolute inset-0 block" aria-label={`Vedi le foto della serata ${e.nome}`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f.urlMini} alt={testoAltFoto(e.nome, dataPunti(e.data))} width={f.larghezza} height={f.altezza} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                    </Link>
+                  </Parallasse>
+                ))}
+              </div>
+              <Link href={`/e/${e.slug}#foto`} className="link-sottolineato self-start py-2">Vedi tutte le foto ({foto.length}) →</Link>
+            </div>
+          ))}
+          {conFoto.length > 0 && altre.length > 0 && <span className="etichetta border-t border-linea pt-6">Altre serate</span>}
           <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-5">
-            {passati.map((e) => (
+            {altre.map((e) => (
               <Link key={e.id} href={`/e/${e.slug}`} className="mm-riga-data flex flex-col gap-2 text-osso no-underline hover:text-osso">
                 <div className="relative aspect-[3/4] w-full overflow-hidden"><Locandina e={e} className="absolute inset-0 h-full w-full" alt={`Locandina: ${e.nome}`} /></div>
                 <span className="dato-s text-osso-2">{dataPunti(e.data)}.{String(parti(e.data).anno).slice(2)} · {numeroEvento(e.numero)}</span>
@@ -56,6 +85,7 @@ export default async function Eventi() {
               </Link>
             ))}
           </div>
+          {conFoto.length > 0 && <NotaFoto />}
         </div>
       </section>
     </>

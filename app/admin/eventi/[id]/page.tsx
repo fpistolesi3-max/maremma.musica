@@ -108,7 +108,7 @@ export default async function SerataLive({ params }: Props) {
         {foto.nonLette ? (
           <p className="m-0 text-[14px] text-osso-2">Foto non disponibili in questo momento. Il resto della serata funziona normalmente.</p>
         ) : foto.totale === 0 ? (
-          <p className="m-0 text-[14px] text-osso-2">Nessuna foto. Dopo la serata carica quelle belle: compaiono sulla pagina della serata, nella Galleria e in home.</p>
+          <p className="m-0 text-[14px] text-osso-2">Nessuna foto. Dopo la serata carica quelle belle: compaiono sulla pagina della serata, tra le Serate passate e in home.</p>
         ) : (
           <div className="flex items-center gap-3">
             <div className="flex gap-1">
