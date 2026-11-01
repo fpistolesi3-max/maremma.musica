@@ -6,6 +6,7 @@ import { IconaInstagram, MarchioLink } from './ui';
 
 const VOCI = [
   { href: '/eventi', testo: 'Serate' },
+  { href: '/merch', testo: 'Merch' },
   { href: '/chi-siamo', testo: 'Crew' },
 ];
 
