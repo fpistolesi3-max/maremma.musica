@@ -53,7 +53,7 @@ Le voci sono solo navigazione: i permessi restano in `richiedi` e `lib/dati/*`.
 
 ## Pagine
 
-- Pubbliche: `/`, `/eventi`, `/e/[slug]`, `/chi-siamo`, `/galleria`, `/privacy`, `/cookie`, `/condizioni`, 404.
+- Pubbliche: `/`, `/eventi`, `/e/[slug]`, `/chi-siamo`, `/privacy`, `/cookie`, `/condizioni`, 404. `/galleria` porta a `/eventi#archivio` (Serate passate, con le foto).
 - Prevendita: `/e/[slug]/prevendita?pr=[handle]` e il link PR `/e/[slug]/[handle]` (Lista bloccata).
   Il link PR lascia un cookie di 3 giorni: vince l'ultimo link visitato. Senza link: "Lista: Maremma Musica".
 - Prevendita pagata online: chi compila il modulo va subito alla pagina di pagamento (Stripe Checkout: carta, Apple Pay,
