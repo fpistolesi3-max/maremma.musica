@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import { startTransition, useActionState, useRef, useState } from 'react';
 import { salvaSerata, type EsitoAzione } from '@/app/azioni/admin';
 import { coordinateDaLinkMaps, type Manca } from '@/lib/regole';
 import { riduciImmagine } from './riduci-immagine';
@@ -83,12 +83,22 @@ export function FormSerata({ v, pr, tipi, tavoli, copiaTavoliDa = [], manca = []
   }
   const occupato = inCorso || salvando;
 
+  /**
+   * Con `action={invia}` React 19 svuota i campi non controllati appena l'azione finisce: dopo un errore di validazione
+   * il modulo tornava vuoto. Con onSubmit l'azione parte uguale (stesso FormData, locandina compresa) ma il modulo non si tocca.
+   */
+  function inviaSenzaReset(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const dati = new FormData(e.currentTarget);
+    startTransition(() => invia(dati));
+  }
+
   return (
     <RegistroSalvataggi value={registro}>
     <div className="grid gap-x-12 gap-y-8 px-4 pb-28 md:px-12 md:pb-12 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="flex min-w-0 flex-col self-start border-b border-linea">
       {/* Il modulo dei dati è vuoto: i campi stanno nelle sezioni (anche in mezzo ai moduli dei tipi e dei tavoli, che sono moduli a sé) e ci si agganciano con l'attributo form. */}
-      <form id={FORM} ref={modulo} action={invia} className="hidden">
+      <form id={FORM} ref={modulo} onSubmit={inviaSenzaReset} className="hidden">
         <input type="hidden" name="id" value={v.id ?? ''} />
         <input type="hidden" name="locandinaAttuale" value={v.locandinaUrl} />
         <input type="hidden" name="pubblicato" value={v.pubblicato ? '1' : ''} />
