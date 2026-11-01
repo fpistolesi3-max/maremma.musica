@@ -28,7 +28,7 @@ export default async function PaginaFoto({ params }: Props) {
       <div className="px-4 py-6 md:px-12">
         <FotoSerata eventoId={e.id} foto={f.foto} credito={f.credito} byteSerata={f.byteSerata} byteTotali={f.byteTotali} />
         <p className="mb-0 mt-8 max-w-[640px] font-mono text-[12px] leading-4 text-osso-3">
-          Sul sito le foto si vedono solo quando la serata è pubblicata e finita. Quelle nascoste non le vede nessuno. Chi chiede di togliere una foto: eliminala da qui.
+          Sul sito le foto si vedono solo quando la serata è pubblicata e finita. Una foto nascosta sparisce dal sito, ma chi ha già il suo link può ancora aprirla: per una richiesta di rimozione usa Elimina.
         </p>
       </div>
     </>

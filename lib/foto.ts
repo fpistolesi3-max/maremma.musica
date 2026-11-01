@@ -10,6 +10,8 @@ export const MAX_BYTE_FILE = 1_500_000;
 /** Un caricamento non confermato dopo tanto tempo è abbandonato e si ripulisce. */
 export const SCADENZA_CARICAMENTO_MS = 60 * 60 * 1000;
 export const MAX_CREDITO = 80;
+/** Cache dei file su Storage: un giorno, così una foto eliminata sparisce in fretta anche per chi l'aveva già vista. */
+export const CACHE_FOTO_SECONDI = 86_400;
 
 export interface Foto {
   id: string;
@@ -34,7 +36,8 @@ export interface FotoVista extends Foto {
 export const percorsoGrande = (eventoId: string, id: string) => `${eventoId}/${id}.jpg`;
 export const percorsoMini = (eventoId: string, id: string) => `${eventoId}/${id}-m.jpg`;
 
-const perOrdine = <T extends Pick<Foto, 'ordine' | 'creataAt'>>(a: T, b: T) => a.ordine - b.ordine || a.creataAt.localeCompare(b.creataAt);
+/** L'ordine della serata: prima il numero scelto, poi chi è arrivato prima, poi l'id (sempre lo stesso risultato, anche a parità). */
+export const perOrdine = <T extends Pick<Foto, 'id' | 'ordine' | 'creataAt'>>(a: T, b: T) => a.ordine - b.ordine || a.creataAt.localeCompare(b.creataAt) || a.id.localeCompare(b.id);
 
 /** Quello che vede il pubblico: solo foto pronte e non nascoste, nell'ordine scelto. */
 export function fotoVisibili<T extends Foto>(foto: readonly T[]): T[] {
@@ -63,8 +66,8 @@ export function spostaFoto(foto: readonly Foto[], id: string, verso: 'prima' | '
   return nuova.map((f, k) => ({ id: f.id, ordine: k })).filter((u, k) => lista.find((f) => f.id === u.id)!.ordine !== u.ordine || k === i || k === j);
 }
 
-export function testoAltFoto(nomeSerata: string, dataGgMm: string, numero?: number) {
-  return `Foto della serata ${nomeSerata} del ${dataGgMm}${numero ? `, numero ${numero}` : ''}`;
+export function testoAltFoto(nomeSerata: string, dataGgMm: string, numero?: number, totale?: number) {
+  return `Foto della serata ${nomeSerata} del ${dataGgMm}${numero ? `, numero ${numero}${totale ? ` di ${totale}` : ''}` : ''}`;
 }
 
 export function creditoPulito(testo: string) {

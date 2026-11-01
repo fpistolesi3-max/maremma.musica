@@ -15,8 +15,8 @@ import { PulsanteMorph } from '@/components/pulsante-morph';
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const { prossimi, copertina: primo } = await eventiPubblici();
-  const foto = fotoPerHome(await serateConFoto());
+  const { prossimi, passati, copertina: primo } = await eventiPubblici();
+  const foto = fotoPerHome(await serateConFoto(passati, { max: 4 }));
 
   return (
     <>

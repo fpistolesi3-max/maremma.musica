@@ -38,7 +38,9 @@ async function caricaFoto(eventoId: string, s = admin) {
   return p.id;
 }
 const idsAdmin = async (eventoId: string) => (await m.foto.fotoAdmin(admin, eventoId)).foto.map((f) => f.id);
-const idsPubblici = async () => (await m.foto.serateConFoto()).flatMap((s) => s.foto.map((f) => f.id));
+const eventi = async () => [...(await m.archivio.leggi()).eventi];
+const evento = async (id: string) => (await eventi()).find((e) => e.id === id)!;
+const idsPubblici = async () => (await m.foto.serateConFoto(await eventi())).flatMap((s) => s.foto.map((f) => f.id));
 
 test('solo l’admin carica, cambia ed elimina: staff e PR no', async () => {
   const id = await caricaFoto(passata);
@@ -70,7 +72,7 @@ test('conferma: file mancanti o troppo pesanti non diventano foto; i file a met�
   assert.deepEqual(await idsAdmin(passata), [], 'nessuna foto pronta');
   // Un caricamento rimasto a metà per più di un’ora sparisce alla prossima apertura della pagina Foto.
   const fra2ore = Date.now() + 2 * 3_600_000;
-  await m.foto.fotoAdmin(admin, passata, fra2ore);
+  await m.foto.preparaFoto(admin, passata, fra2ore);
   assert.equal(existsSync(path.join(cartella, 'media', 'foto', passata, `${grossa.id}.jpg`)), false);
 });
 
@@ -84,7 +86,7 @@ test('in evidenza: al massimo 4, una nascosta non può esserlo, nascondere la to
   assert.equal(f0.inEvidenza, false, 'nascondere toglie dall’evidenza');
   await assert.rejects(m.foto.impostaFoto(admin, ids[0], { inEvidenza: true }), /nascosta/);
   await m.foto.impostaFoto(admin, ids[4], { inEvidenza: true });
-  const s = (await m.foto.serateConFoto()).find((x) => x.evento.id === passata)!;
+  const s = (await m.foto.serateConFoto(await eventi())).find((x) => x.evento.id === passata)!;
   assert.deepEqual(s.evidenza.map((f) => f.id), [ids[1], ids[2], ids[3], ids[4]]);
   await m.foto.eliminaFotoSerata(admin, passata);
 });
@@ -104,13 +106,13 @@ test('pubblico: niente foto nascoste, di serate non pubblicate o non ancora fini
   await m.foto.impostaFoto(admin, b, { nascosta: true });
   assert.deepEqual(await idsPubblici(), [a], 'la nascosta e quella della serata futura non si vedono');
   assert.ok((await idsAdmin(futura)).includes(prossima), 'l’admin le vede');
-  assert.equal(await m.foto.fotoSerataPubblica(futura), null);
+  assert.equal(await m.foto.fotoSerataPubblica(await evento(futura)), null);
   await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === passata)!.pubblicato = false; });
   assert.deepEqual(await idsPubblici(), [], 'serata non pubblicata: nessuna foto');
-  assert.equal(await m.foto.fotoSerataPubblica(passata), null);
+  assert.equal(await m.foto.fotoSerataPubblica(await evento(passata)), null);
   await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === passata)!.pubblicato = true; });
   await m.foto.salvaCreditoFoto(admin, passata, '  Mario   Rossi ');
-  const pub = await m.foto.fotoSerataPubblica(passata);
+  const pub = await m.foto.fotoSerataPubblica(await evento(passata));
   assert.equal(pub?.credito, 'Mario Rossi');
   assert.equal(pub?.foto.length, 1);
   assert.ok(pub?.foto[0].urlMini.startsWith('/media/foto/'));

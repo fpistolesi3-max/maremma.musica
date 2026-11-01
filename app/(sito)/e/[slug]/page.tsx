@@ -41,7 +41,7 @@ export default async function PaginaEvento({ params }: Props) {
   const puo = PuoIscriversi(ep.stato);
   const tavoli = (await tavoliPubblici(e.slug))?.tavoli ?? [];
   const tavoliLiberi = tavoli.filter((t) => t.libero);
-  const fotoSerata = await fotoSerataPubblica(e.id);
+  const fotoSerata = await fotoSerataPubblica(e);
 
   const domande = [
     ...(e.highlight?.toLowerCase().includes('premio') ? [{ d: `Come si vince il ${e.highlight.toLowerCase().replace(/ alla.*$/, '')}?`, r: 'Regolamento in arrivo: chi vota, a che ora si premia e come si ritira il premio.' /* TODO: cliente — regolamento premio */ }] : []),

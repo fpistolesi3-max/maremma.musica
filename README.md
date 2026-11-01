@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (98 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta), `npm run typecheck`,
+Altri comandi: `npm test` (104 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -82,20 +82,25 @@ Campo facoltativo "Foto di …" (un credito per serata, max 80 caratteri). Massi
   **home** con le foto in evidenza delle ultime serate. Le foto si vedono solo se la serata è pubblicata **e finita** e la foto non è nascosta.
   Senza foto vere non compare nessun riquadro "da fornire": la sezione della home sparisce e la Galleria dice "Le foto arriveranno presto".
   Testo alternativo automatico: "Foto della serata X del gg.mm, numero n di N".
-- **Come si caricano**: il browser riduce ogni foto (lato lungo 2000 px + miniatura 600 px, sempre JPEG ridisegnato: **EXIF e posizione GPS non
-  arrivano mai sul server**, `components/admin/riduci-foto.ts`) e la manda **direttamente a Supabase Storage** con un indirizzo firmato che il server
+- **Come si caricano**: il browser riduce ogni foto, **una alla volta** (così un telefono non esaurisce la memoria con più foto da 48 MP; l'invio in rete resta in parallelo, 3 alla volta): lato lungo 2000 px + miniatura 600 px, sempre JPEG ridisegnato, quindi **EXIF e posizione GPS non
+  arrivano mai sul server**. Si apre con `createImageBitmap` (con orientamento), poi senza opzioni, poi con `<img>` + canvas; "Formato non leggibile" solo se falliscono tutti (`components/admin/riduci-foto.ts`) e la manda **direttamente a Supabase Storage** con un indirizzo firmato che il server
   rilascia solo a un admin (`preparaFoto`), senza passare dalla funzione Vercel (limite 4,5 MB). Poi il server controlla che i due file ci siano e
-  pesino meno di 1,5 MB (`confermaFoto`) e solo allora la foto compare. I caricamenti rimasti a metà (pagina chiusa) si ripuliscono dopo un'ora,
-  alla prossima apertura della pagina Foto. In sviluppo, senza Supabase, i file vanno su disco (`/api/admin/foto/carica`, servite da `/media/foto/…`).
+  pesino meno di 1,5 MB (`confermaFoto`) e solo allora la foto compare, in fondo alla serie. Il tetto di 150 foto si ricontrolla alla conferma (con due conferme insieme resta la più vecchia). I caricamenti
+  rimasti a metà (pagina chiusa) si ripuliscono dopo un'ora, quando si prepara la foto successiva (mai solo aprendo la pagina). In sviluppo, senza Supabase, i file vanno su disco (`/api/admin/foto/carica`, servite da `/media/foto/…`).
 - **Dove stanno i dati**: NON nella riga `archivio_mvp` (si riscrive a ogni vendita). Tabella `foto_serate` (una riga per foto) e `serate_foto_credito`,
   bucket pubblico `foto-serate`; tutto da `lib/dati/foto.ts` con il controllo del ruolo admin, regole pure in `lib/foto.ts`. Con lo schema
   relazionale basta aggiungere la chiave esterna `evento_id → eventi(id) on delete cascade` (vedi commento nella migrazione).
+- **Letture a pagine**: Supabase non restituisce mai più di 1000 righe per richiesta e non avvisa. `lib/dati/foto.ts` non legge mai "tutte le foto": legge per serata (o per gruppi di serate con `in(...)`), a pagine con `range` esplicito, e cerca una foto sola per `id`.
+  Home, Galleria e pagina della serata ricevono le serate già lette dalla pagina (nessuna lettura in più dell'archivio). `lib/dati/foto-supabase.test.ts` prova tutto questo con un client Supabase finto (tetto di 1000 righe compreso).
+- **Cache**: i file su Storage (e la route di sviluppo) hanno `cacheControl` di 1 giorno (`CACHE_FOTO_SECONDI` in `lib/foto.ts`), così una foto eliminata sparisce in fretta.
+- **Tasto Indietro del telefono**: con la foto a schermo intero Indietro la chiude e resta nella pagina; con X o Esc non restano voci in più nella cronologia.
 - **Spazio**: circa 600 KB a foto (grande ~500 KB + miniatura ~60 KB): 60 foto ≈ 36 MB, 100 foto ≈ 60 MB. Nel piano gratuito di Supabase (1 GB di
   Storage) entrano circa 16–27 serate. Il pubblico scarica quasi solo miniature.
 - **Eliminazione**: "Elimina" toglie file e dati di una foto; "Elimina tutte le foto della serata" (`eliminaFotoSerata`) le toglie tutte e azzera il
   credito. **Una serata oggi non si può eliminare dall'app** (si può solo togliere dalla pubblicazione, e allora le sue foto spariscono dal sito): quando
-  si aggiungerà "Elimina serata" dovrà chiamare `eliminaFotoSerata`. Dopo l'eliminazione l'immagine può restare visibile per un po' a chi ha il
-  link diretto (cache dello Storage).
+  si aggiungerà "Elimina serata" dovrà chiamare `eliminaFotoSerata`. Dopo l'eliminazione l'immagine può restare visibile per un giorno al massimo a chi ha il
+  link diretto (cache dello Storage). "Nascondi" toglie la foto dal sito ma non il file: chi ha già il link può ancora aprirla (i nomi sono UUID, non si indovinano),
+  e per una richiesta di rimozione serve "Elimina" (lo dice anche la pagina Foto accanto al pulsante).
 - **Privacy**: in fondo alla Galleria e alla griglia della serata c'è "Ti riconosci e vuoi togliere una foto? Scrivici" (`mailto:` a
   `maremmamusica@gmail.com`; chi scrive viene accontentato eliminando la foto dalla pagina Foto). **L'informativa privacy va completata con
   il trattamento delle foto (persone riconoscibili, base giuridica, tempi di conservazione, richieste di rimozione) e verificata dal consulente**

@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { FotoVista } from '@/lib/foto';
-import { MAX_FOTO_SERATA, MAX_IN_EVIDENZA } from '@/lib/foto';
+import { CACHE_FOTO_SECONDI, MAX_FOTO_SERATA, MAX_IN_EVIDENZA } from '@/lib/foto';
 import {
   annullaFotoAzione, confermaFotoAzione, eliminaFotoAzione, eliminaTutteLeFotoAzione, impostaFotoAzione, preparaFotoAzione, salvaCreditoAzione, spostaFotoAzione,
   type EsitoFoto,
@@ -26,7 +26,7 @@ function invia(dest: Destinazione, blob: Blob, avanza: (byte: number) => void): 
     if (dest.tipo === 'firmato') {
       x.open('PUT', dest.url);
       const f = new FormData();
-      f.append('cacheControl', '31536000');
+      f.append('cacheControl', String(CACHE_FOTO_SECONDI));
       f.append('', blob);
       corpo = f;
     } else {
@@ -191,6 +191,9 @@ export function FotoSerata({ eventoId, foto, credito, byteSerata, byteTotali }: 
           <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}
             onClick={() => { if (confirm('Eliminare questa foto? Non si può annullare.')) esegui(() => eliminaFotoAzione(s.id), () => setScelta(null)); }}>Elimina</button>
           <button type="button" className="mm-btn mm-btn--muto ml-auto" style={{ minHeight: 44 }} onClick={() => setScelta(null)}>Chiudi</button>
+          <p className="m-0 w-full font-mono text-[11px] leading-[15px] text-osso-2">
+            Nascondi: la foto sparisce dal sito, ma chi ha già il suo link può ancora aprirla. Per una richiesta di rimozione usa Elimina.
+          </p>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { serateConFoto } from '@/lib/dati/foto';
+import { eventiPubblici } from '@/lib/dati/pubblico';
 import { dataPunti, parti } from '@/lib/formato';
 import { testoAltFoto } from '@/lib/foto';
 import { Locandina } from '@/components/evento';
@@ -11,7 +12,8 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Galleria', description: 'Le foto delle serate passate di Maremma Musica.' };
 
 export default async function Galleria() {
-  const serate = await serateConFoto();
+  const { passati } = await eventiPubblici();
+  const serate = await serateConFoto(passati);
   return (
     <section className="contenitore flex flex-col gap-8 pb-16 pt-8 md:gap-12 md:pb-24 md:pt-14">
       <div className="flex items-end justify-between gap-4">

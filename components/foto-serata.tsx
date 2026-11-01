@@ -2,28 +2,31 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { testoAltFoto } from '@/lib/foto';
 
 export interface FotoPubblica { id: string; urlGrande: string; urlMini: string; larghezza: number; altezza: number }
 
 /**
- * Griglia delle foto di una serata e vista a schermo intero (scorrimento col dito, frecce, tastiera).
+ * Griglia delle foto di una serata e vista a schermo intero (scorrimento col dito, frecce, tastiera, tasto Indietro del telefono).
  * Fatta in casa: nessuna libreria. Le miniature arrivano per prime; la foto grande si carica solo quando si apre.
  */
 export function GrigliaFoto({ foto, titolo, data, credito }: { foto: FotoPubblica[]; titolo: string; data: string; credito: string }) {
   const [aperta, setAperta] = useState<number | null>(null);
   const ultimo = useRef<HTMLElement | null>(null);
-  const alt = (i: number) => `Foto della serata ${titolo} del ${data}, numero ${i + 1} di ${foto.length}`;
+  const alt = useCallback((i: number) => testoAltFoto(titolo, data, i + 1, foto.length), [titolo, data, foto.length]);
+  const chiudi = useCallback(() => { setAperta(null); requestAnimationFrame(() => ultimo.current?.focus()); }, []);
 
   return (
     <>
       <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0 md:grid-cols-4 md:gap-4" aria-label={`Foto della serata ${titolo}`}>
         {foto.map((f, i) => (
           <li key={f.id}>
+            {/* Il nome del pulsante è il testo alternativo della foto: niente aria-label che lo copra. */}
             <button
               type="button"
               className="relative block aspect-[3/4] w-full cursor-pointer overflow-hidden border-0 bg-[#111419] p-0"
               onClick={(e) => { ultimo.current = e.currentTarget; setAperta(i); }}
-              aria-label={`Apri la foto ${i + 1} di ${foto.length}`}
+              aria-haspopup="dialog"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={f.urlMini} alt={alt(i)} width={f.larghezza} height={f.altezza} loading={i < 4 ? 'eager' : 'lazy'} decoding="async" className="absolute inset-0 h-full w-full object-cover" />
@@ -32,13 +35,7 @@ export function GrigliaFoto({ foto, titolo, data, credito }: { foto: FotoPubblic
         ))}
       </ul>
       {credito && <p className="m-0 font-mono text-[12px] leading-4 text-osso-2">Foto di {credito}</p>}
-      {aperta !== null && (
-        <Visore
-          foto={foto} indice={aperta} alt={alt} credito={credito}
-          cambia={setAperta}
-          chiudi={() => { setAperta(null); requestAnimationFrame(() => ultimo.current?.focus()); }}
-        />
-      )}
+      {aperta !== null && <Visore foto={foto} indice={aperta} alt={alt} credito={credito} cambia={setAperta} chiudi={chiudi} />}
     </>
   );
 }
@@ -55,10 +52,23 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi }: {
 
   const vai = useCallback((verso: 1 | -1) => cambia((indice + verso + n) % n), [indice, n, cambia]);
 
+  // Tasto Indietro del telefono: con la foto aperta c'è una voce in più nella cronologia. Indietro la toglie e chiude la foto
+  // (resti nella pagina); chiudendo con X o Esc si fa tornare indietro la cronologia, così non restano voci in più.
+  useEffect(() => {
+    if (!history.state?.mmFoto) history.pushState({ ...history.state, mmFoto: true }, ''); // (in sviluppo l'effetto parte due volte)
+    const alIndietro = () => chiudi();
+    window.addEventListener('popstate', alIndietro);
+    return () => window.removeEventListener('popstate', alIndietro);
+  }, [chiudi]);
+  const chiediChiusura = useCallback(() => {
+    if (history.state?.mmFoto) history.back(); // poi arriva popstate e chiude
+    else chiudi();
+  }, [chiudi]);
+
   // Tastiera: frecce, Esc e Tab che resta dentro la finestra.
   useEffect(() => {
     const tasto = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); chiudi(); }
+      if (e.key === 'Escape') { e.preventDefault(); chiediChiusura(); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); vai(1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); vai(-1); }
       else if (e.key === 'Tab') {
@@ -71,7 +81,7 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi }: {
     };
     window.addEventListener('keydown', tasto);
     return () => window.removeEventListener('keydown', tasto);
-  }, [vai, chiudi]);
+  }, [vai, chiediChiusura]);
 
   // La pagina sotto non scorre; il focus parte dal tasto di chiusura.
   useEffect(() => {
@@ -92,7 +102,7 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi }: {
     <div ref={contenitore} role="dialog" aria-modal="true" aria-label="Foto a schermo intero" className="fixed inset-0 z-[200] flex flex-col bg-[#08090c] text-osso">
       <div className="flex items-center justify-between gap-4 px-4 py-3 font-mono text-[12px] md:px-8">
         <span aria-live="polite">{indice + 1} / {n}</span>
-        <button ref={bottoneChiudi} type="button" onClick={chiudi} className="mm-btn mm-btn--muto" style={{ minHeight: 44, minWidth: 44 }} aria-label="Chiudi">Chiudi ✕</button>
+        <button ref={bottoneChiudi} type="button" onClick={chiediChiusura} className="mm-btn mm-btn--muto" style={{ minHeight: 44, minWidth: 44 }} aria-label="Chiudi">Chiudi ✕</button>
       </div>
       <div
         className="relative min-h-0 flex-1 touch-pan-y select-none"
