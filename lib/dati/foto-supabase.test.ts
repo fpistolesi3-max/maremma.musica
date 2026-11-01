@@ -23,7 +23,8 @@ function supabaseFinto() {
   const oggetti = new Map<string, number>(); // "bucket/percorso" → byte
   const stato = { senzaRange: 0, firmati: [] as string[], rimossi: [] as string[] };
 
-  class Q implements PromiseLike<{ data: unknown; error: null }> {
+  type Risposta = { data: unknown; error: { message: string } | null };
+  class Q implements PromiseLike<Risposta> {
     private filtri: ((r: Riga) => boolean)[] = [];
     private chiavi: string[] = [];
     private intervallo: [number, number] | null = null;
@@ -42,11 +43,12 @@ function supabaseFinto() {
     order(c: string) { this.chiavi.push(c); return this; }
     range(da: number, a: number) { this.intervallo = [da, a]; return this; }
     maybeSingle() { this.uno = true; return this; }
-    then<A, B>(ok?: ((v: { data: unknown; error: null }) => A | PromiseLike<A>) | null, ko?: ((e: unknown) => B | PromiseLike<B>) | null) {
+    then<A, B>(ok?: ((v: Risposta) => A | PromiseLike<A>) | null, ko?: ((e: unknown) => B | PromiseLike<B>) | null) {
       return Promise.resolve(this.esegui()).then(ok, ko);
     }
-    private esegui(): { data: unknown; error: null } {
+    private esegui(): Risposta {
       const t = tabelle[this.tabella];
+      if (!t) return { data: null, error: { message: `Could not find the table 'public.${this.tabella}' in the schema cache` } }; // come Supabase senza migrazione
       const trovate = t.filter((r) => this.filtri.every((f) => f(r)));
       if (this.op === 'insert') { t.push({ ...this.dati }); return { data: null, error: null }; }
       if (this.op === 'update') { for (const r of trovate) Object.assign(r, this.dati); return { data: null, error: null }; }
@@ -240,4 +242,17 @@ test('Supabase: elimina una foto o le foto di una serata con i file, il credito 
   assert.equal(f.tabelle.foto_serate.length, 0);
   assert.equal(f.tabelle.serate_foto_credito.length, 0, 'anche il credito');
   assert.equal(await m.foto.fotoSerataPubblica(passata), null);
+});
+
+test('Supabase: senza le tabelle delle foto le pagine pubbliche e la serata live si aprono lo stesso, la pagina Foto mostra l’errore', async (t) => {
+  const f = nuovo();
+  delete (f.tabelle as Partial<typeof f.tabelle>).foto_serate;
+  delete (f.tabelle as Partial<typeof f.tabelle>).serate_foto_credito;
+  const log = t.mock.method(console, 'error', () => {});
+  assert.deepEqual(await m.foto.serateConFoto([passata]), [], 'home e galleria: nessuna foto, nessun errore');
+  assert.deepEqual(await m.foto.serateConFoto([passata], { max: 4 }), []);
+  assert.equal(await m.foto.fotoSerataPubblica(passata), null, 'scheda serata: nessuna foto, nessun errore');
+  assert.deepEqual(await m.foto.riepilogoFoto(admin, passata.id), { totale: 0, nascoste: 0, anteprime: [], nonLette: true }, 'la serata live si apre lo stesso');
+  assert.equal(log.mock.callCount(), 4, 'l’errore resta nei log');
+  await assert.rejects(m.foto.fotoAdmin(admin, passata.id), /Foto: lettura non riuscito/);
 });
