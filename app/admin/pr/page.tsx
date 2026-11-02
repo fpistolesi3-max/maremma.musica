@@ -39,8 +39,7 @@ export default async function PaginaPr({ searchParams }: Props) {
         </div>} />
 
       <div className="flex flex-col gap-8 px-4 py-6 md:px-12">
-        <section aria-labelledby="aggiungi-pr" className="flex flex-col gap-4 border border-linea bg-notte-2 p-4 md:p-5">
-          <h2 id="aggiungi-pr" className="m-0 font-display text-[26px] font-black uppercase leading-none">Aggiungi PR</h2>
+        <section aria-label="Aggiungi PR" className="flex flex-col">
           <NuovoPr />
         </section>
 

@@ -15,25 +15,48 @@ export function InvitoWhatsApp({ testo, etichetta = 'Manda invito su WhatsApp', 
   );
 }
 
-/** "Aggiungi PR": nome ed email. Subito dopo compare il pulsante per l'invito su WhatsApp; l'email di benvenuto parte da sola. */
+/**
+ * "Aggiungi PR": un pulsante che apre il modulo (nome ed email). Dopo l'aggiunta il modulo si chiude e resta l'esito
+ * con l'invito su WhatsApp; l'email di benvenuto parte da sola.
+ */
 export function NuovoPr() {
   const [s, invia, inCorso] = useActionState(creaPrAzione, {} as EsitoNuovoPr);
+  const [aperto, setAperto] = useState(false);
+  const [esitoChiuso, setEsitoChiuso] = useState<EsitoNuovoPr | null>(null); // l'ultimo esito già messo via
+  const esito = s.invito && esitoChiuso !== s ? s : null;
+  const chiudiEsito = (riapri: boolean) => { setEsitoChiuso(s); setAperto(riapri); };
+
+  if (esito?.invito) {
+    return (
+      <div role="status" className="flex flex-col gap-3 border border-ok bg-notte-2 p-4 md:p-5">
+        <span className="text-[14px] leading-5 text-ok">✓ {esito.ok}</span>
+        {esito.avviso && <span role="alert" className="border border-attesa px-3 py-2 text-[14px] leading-5 text-attesa">{esito.avviso}</span>}
+        <div className="flex flex-wrap gap-2">
+          <InvitoWhatsApp testo={esito.invito.testo} primario />
+          <button type="button" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} onClick={() => chiudiEsito(true)}>Aggiungi un altro PR</button>
+          <button type="button" className="mm-btn mm-btn--muto" style={{ minHeight: 44 }} onClick={() => chiudiEsito(false)}>Chiudi</button>
+        </div>
+        <span className="text-[13px] leading-5 text-osso-3">Il messaggio è già scritto, con l&apos;indirizzo per entrare e la sua email: «{esito.invito.testo}»</span>
+      </div>
+    );
+  }
+  if (!aperto) {
+    return <button type="button" className="mm-btn mm-btn--linea self-start" style={{ minHeight: 44 }} onClick={() => setAperto(true)} aria-expanded={false}>+ Aggiungi PR</button>;
+  }
   return (
-    <div className="flex flex-col gap-4">
-      <form action={invia} className="grid gap-3 md:grid-cols-[1fr_1.2fr_auto] md:items-end">
-        <Mini id="npr-nome" nome="nome" etichetta="Nome" valore={s.valori?.nome} aiuto="Come comparirà nella sua lista" />
-        <Mini id="npr-email" nome="email" etichetta="Email" tipo="email" valore={s.valori?.email} aiuto="Con questa entra, senza password" />
-        <button type="submit" className="mm-btn mm-btn--primario" style={{ minHeight: 44 }} disabled={inCorso}>{inCorso ? 'Un attimo…' : 'Aggiungi PR'}</button>
+    <div className="flex flex-col gap-4 border border-linea bg-notte-2 p-4 md:p-5">
+      <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Aggiungi PR</h2>
+      <form action={invia} className="flex flex-col gap-3">
+        <div className="grid gap-3 md:grid-cols-[1fr_1.2fr]">
+          <Mini id="npr-nome" nome="nome" etichetta="Nome" valore={s.valori?.nome} aiuto="Come comparirà nella sua lista" />
+          <Mini id="npr-email" nome="email" etichetta="Email" tipo="email" valore={s.valori?.email} aiuto="Con questa entra, senza password" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className="mm-btn mm-btn--primario" style={{ minHeight: 44 }} disabled={inCorso}>{inCorso ? 'Un attimo…' : 'Aggiungi PR'}</button>
+          <button type="button" className="mm-btn mm-btn--muto" style={{ minHeight: 44 }} onClick={() => setAperto(false)} disabled={inCorso}>Annulla</button>
+        </div>
       </form>
       {s.errore && <span role="alert" className="text-[14px] leading-5 text-stop-testo">{s.errore}</span>}
-      {s.invito && (
-        <div role="status" className="flex flex-col gap-3 border border-ok p-4">
-          <span className="text-[14px] leading-5 text-ok">✓ {s.ok}</span>
-          {s.avviso && <span role="alert" className="border border-attesa px-3 py-2 text-[14px] leading-5 text-attesa">{s.avviso}</span>}
-          <InvitoWhatsApp testo={s.invito.testo} primario />
-          <span className="text-[13px] leading-5 text-osso-3">Il messaggio è già scritto, con l&apos;indirizzo per entrare e la sua email: «{s.invito.testo}»</span>
-        </div>
-      )}
     </div>
   );
 }
