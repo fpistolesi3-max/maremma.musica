@@ -227,6 +227,13 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   (quando, a quanti): le serate vecchie non ce l'hanno e va bene, nessuna migrazione. In ogni riga "Manda il link su WhatsApp" apre
   `wa.me` con il messaggio pronto (WhatsApp in blocco non è possibile senza la Business API).
   Lo staff alla porta trova la lista di un PR con "Cerca per nome" e non vede i numeri dei PR.
+- **Link PR non valido** (`lib/link-pr.ts`): il link `/e/<serata>/<handle>` (o il cookie `mm_pr` di 3 giorni) vale solo se il PR esiste, è attivo
+  e abilitato per la serata (`prAbilitati`). Se non vale, la pagina mostra in cima l'avviso ("Il link di X non vale per questa serata." /
+  "non è più attivo." / "Questo link non è valido.") e **non** il modulo: prima si sceglie "Continua nella Lista Maremma Musica"
+  (`/e/<serata>/prevendita?senza_pr=1`, il middleware toglie anche il cookie del PR). Se è il cookie a non valere, c'è lo stesso avviso e il
+  modulo con la Lista Maremma Musica. `creaIscrizione` rifiuta con un errore chiaro un handle che non vale (non assegna a quel PR e non
+  mette in silenzio in Maremma Musica). Nell'area PR le serate dove non è abilitato non ci sono; nella pagina admin PR, con una serata scelta,
+  appare "Non in questa serata" (o "Sospeso") senza link da copiare né WhatsApp.
 - I PR non incassano: niente "Ha pagato" e niente consegne di soldi. Il PR vede nella sua area solo i clienti che hanno
   pagato (o sono entrati); la classifica conta solo le prevendite pagate. **Il PR vede solo la propria posizione** ("Sei 3° su 8 · 42 in lista",
   `posizionePr` in `lib/dati/classifica.ts`): nessun nome né numero degli altri PR o di Maremma Musica arriva al suo browser. Delle prevendite

@@ -1,4 +1,5 @@
 import 'server-only';
+import { avvisoLinkPr, valutaLinkPr } from '../link-pr';
 import { randomUUID } from 'node:crypto';
 import { leggi, modifica, segreto } from './archivio';
 import type { Archivio, Evento, Iscrizione, Lotto, Pr } from './tipi';
@@ -72,7 +73,10 @@ export async function creaIscrizione(input: {
   if (!etaSufficiente(input.dataNascita, evento)) {
     return { ok: false, campo: 'nascita', errore: `Serata ${evento.etaMinima}+: con questa data non puoi entrare.` };
   }
-  const pr = await prValido(input.handlePr, evento);
+  // Il link del PR deve valere per questa serata: altrimenti non si assegna a lui e nemmeno, in silenzio, alla Lista Maremma Musica.
+  const link = valutaLinkPr(d0.pr, evento, input.handlePr, null);
+  if (link.tipo === 'non_valido') return { ok: false, errore: `${avvisoLinkPr(link)} Ricarica la pagina e scegli come continuare.` };
+  const pr = link.tipo === 'valido' ? link.pr : null;
   const chiave = await segreto();
 
   // Controlli e scrittura nello stesso passaggio: due invii simultanei non superano i posti del lotto.

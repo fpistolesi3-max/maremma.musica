@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
+import type { Pr } from '@/lib/dati/tipi';
+import { prAbilitato } from '@/lib/link-pr';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { sessioneCorrente } from '@/lib/sessione';
@@ -40,11 +42,13 @@ export default async function PaginaPr({ params, searchParams }: Props) {
   const s = await sessioneCorrente();
   const { serata, tavolo } = await searchParams;
   if (s?.utente.ruolo === 'pr' && s.pr?.id === pr.id) return <AreaPr sessioneHandle={pr.handle} serataScelta={serata} nuovoTavolo={tavolo} />;
-  return <LinkGenerico handle={pr.handle} nome={pr.nomeDisplay} />;
+  return <LinkGenerico pr={pr} />;
 }
 
-async function LinkGenerico({ handle, nome }: { handle: string; nome: string }) {
-  const { prossimi } = await eventiPubblici();
+async function LinkGenerico({ pr }: { pr: Pr }) {
+  const { handle, nomeDisplay: nome } = pr;
+  // Solo le serate per cui questo PR è abilitato: per le altre il suo link non vale.
+  const prossimi = (await eventiPubblici()).prossimi.filter((x) => prAbilitato(pr, x.evento));
   return (
     <div className="mm-grana flex min-h-dvh flex-col">
       <header className="flex h-16 items-center gap-[10px] border-b border-linea px-4 md:px-10">

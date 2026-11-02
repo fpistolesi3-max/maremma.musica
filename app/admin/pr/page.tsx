@@ -65,6 +65,7 @@ export default async function PaginaPr({ searchParams }: Props) {
           <ul className="m-0 flex list-none flex-col p-0">
             {p.righe.map((r, i) => {
               const sospeso = r.pr.stato === 'sospeso';
+              const valido = p.evento ? abilitatoPerSerata(r.pr, p.evento) : !sospeso; // il suo link vale per la serata scelta
               return (
                 <li key={r.pr.id} className={`flex flex-col gap-4 border-t border-linea py-5 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:gap-10 ${i === p.righe.length - 1 ? 'border-b' : ''}`}>
                   <div className={`flex min-w-0 flex-col gap-3 ${sospeso ? 'opacity-60' : ''}`}>
@@ -80,12 +81,20 @@ export default async function PaginaPr({ searchParams }: Props) {
                     </div>
                   </div>
                   <div className="flex min-w-0 flex-col gap-3">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold leading-[14px] tracking-[.12em] text-osso-2">LINK DA DARE AI CLIENTI</span>
-                      <LinkPr url={linkClienti(r.pr.handle)} />
-                    </div>
+                    {valido ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold leading-[14px] tracking-[.12em] text-osso-2">LINK DA DARE AI CLIENTI</span>
+                        <LinkPr url={linkClienti(r.pr.handle)} />
+                      </div>
+                    ) : (
+                      // Un link che non vale non si copia: chi lo aprisse vedrebbe l'avviso invece della lista del PR.
+                      <p className="m-0 flex flex-col gap-1">
+                        <b className="font-display text-[22px] font-extrabold uppercase leading-none text-attesa">{sospeso ? 'Sospeso' : 'Non in questa serata'}</b>
+                        <span className="text-[13px] leading-5 text-osso-3">{sospeso ? 'Il suo link non funziona finché non lo riattivi.' : 'La serata non è aperta a questo PR: il suo link non vale e non c’è niente da copiare.'}</span>
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-2">
-                      {p.evento && abilitatoPerSerata(r.pr, p.evento) && !motivoNoInvioLink(p.evento) && (
+                      {p.evento && valido && !motivoNoInvioLink(p.evento) && (
                         <InvitoWhatsApp testo={testoLinkPerPr(r.pr.nomeDisplay, p.evento, linkClienti(r.pr.handle))} etichetta="Manda il link su WhatsApp" primario />
                       )}
                       {r.email && !sospeso && <InvitoWhatsApp testo={testoInvitoPr(r.pr.nomeDisplay, r.email, origine)} etichetta="Rimanda invito su WhatsApp" />}

@@ -64,7 +64,7 @@ test('prevendita: iscrizione, doppione, minorenne, lista del PR', async () => {
   const pr = (await m.archivio.leggi()).pr.find((p) => p.handle === 'test-pr')!;
   assert.equal(ok.ok && ok.iscrizione.prId, pr.id);
   const sconosciuto = await m.pubblico.creaIscrizione({ ...base, cognome: 'Altro', handlePr: 'non-esiste' });
-  assert.equal(sconosciuto.ok && sconosciuto.iscrizione.prId, null, 'handle sconosciuto → Lista Maremma Musica');
+  assert.ok(!sconosciuto.ok && /non è valido/.test(sconosciuto.errore), 'handle sconosciuto: errore chiaro, non finisce in silenzio nella Lista Maremma Musica');
 });
 
 test('area PR: vede solo i propri iscritti, non può toccare quelli degli altri', async () => {
@@ -201,6 +201,46 @@ test('link della serata ai PR: solo attivi e abilitati, ognuno col suo link, nie
     e.pubblicato = true; e.invioLinkPr = null;
     d.pr.find((p) => p.handle === 'zarro-pollicino')!.stato = 'attivo';
   });
+});
+
+test('link PR non valido per la serata: l’iscrizione non va al PR e nemmeno in silenzio nella lista di Maremma Musica', async () => {
+  const d0 = await m.archivio.leggi();
+  const evento = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const zarro = d0.pr.find((p) => p.handle === 'zarro-pollicino')!;
+  const base = { slug: 'halloween-party', dataNascita: '1992-03-03', marketing: false };
+  const quante = () => m.archivio.leggi().then((d) => d.iscrizioni.length);
+  const prima = await quante();
+
+  // Serata aperta solo a test-pr: l'handle di un altro PR (attivo ma non abilitato) viene rifiutato.
+  await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === evento.id)!.prAbilitati = [d.pr.find((p) => p.handle === 'test-pr')!.id]; });
+  const nonAbilitato = await m.pubblico.creaIscrizione({ ...base, nome: 'Anna', cognome: 'Rifiutata', email: 'anna.rifiutata@esempio.it', handlePr: 'zarro-pollicino' });
+  assert.ok(!nonAbilitato.ok && /non vale per questa serata/.test(nonAbilitato.errore));
+  const abilitato = await m.pubblico.creaIscrizione({ ...base, nome: 'Bruno', cognome: 'Accettato', email: 'bruno.accettato@esempio.it', handlePr: 'test-pr' });
+  assert.ok(abilitato.ok && abilitato.iscrizione.prId === d0.pr.find((p) => p.handle === 'test-pr')!.id);
+  const senzaLink = await m.pubblico.creaIscrizione({ ...base, nome: 'Carla', cognome: 'Senzalink', email: 'carla.senzalink@esempio.it', handlePr: null });
+  assert.ok(senzaLink.ok && senzaLink.iscrizione.prId === null, 'senza link: Lista Maremma Musica');
+  assert.equal(await quante(), prima + 2, 'la richiesta rifiutata non ha creato niente');
+
+  // Sospeso e inesistente: stesso rifiuto.
+  await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === evento.id)!.prAbilitati = null; d.pr.find((p) => p.id === zarro.id)!.stato = 'sospeso'; });
+  const sospeso = await m.pubblico.creaIscrizione({ ...base, nome: 'Dino', cognome: 'Sospeso', email: 'dino.sospeso@esempio.it', handlePr: 'zarro-pollicino' });
+  assert.ok(!sospeso.ok && /non è più attivo/.test(sospeso.errore));
+  const inesistente = await m.pubblico.creaIscrizione({ ...base, nome: 'Elsa', cognome: 'Inesistente', email: 'elsa.inesistente@esempio.it', handlePr: 'non-esiste' });
+  assert.ok(!inesistente.ok && /non è valido/.test(inesistente.errore));
+  assert.equal(await quante(), prima + 2);
+  await m.archivio.modifica((d) => { d.pr.find((p) => p.id === zarro.id)!.stato = 'attivo'; });
+});
+
+test('area PR: le serate per cui il PR non è abilitato non ci sono, quindi niente "Il tuo link"', async () => {
+  const s = await sessione('test-pr@maremmamusica.test');
+  const d = await m.archivio.leggi();
+  const evento = d.eventi.find((e) => e.slug === 'halloween-party')!;
+  assert.ok((await m.areaPr.serateDelPr(s)).some((x) => x.evento.id === evento.id), 'abilitato: la serata c’è');
+  await m.archivio.modifica((a) => { a.eventi.find((e) => e.id === evento.id)!.prAbilitati = [a.pr.find((p) => p.handle === 'zarro-pollicino')!.id]; });
+  const dopo = await m.areaPr.serateDelPr(s);
+  assert.ok(!dopo.some((x) => x.evento.id === evento.id), 'non abilitato: la serata non è tra le sue prossime');
+  assert.ok(!JSON.stringify(dopo).includes('halloween-party'), 'e il suo link non compare');
+  await m.archivio.modifica((a) => { a.eventi.find((e) => e.id === evento.id)!.prAbilitati = null; });
 });
 
 test('porta: QR falsificato non valido, doppio passaggio bloccato, PR non può fare check-in', async () => {

@@ -28,6 +28,8 @@ export function middleware(req: NextRequest) {
   // Link dei tavoli del PR (/tavoli/[serata]?pr=…): come quello della lista, il sito lo ricorda per qualche giorno.
   if (/^\/tavoli\/[^/]+\/?$/.test(pathname) && searchParams.get('pr')) handle = searchParams.get('pr');
   if (handle && HANDLE.test(handle.toLowerCase())) res.cookies.set(COOKIE_PR, handle.toLowerCase(), COOKIE);
+  // "Continua nella Lista Maremma Musica": il cliente ha scelto di non stare nella lista di un PR, il cookie non deve riportarlo lì.
+  if (/^\/e\/[^/]+\/prevendita\/?$/.test(pathname) && searchParams.get('senza_pr')) res.cookies.set(COOKIE_PR, '', { ...COOKIE, maxAge: 0 });
 
   // Solo sulle pagine pubbliche: le aree di lavoro non contano come arrivi.
   if (!/^\/(admin|door|gestione|accedi|dev|api)(\/|$)/.test(pathname)) {
