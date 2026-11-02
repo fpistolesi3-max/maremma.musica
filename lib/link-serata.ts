@@ -37,10 +37,9 @@ export const quandoSerata = (evento: Pick<Evento, 'data'>) => `${giornoSettLungo
 export const testoPerClienti = (evento: Pick<Evento, 'nome' | 'data'>, link: string) =>
   `${evento.nome}, ${quandoSerata(evento)}: mettiti nella mia lista da qui ${link}`;
 
-/** Messaggio per il PR (WhatsApp): il suo link e il testo da girare ai clienti. */
+/** Messaggio per il PR (WhatsApp): solo il suo link per la serata. */
 export const testoLinkPerPr = (nomePr: string, evento: Pick<Evento, 'nome' | 'data'>, link: string) =>
-  `Ciao ${nomePr.trim().split(/\s+/)[0] ?? ''}! Ecco il tuo link per ${evento.nome} (${quandoSerata(evento)}): ${link}\n\n`
-  + `Se vuoi, manda ai tuoi clienti: «${testoPerClienti(evento, link)}»`;
+  `Ciao ${nomePr.trim().split(/\s+/)[0] ?? ''}! Ecco il tuo link per ${evento.nome} (${quandoSerata(evento)}): ${link}`;
 
 /** "Inviato il 2.11 alle 18:04 a 8 PR" (con quante email non sono partite, se ce ne sono). */
 export function testoUltimoInvio(i: { at: string; inviate: number; nonPartite: number }) {
