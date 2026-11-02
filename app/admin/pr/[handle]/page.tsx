@@ -7,7 +7,10 @@ import { Resa, Riquadro } from '@/components/gestione';
 import { SceltaSerata } from '@/components/gestione-client';
 import { ChipIscrizione } from '@/components/ui';
 import { etichettaCanale } from '@/lib/canali';
-import { ModificaPr } from '@/components/admin/pr-client';
+import { InvitoWhatsApp, ModificaPr } from '@/components/admin/pr-client';
+import { StatoPr } from '@/components/admin/azioni-client';
+import { origineRichiesta } from '@/lib/sessione';
+import { testoInvitoPr } from '@/lib/inviti';
 
 export const metadata = { title: 'Dettaglio PR' };
 
@@ -29,6 +32,8 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
   const x = await dettaglioPr(s, handle, (serata as string) ?? null);
   if (!x) notFound();
   const max = Math.max(1, ...x.perGiorno.map((g) => g.n));
+  const sospeso = x.pr.stato === 'sospeso';
+  const origine = await origineRichiesta();
   const n = x.numeri;
 
   return (
@@ -44,11 +49,40 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
             /pr/{x.pr.handle}{x.email ? ` · ${x.email}` : ''} · PR DAL {dataPunti(x.pr.createdAt)}.{String(parti(x.pr.createdAt).anno).slice(2)}
           </span>
         </div>
+      </div>
+
+      <section aria-labelledby="anagrafica" className="flex flex-col gap-5 border-b border-linea px-4 py-6 md:px-12">
+        <h2 id="anagrafica" className="m-0 font-display text-[26px] font-black uppercase leading-none">Anagrafica</h2>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-3 border border-linea p-4">
+            <span className="etichetta">Dati</span>
+            <ModificaPr prId={x.pr.id} nome={x.pr.nomeDisplay} email={x.email ?? ''} handle={x.pr.handle} />
+          </div>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 border border-linea p-4">
+              <span className="etichetta">Accesso</span>
+              {x.email && !sospeso
+                ? <InvitoWhatsApp testo={testoInvitoPr(x.pr.nomeDisplay, x.email, origine)} etichetta="Rimanda invito su WhatsApp" />
+                : <span className="text-[13px] leading-5 text-osso-3">{sospeso ? 'Sospeso: non può entrare.' : 'Senza email non può entrare: aggiungila nei dati.'}</span>}
+              <span className="text-[13px] leading-5 text-osso-3">Entra da /accedi con la sua email, senza password.</span>
+            </div>
+            <div className={`flex flex-col gap-3 border p-4 ${sospeso ? 'border-attesa' : 'border-linea'}`}>
+              <span className="etichetta">Stato del PR</span>
+              <span className="text-[14px] leading-5">
+                {sospeso
+                  ? <><b className="text-attesa">Sospeso.</b> Non entra nella sua area, chi apre i suoi link vede che non valgono e non riceve i link delle serate. Le iscrizioni già fatte restano.</>
+                  : <><b className="text-ok">Attivo.</b> Entra nella sua area e i suoi link funzionano nelle serate a cui è abilitato.</>}
+              </span>
+              <div><StatoPr id={x.pr.id} attivo={!sospeso} nome={x.pr.nomeDisplay} /></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="numeri" className="flex flex-col gap-3 px-4 pt-6 md:flex-row md:items-end md:justify-between md:px-12">
+        <h2 id="numeri" className="m-0 font-display text-[26px] font-black uppercase leading-none">Numeri</h2>
         <SceltaSerata azione={`/admin/pr/${x.pr.handle}`} eventi={x.eventi} scelto={x.evento?.id ?? 'tutte'} />
-      </div>
-      <div className="border-b border-linea px-4 py-4 md:px-12">
-        <ModificaPr prId={x.pr.id} nome={x.pr.nomeDisplay} email={x.email ?? ''} handle={x.pr.handle} />
-      </div>
+      </section>
 
       <div className="grid grid-cols-2 border-l border-linea lg:grid-cols-4">
         <Riquadro etichetta="In lista" valore={n.inLista} nota={`+${n.nuovi24h} NELLE ULTIME 24H`} />

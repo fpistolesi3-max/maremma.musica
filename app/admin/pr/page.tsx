@@ -1,13 +1,11 @@
 import Link from 'next/link';
 import { origineRichiesta, richiedi } from '@/lib/sessione';
 import { panoramicaPr } from '@/lib/dati/gestione-pr';
-import { testoInvitoPr } from '@/lib/inviti';
 import { dataPunti, euro, giornoSett } from '@/lib/formato';
 import { Riquadro } from '@/components/gestione';
 import { SceltaSerata } from '@/components/gestione-client';
 import { AggiornamentoLive } from '@/components/admin/live';
 import { TestataAdmin } from '@/components/admin/ui';
-import { StatoPr } from '@/components/admin/azioni-client';
 import { InvioLinkSerata, InvitoWhatsApp, LinkPr, NuovoPr } from '@/components/admin/pr-client';
 import { abilitatoPerSerata, destinatariLinkSerata, motivoNoInvioLink, testoLinkPerPr, testoUltimoInvio } from '@/lib/link-serata';
 import { leggi } from '@/lib/dati/archivio';
@@ -97,9 +95,7 @@ export default async function PaginaPr({ searchParams }: Props) {
                       {p.evento && valido && !motivoNoInvioLink(p.evento) && (
                         <InvitoWhatsApp testo={testoLinkPerPr(r.pr.nomeDisplay, p.evento, linkClienti(r.pr.handle))} etichetta="Manda il link su WhatsApp" primario />
                       )}
-                      {r.email && !sospeso && <InvitoWhatsApp testo={testoInvitoPr(r.pr.nomeDisplay, r.email, origine)} etichetta="Rimanda invito su WhatsApp" />}
-                      <StatoPr id={r.pr.id} attivo={!sospeso} nome={r.pr.nomeDisplay} />
-                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}>Modifica e dettaglio →</Link>
+                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}>Anagrafica e numeri →</Link>
                     </div>
                   </div>
                 </li>
