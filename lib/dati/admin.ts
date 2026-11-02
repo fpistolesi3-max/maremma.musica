@@ -543,6 +543,31 @@ export async function creaPr(s: Sessione, input: { nome: string; handle?: string
   });
 }
 
+/**
+ * Anagrafica di un PR già esistente: nome mostrato ed email con cui entra. L'handle (la fine dei suoi link) non cambia,
+ * perché romperebbe i link già girati ai clienti. Cambiando email si annullano i link di accesso ancora aperti, mandati al vecchio indirizzo.
+ */
+export async function modificaPr(s: Sessione, prId: string, input: { nome: string; email: string }) {
+  soloAdmin(s);
+  const nome = input.nome.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!nome) throw new Error('Scrivi il nome della lista');
+  if (!EMAIL_RE.test(email)) throw new Error('Email non valida');
+  return modifica((d) => {
+    const pr = d.pr.find((p) => p.id === prId);
+    if (!pr) throw new Error('PR non trovato');
+    const utente = d.utenti.find((u) => u.prId === prId);
+    if (d.utenti.some((u) => u.email === email && u !== utente)) throw new Error('Email già usata da un altro accesso');
+    pr.nomeDisplay = nome;
+    if (!utente) d.utenti.push({ id: randomUUID(), email, ruolo: 'pr', prId, createdAt: new Date().toISOString() });
+    else if (utente.email !== email) {
+      utente.email = email;
+      d.accessi = d.accessi.filter((a) => a.utenteId !== utente.id || a.usato);
+    }
+    return { nome, email, handle: pr.handle };
+  });
+}
+
 export async function cambiaStatoPr(s: Sessione, prId: string, attivo: boolean) {
   soloAdmin(s);
   await modifica((d) => {

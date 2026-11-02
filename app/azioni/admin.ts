@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { origineRichiesta, sessioneCorrente, type Sessione } from '@/lib/sessione';
 import type { NomeModello } from '@/lib/tipi-modelli';
 import {
-  applicaModelloTipi, cambiaNominativo, cambiaStatoIscrizione, cambiaStatoPr, copiaTipi, copiaTavoli, creaPr, creaStaff, creaTavoliInSerie, duplicaSerata, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
+  applicaModelloTipi, cambiaNominativo, cambiaStatoIscrizione, cambiaStatoPr, copiaTipi, copiaTavoli, creaPr, creaStaff, modificaPr, creaTavoliInSerie, duplicaSerata, eliminaLotto, eliminaTavolo, posizionaTavolo, rimuoviStaff, salvaEvento, salvaLotto, salvaPiantina, salvaTavolo, type DatiEvento,
 } from '@/lib/dati/admin';
 import { salvaMedia } from '@/lib/dati/media';
 import { inviaBenvenutoPr } from '@/lib/benvenuto-pr';
@@ -340,6 +340,20 @@ export async function inviaLinkSerataAzione(eventoId: string): Promise<EsitoLink
     revalidatePath('/admin/pr');
     return { ...esito, ultimo: testoUltimoInvio({ at: new Date().toISOString(), inviate: esito.inviate, nonPartite: esito.nonPartite }) };
   } catch (e) { return { errore: (e as Error).message }; }
+}
+
+/** "Modifica" nella scheda di un PR: nome ed email. I campi restano scritti anche se c'è un errore. */
+export interface EsitoModificaPr extends EsitoAzione { valori?: { nome: string; email: string } }
+
+export async function modificaPrAzione(_p: EsitoModificaPr, f: FormData): Promise<EsitoModificaPr> {
+  const s = await admin();
+  const valori = { nome: t(f, 'nome'), email: t(f, 'email') };
+  try {
+    const x = await modificaPr(s, t(f, 'prId'), valori);
+    revalidatePath('/admin/pr', 'layout');
+    revalidatePath('/pr', 'layout');
+    return { ok: 'Salvato.', valori: { nome: x.nome, email: x.email } };
+  } catch (e) { return { errore: (e as Error).message, valori }; }
 }
 
 export async function statoPrAzione(prId: string, attivo: boolean) {

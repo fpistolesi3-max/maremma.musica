@@ -7,7 +7,7 @@ import { AggiornamentoLive } from '@/components/admin/live';
 import { TestataAdmin } from '@/components/admin/ui';
 import { LinkCanale, SceltaSerata } from '@/components/gestione-client';
 
-export const metadata = { title: 'Canali' };
+export const metadata = { title: 'Social e sito' };
 
 type Props = { searchParams: Promise<{ serata?: string }> };
 
@@ -24,7 +24,7 @@ export default async function Canali({ searchParams }: Props) {
 
   return (
     <>
-      <TestataAdmin briciole="PR / CANALI" titolo="Canali"
+      <TestataAdmin briciole="CANALI / SOCIAL E SITO" titolo="Social e sito"
         sotto={`${c.evento ? `${giornoSett(c.evento.data)} ${dataPunti(c.evento.data)} · ${c.evento.nome.toUpperCase()}` : 'TUTTE LE SERATE'} · DA DOVE ARRIVA CHI SI ISCRIVE SENZA PR`}
         azioni={<div className="flex w-full flex-col gap-3 md:w-auto md:items-end">
           <SceltaSerata azione="/admin/pr/canali" eventi={c.eventi} scelto={c.evento?.id ?? 'tutte'} />

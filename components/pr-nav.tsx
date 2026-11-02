@@ -10,7 +10,7 @@ export function NavPr() {
   const q = serata ? `?serata=${encodeURIComponent(serata)}` : '';
   const voci = [
     { href: '/admin/pr', testo: 'PR', attiva: p === '/admin/pr' || (p.startsWith('/admin/pr/') && !p.startsWith('/admin/pr/canali')) },
-    { href: '/admin/pr/canali', testo: 'Canali', attiva: p.startsWith('/admin/pr/canali') },
+    { href: '/admin/pr/canali', testo: 'Social e sito', attiva: p.startsWith('/admin/pr/canali') },
   ];
   return (
     <nav aria-label="PR e canali" className="flex gap-1 border-b border-linea px-4 md:px-12">

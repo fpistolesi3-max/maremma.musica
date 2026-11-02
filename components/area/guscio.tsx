@@ -13,7 +13,7 @@ export function vociArea(ruolo: Ruolo): VoceArea[] {
   return [
     porta,
     { href: '/admin', testo: 'Serate', icona: 'serate' },
-    { href: '/admin/pr', testo: 'PR', icona: 'pr' },
+    { href: '/admin/pr', testo: 'Canali', icona: 'pr' }, // PR e chi arriva senza PR (social e sito)
     { href: '/admin/iscrizioni', testo: 'Iscrizioni', icona: 'iscrizioni' },
     { href: '/admin/staff', testo: 'Staff', icona: 'staff' },
   ];
