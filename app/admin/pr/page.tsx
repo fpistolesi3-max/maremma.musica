@@ -32,7 +32,7 @@ export default async function PaginaPr({ searchParams }: Props) {
 
   return (
     <>
-      <TestataAdmin briciole="PR" titolo="PR" sotto={`${p.prAttivi} PR ATTIVI · ${nomeSerata}`}
+      <TestataAdmin briciole="CANALI / PR" titolo="PR" sotto={`${p.prAttivi} PR ATTIVI · ${nomeSerata}`}
         azioni={<div className="flex w-full flex-col gap-3 md:w-auto md:items-end">
           <SceltaSerata azione="/admin/pr" eventi={p.eventi} scelto={p.evento?.id ?? 'tutte'} />
           <AggiornamentoLive ogniSecondi={10} aggiornatoAt={new Date().toISOString()} />
@@ -55,7 +55,7 @@ export default async function PaginaPr({ searchParams }: Props) {
             nota={totaleLista ? `${Math.round((p.totali.inLista / totaleLista) * 100)}% DEL TOTALE · +${p.totali.nuovi24h} IN 24H` : undefined} />
           <Riquadro etichetta="Entrati dai PR" valore={p.totali.entrati} colore="text-ok" nota={p.totali.resa != null ? `RESA ${p.totali.resa}%` : 'LA PORTA NON È ANCORA APERTA'} />
           <Riquadro etichetta="Prevendita dai PR" valore={euro(p.totali.incassatoOnline)} nota="PAGATA ONLINE SUL SITO" />
-          <Riquadro etichetta="Senza PR" valore={p.diretta.inLista} nota={<Link href={`/admin/pr/canali${q}`} className="text-osso-2">DA SOCIAL E SITO · VEDI CANALI →</Link>} />
+          <Riquadro etichetta="Senza PR" valore={p.diretta.inLista} nota={<Link href={`/admin/pr/canali${q}`} className="text-osso-2">DA SOCIAL E SITO · VEDI →</Link>} />
         </div>
 
         <section aria-labelledby="elenco-pr" className="flex flex-col gap-1">
