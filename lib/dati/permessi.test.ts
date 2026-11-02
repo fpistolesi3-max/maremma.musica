@@ -143,6 +143,28 @@ test('PR nuovo: handle libero dal nome, email già usata rifiutata, "canali" ris
   await assert.rejects(m.admin.creaPr(await sessione('test-pr@maremmamusica.test'), { nome: 'Abusivo', email: 'abusivo@esempio.it' }), /non_autorizzato/);
 });
 
+test('modifica PR: nome ed email cambiano, l’handle no, email già usata rifiutata, vecchi link di accesso annullati, solo admin', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const nuovo = await m.admin.creaPr(admin, { nome: 'Da Cambiare', email: 'dacambiare@esempio.it' });
+  const pr = (await m.archivio.leggi()).pr.find((p) => p.handle === nuovo.handle)!;
+  const utente = (await m.archivio.leggi()).utenti.find((u) => u.prId === pr.id)!;
+  await m.archivio.modifica((d) => { d.accessi.push({ id: 'acc-vecchio', utenteId: utente.id, tokenHash: 'x', codiceHash: 'y', scade: new Date(Date.now() + 600_000).toISOString(), usato: false, tentativi: 0 }); });
+
+  await m.admin.modificaPr(admin, pr.id, { nome: '  Nome Nuovo ', email: ' CAMBIATA@esempio.it ' });
+  const d = await m.archivio.leggi();
+  assert.equal(d.pr.find((p) => p.id === pr.id)!.nomeDisplay, 'Nome Nuovo');
+  assert.equal(d.pr.find((p) => p.id === pr.id)!.handle, nuovo.handle, 'l’handle (e quindi i link) non cambia');
+  assert.equal(d.utenti.find((u) => u.prId === pr.id)!.email, 'cambiata@esempio.it');
+  assert.equal(d.utenti.find((u) => u.prId === pr.id)!.id, utente.id, 'stesso accesso: chi è dentro resta dentro');
+  assert.ok(!d.accessi.some((a) => a.id === 'acc-vecchio'), 'il link mandato alla vecchia email non vale più');
+
+  await m.admin.modificaPr(admin, pr.id, { nome: 'Solo Nome', email: 'cambiata@esempio.it' }); // stessa email: va bene
+  await assert.rejects(m.admin.modificaPr(admin, pr.id, { nome: 'X', email: 'test-pr@maremmamusica.test' }), /Email già usata/);
+  await assert.rejects(m.admin.modificaPr(admin, pr.id, { nome: ' ', email: 'cambiata@esempio.it' }), /nome/);
+  await assert.rejects(m.admin.modificaPr(admin, pr.id, { nome: 'X', email: 'non-una-email' }), /Email non valida/);
+  await assert.rejects(m.admin.modificaPr(await sessione('test-pr@maremmamusica.test'), pr.id, { nome: 'Abusivo', email: 'a@esempio.it' }), /non_autorizzato/);
+});
+
 test('link della serata ai PR: solo attivi e abilitati, ognuno col suo link, niente ai sospesi, ricordato l’ultimo invio', async () => {
   const admin = await sessione('admin@maremmamusica.test');
   const origine = 'https://sito.esempio.it';

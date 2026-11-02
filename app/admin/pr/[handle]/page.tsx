@@ -7,6 +7,7 @@ import { Resa, Riquadro } from '@/components/gestione';
 import { SceltaSerata } from '@/components/gestione-client';
 import { ChipIscrizione } from '@/components/ui';
 import { etichettaCanale } from '@/lib/canali';
+import { ModificaPr } from '@/components/admin/pr-client';
 
 export const metadata = { title: 'Dettaglio PR' };
 
@@ -44,6 +45,9 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
           </span>
         </div>
         <SceltaSerata azione={`/admin/pr/${x.pr.handle}`} eventi={x.eventi} scelto={x.evento?.id ?? 'tutte'} />
+      </div>
+      <div className="border-b border-linea px-4 py-4 md:px-12">
+        <ModificaPr prId={x.pr.id} nome={x.pr.nomeDisplay} email={x.email ?? ''} handle={x.pr.handle} />
       </div>
 
       <div className="grid grid-cols-2 border-l border-linea lg:grid-cols-4">

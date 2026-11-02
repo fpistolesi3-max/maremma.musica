@@ -72,12 +72,17 @@ function CambiaNome({ id, nominativo, chiudi }: { id: string; nominativo: { nome
   );
 }
 
-export function StatoPr({ id, attivo }: { id: string; attivo: boolean }) {
+/** Sospende o riattiva il PR intero (non un link): niente accesso, i suoi link dicono che non valgono, niente invii. */
+export function StatoPr({ id, attivo, nome }: { id: string; attivo: boolean; nome?: string }) {
   const [inCorso, avvia] = useTransition();
+  const chi = nome ?? 'il PR';
   return (
     <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 44, fontSize: 13 }}
-      onClick={() => { if (attivo && !window.confirm('Sospendere il PR? Il suo link smette di attribuire iscrizioni e non può più entrare.')) return; avvia(() => statoPrAzione(id, !attivo)); }}>
-      {attivo ? 'Sospendi' : 'Riattiva'}
+      onClick={() => {
+        if (attivo && !window.confirm(`Sospendere ${chi}? Non potrà più entrare nella sua area, chi apre i suoi link vedrà che non valgono e non riceverà i link delle serate. Le iscrizioni già fatte restano.`)) return;
+        avvia(() => statoPrAzione(id, !attivo));
+      }}>
+      {attivo ? 'Sospendi PR' : 'Riattiva PR'}
     </button>
   );
 }

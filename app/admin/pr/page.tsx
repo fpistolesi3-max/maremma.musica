@@ -98,8 +98,8 @@ export default async function PaginaPr({ searchParams }: Props) {
                         <InvitoWhatsApp testo={testoLinkPerPr(r.pr.nomeDisplay, p.evento, linkClienti(r.pr.handle))} etichetta="Manda il link su WhatsApp" primario />
                       )}
                       {r.email && !sospeso && <InvitoWhatsApp testo={testoInvitoPr(r.pr.nomeDisplay, r.email, origine)} etichetta="Rimanda invito su WhatsApp" />}
-                      <StatoPr id={r.pr.id} attivo={!sospeso} />
-                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}>Dettaglio →</Link>
+                      <StatoPr id={r.pr.id} attivo={!sospeso} nome={r.pr.nomeDisplay} />
+                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}>Modifica e dettaglio →</Link>
                     </div>
                   </div>
                 </li>

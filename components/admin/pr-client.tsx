@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useRef, useState, useTransition } from 'react';
-import { creaPrAzione, inviaLinkSerataAzione, type EsitoLinkSerata, type EsitoNuovoPr } from '@/app/azioni/admin';
+import { creaPrAzione, inviaLinkSerataAzione, modificaPrAzione, type EsitoLinkSerata, type EsitoModificaPr, type EsitoNuovoPr } from '@/app/azioni/admin';
 import { copiaTesto } from '@/components/client';
 import { linkWhatsApp } from '@/lib/inviti';
 import { Mini } from './azioni-client';
@@ -35,6 +35,31 @@ export function NuovoPr() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Anagrafica del PR: nome ed email con cui entra. L'handle resta quello, per non rompere i link già girati. */
+export function ModificaPr({ prId, nome, email, handle }: { prId: string; nome: string; email: string; handle: string }) {
+  const [s, invia, inCorso] = useActionState(modificaPrAzione, {} as EsitoModificaPr);
+  const n = s.valori?.nome ?? nome;
+  const e = s.valori?.email ?? email;
+  return (
+    <details className="group border border-linea bg-notte-2" open={Boolean(s.errore || s.ok)}>
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 px-4 text-[13px] font-semibold uppercase tracking-bottone [&::-webkit-details-marker]:hidden">
+        Modifica nome ed email <span aria-hidden="true" className="text-osso-2 group-open:rotate-180">⌄</span>
+      </summary>
+      <form action={invia} className="grid gap-3 border-t border-linea p-4 md:grid-cols-[1fr_1.2fr_auto] md:items-end">
+        <input type="hidden" name="prId" value={prId} />
+        <Mini key={`n-${n}`} id="mpr-nome" nome="nome" etichetta="Nome" valore={n} aiuto="Come compare nella sua lista" />
+        <Mini key={`e-${e}`} id="mpr-email" nome="email" etichetta="Email" tipo="email" valore={e} aiuto="Con questa entra. Se la cambi, i link di accesso già mandati non valgono più" />
+        <button type="submit" className="mm-btn mm-btn--primario" style={{ minHeight: 44 }} disabled={inCorso}>{inCorso ? 'Salvo…' : 'Salva'}</button>
+      </form>
+      <div className="flex flex-col gap-2 px-4 pb-4">
+        {s.errore && <span role="alert" className="text-[14px] leading-5 text-stop-testo">{s.errore}</span>}
+        {s.ok && !s.errore && <span role="status" className="text-[14px] leading-5 text-ok">✓ {s.ok}</span>}
+        <span className="text-[13px] leading-5 text-osso-3">La fine dei suoi link (…/{handle}) non cambia: quelli già girati ai clienti continuano a funzionare.</span>
+      </div>
+    </details>
   );
 }
 
