@@ -8,6 +8,7 @@ test('link serata: link personale di ogni PR e testi pronti', () => {
   assert.equal(linkSerataPr('https://sito.it/', evento, 'zarro'), 'https://sito.it/e/halloween-party/zarro');
   const t = testoLinkPerPr('Zarro Pollicino', evento, 'https://sito.it/e/halloween-party/zarro');
   assert.ok(t.startsWith('Ciao Zarro!') && t.includes('Halloween Party') && t.includes('https://sito.it/e/halloween-party/zarro'));
+  assert.ok(!t.includes('clienti') && t.split('https://').length === 2, 'su WhatsApp solo il link, una volta');
   assert.ok(testoPerClienti(evento, 'https://x.it/l').includes('https://x.it/l'));
 });
 
