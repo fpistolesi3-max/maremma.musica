@@ -73,7 +73,7 @@ export async function PaginaPrevendita({ slug, handleDaUrl, senzaPr = false }: {
           </div>
 
           <div className="border-t border-linea bg-notte-2 px-4 pb-8 pt-6 md:border-t md:px-8 md:pb-8">
-            {nonValido && (
+            {nonValido && aperta && (
               <div role="alert" className="mb-6 flex flex-col gap-3 border border-attesa p-4">
                 <b className="font-display text-[24px] font-extrabold uppercase leading-none text-attesa">{avvisoLinkPr(nonValido)}</b>
                 <span className="text-[14px] leading-5 text-osso-2">
@@ -84,8 +84,9 @@ export async function PaginaPrevendita({ slug, handleDaUrl, senzaPr = false }: {
                 </Link>
               </div>
             )}
-            {/* Link non valido: prima si sceglie come continuare, poi si inseriscono i dati. Dal cookie: avviso e Lista Maremma Musica. */}
-            {nonValido?.da === 'link' ? null : aperta ? (
+            {/* Link non valido: prima si sceglie come continuare, poi si inseriscono i dati. Dal cookie: avviso e Lista Maremma Musica.
+                Se la vendita è chiusa (orario limite, serata passata, lista piena…) si vede la lista chiusa, come per ogni altro link. */}
+            {nonValido?.da === 'link' && aperta ? null : aperta ? (
               <ModuloPrevendita slug={e.slug} prHandle={pr?.handle ?? null} totaleEtichetta={totaleEtichetta} totaleValore={totaleValore} etaMinima={e.etaMinima} senzaTelefono={e.senzaTelefono}
                 aPagamento={aPagamento} validaFino={limiteIngresso(e) ? ora(limiteIngresso(e)!) : null}
                 tipo={tipo && (tipo.categoria || ep.lotti.length > 1) ? { nome: tipo.nome, categoria: tipo.categoria, conferma: tipo.confermaCategoria, prossimo: prossimo ? `${prossimo.lotto.nome}${prossimo.dal ? ` dal ${dataPunti(prossimo.dal.toISOString())}` : ' quando finiscono i posti'}` : null } : null}>

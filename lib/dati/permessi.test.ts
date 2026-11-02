@@ -1179,6 +1179,13 @@ test('orario limite: dopo il limite non si vende più, nemmeno riprendendo una r
     assert.ok(!nuova.ok && /chiuse dalle/.test(nuova.errore), 'server: niente nuove prevendite dopo il limite');
     const riprende = await m.pubblico.creaIscrizione({ ...base, nome: 'Lia', cognome: 'Limite', email: 'lia@esempio.it' });
     assert.ok(!riprende.ok && /chiuse dalle/.test(riprende.errore), 'nemmeno riprendendo la richiesta ancora aperta');
+    // Link di un PR che non vale (non abilitato, sospeso, inesistente): dopo il limite si vede "chiusa" come per ogni altro link, il "Continua" non riapre nulla.
+    await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === ev.id)!.prAbilitati = [d.pr.find((p) => p.handle === 'test-pr')!.id]; });
+    for (const handle of ['zarro-pollicino', 'non-esiste', 'test-pr', null]) {
+      const r2 = await m.pubblico.creaIscrizione({ ...base, nome: 'Ugo', cognome: `Chiuso${handle ?? 'mm'}`, email: `ugo.${handle ?? 'mm'}@esempio.it`, handlePr: handle });
+      assert.ok(!r2.ok && /chiuse dalle/.test(r2.errore), `dopo il limite resta "chiuse" anche con il link di ${handle}`);
+    }
+    await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === ev.id)!.prAbilitati = null; });
     const zarro = await sessione('zarro@maremmamusica.test');
     assert.equal((await m.pubblico.eventoPerSlug('halloween-party'))!.stato.tipo, 'chiusa', 'la pagina della serata mostra la lista chiusa');
     assert.equal((await m.pubblico.eventoPerSlug('halloween-party', true, zarro.pr!.id))!.stato.tipo, 'chiusa', 'e il link del PR pure');

@@ -75,7 +75,8 @@ export async function creaIscrizione(input: {
   }
   // Il link del PR deve valere per questa serata: altrimenti non si assegna a lui e nemmeno, in silenzio, alla Lista Maremma Musica.
   const link = valutaLinkPr(d0.pr, evento, input.handlePr, null);
-  if (link.tipo === 'non_valido') return { ok: false, errore: `${avvisoLinkPr(link)} Ricarica la pagina e scegli come continuare.` };
+  // Dopo l'orario limite (o a serata passata) la vendita è chiusa per tutti i link: l'errore resta "prevendite chiuse", non quello del link.
+  if (link.tipo === 'non_valido' && !prevenditeChiuseDa(evento, new Date())) return { ok: false, errore: `${avvisoLinkPr(link)} Ricarica la pagina e scegli come continuare.` };
   const pr = link.tipo === 'valido' ? link.pr : null;
   const chiave = await segreto();
 
