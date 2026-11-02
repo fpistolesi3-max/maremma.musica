@@ -46,6 +46,8 @@ export interface Evento {
   etaMinima: number;
   pubblicato: boolean;
   prAbilitati: string[] | null;   // null = tutti i PR attivi
+  /** Ultimo invio in blocco dei link ai PR (solo serate dove è stato fatto): quando, a quanti, quante email non sono partite. */
+  invioLinkPr?: { at: string; inviate: number; nonPartite: number } | null;
   createdAt: string;
   updatedAt: string;
 }

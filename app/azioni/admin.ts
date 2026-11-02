@@ -11,6 +11,8 @@ import {
 import { salvaMedia } from '@/lib/dati/media';
 import { inviaBenvenutoPr } from '@/lib/benvenuto-pr';
 import { testoInvitoPr } from '@/lib/inviti';
+import { inviaLinkSerataAiPr, type EsitoInvioLink } from '@/lib/invio-link-serata';
+import { testoUltimoInvio } from '@/lib/link-serata';
 import { rimborsaPagamento } from '@/lib/rimborso';
 import { isoRoma, slugDa } from '@/lib/formato';
 import { componiData, istanteDopoApertura, LIMITE_PREVENDITA_DEFAULT, pubblicatoDopoSalvataggio } from '@/lib/regole';
@@ -326,6 +328,18 @@ export async function creaPrAzione(_p: EsitoNuovoPr, f: FormData): Promise<Esito
     avviso,
     invito: { nome: nuovo.nome, email: nuovo.email, testo: testoInvitoPr(nuovo.nome, nuovo.email, origine) },
   };
+}
+
+/** Esito di "Manda a tutti il link della serata": quante email, quali PR non raggiunti e la riga dell'ultimo invio. */
+export interface EsitoLinkSerata extends Partial<EsitoInvioLink> { errore?: string; ultimo?: string }
+
+export async function inviaLinkSerataAzione(eventoId: string): Promise<EsitoLinkSerata> {
+  const s = await admin();
+  try {
+    const esito = await inviaLinkSerataAiPr(s, eventoId, await origineRichiesta());
+    revalidatePath('/admin/pr');
+    return { ...esito, ultimo: testoUltimoInvio({ at: new Date().toISOString(), inviate: esito.inviate, nonPartite: esito.nonPartite }) };
+  } catch (e) { return { errore: (e as Error).message }; }
 }
 
 export async function statoPrAzione(prId: string, attivo: boolean) {

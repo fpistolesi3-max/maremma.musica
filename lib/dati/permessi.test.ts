@@ -21,6 +21,7 @@ type Mod = {
   gestione: typeof import('./gestione-pr');
   admin: typeof import('./admin');
   prevendita: typeof import('./prevendita');
+  invio: typeof import('../invio-link-serata');
 };
 let m: Mod;
 
@@ -33,6 +34,7 @@ before(async () => {
     gestione: await import('./gestione-pr'),
     admin: await import('./admin'),
     prevendita: await import('./prevendita'),
+    invio: await import('../invio-link-serata'),
   };
 });
 after(() => rmSync(cartella, { recursive: true, force: true }));
@@ -139,6 +141,66 @@ test('PR nuovo: handle libero dal nome, email già usata rifiutata, "canali" ris
   await assert.rejects(m.admin.creaPr(admin, { nome: 'X', handle: 'canali', email: 'x@esempio.it' }), /riservato/);
   await assert.rejects(m.admin.creaPr(admin, { nome: 'Doppia', email: 'NUOVA@esempio.it' }), /Email già usata/);
   await assert.rejects(m.admin.creaPr(await sessione('test-pr@maremmamusica.test'), { nome: 'Abusivo', email: 'abusivo@esempio.it' }), /non_autorizzato/);
+});
+
+test('link della serata ai PR: solo attivi e abilitati, ognuno col suo link, niente ai sospesi, ricordato l’ultimo invio', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const origine = 'https://sito.esempio.it';
+  const prima = await m.archivio.leggi();
+  const evento = prima.eventi.find((e) => e.slug === 'halloween-party')!;
+  const pr = (h: string) => prima.pr.find((p) => p.handle === h)!;
+  const spedite: { a: string; html: string }[] = [];
+  const invia = async (msg: { a: string; html: string }) => { spedite.push(msg); };
+
+  await assert.rejects(m.invio.inviaLinkSerataAiPr(await sessione('test-pr@maremmamusica.test'), evento.id, origine, invia), /non_autorizzato/);
+  await assert.rejects(m.invio.inviaLinkSerataAiPr(await sessione('porta@maremmamusica.test'), evento.id, origine, invia), /non_autorizzato/);
+  assert.equal(spedite.length, 0);
+
+  // Serata aperta solo a due PR, e uno dei due è sospeso: la mail va solo all'altro. Gli altri PR attivi non c'entrano.
+  await m.archivio.modifica((d) => {
+    d.eventi.find((e) => e.id === evento.id)!.prAbilitati = [pr('test-pr').id, pr('zarro-pollicino').id];
+    d.pr.find((p) => p.handle === 'zarro-pollicino')!.stato = 'sospeso';
+  });
+  const e1 = await m.invio.inviaLinkSerataAiPr(admin, evento.id, origine, invia);
+  assert.deepEqual(spedite.map((x) => x.a), ['test-pr@maremmamusica.test']);
+  assert.ok(spedite[0].html.includes(`${origine}/e/halloween-party/test-pr`), 'il suo link personale');
+  assert.ok(!spedite[0].html.includes('zarro-pollicino'), 'non il link di un altro PR');
+  assert.ok(spedite[0].html.includes('Halloween Party'), 'nome della serata');
+  assert.deepEqual([e1.inviate, e1.nonPartite, e1.nonRaggiunti.length], [1, 0, 0]);
+  const dopo1 = (await m.archivio.leggi()).eventi.find((e) => e.id === evento.id)!;
+  assert.equal(dopo1.invioLinkPr?.inviate, 1, 'ricorda quando e a quanti');
+
+  // Serata aperta a tutti i PR attivi: ognuno col suo link; chi non ha un'email è tra i non raggiunti; nessuna mail ai sospesi.
+  await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === evento.id)!.prAbilitati = null; });
+  spedite.length = 0;
+  const e2 = await m.invio.inviaLinkSerataAiPr(admin, evento.id, origine, invia);
+  const attesi = prima.utenti.filter((u) => u.prId && u.prId !== pr('zarro-pollicino').id).map((u) => u.email).sort();
+  assert.deepEqual(spedite.map((x) => x.a).sort(), attesi);
+  assert.ok(!spedite.some((x) => x.a === 'zarro@maremmamusica.test'), 'nessuna email al PR sospeso');
+  for (const x of spedite) {
+    const handle = prima.pr.find((p) => p.id === prima.utenti.find((u) => u.email === x.a)!.prId)!.handle;
+    assert.ok(x.html.includes(`${origine}/e/halloween-party/${handle}`), `link di ${handle}`);
+  }
+  assert.deepEqual(e2.nonRaggiunti.map((n) => n.nome).sort(), prima.pr.filter((p) => p.stato === 'attivo' && !prima.utenti.some((u) => u.prId === p.id)).map((p) => p.nomeDisplay).sort(), 'senza email: non raggiunti');
+
+  // Un'email che non parte non ferma le altre.
+  spedite.length = 0;
+  const e3 = await m.invio.inviaLinkSerataAiPr(admin, evento.id, origine, async (msg) => { if (msg.a === 'test-pr@maremmamusica.test') throw new Error('smtp'); spedite.push(msg); });
+  assert.equal(e3.nonPartite, 1);
+  assert.equal(e3.inviate, e2.inviate - 1);
+  assert.ok(e3.nonRaggiunti.some((n) => n.nome === pr('test-pr').nomeDisplay && /non è partita/.test(n.motivo)));
+
+  // Serata in bozza o passata: niente invio.
+  const passata = prima.eventi.find((e) => e.slug !== 'halloween-party' && new Date(e.data) < new Date())!;
+  await assert.rejects(m.invio.inviaLinkSerataAiPr(admin, passata.id, origine, invia), /passata/);
+  await m.archivio.modifica((d) => { d.eventi.find((e) => e.id === evento.id)!.pubblicato = false; });
+  await assert.rejects(m.invio.inviaLinkSerataAiPr(admin, evento.id, origine, invia), /bozza/);
+
+  await m.archivio.modifica((d) => {
+    const e = d.eventi.find((x) => x.id === evento.id)!;
+    e.pubblicato = true; e.invioLinkPr = null;
+    d.pr.find((p) => p.handle === 'zarro-pollicino')!.stato = 'attivo';
+  });
 });
 
 test('porta: QR falsificato non valido, doppio passaggio bloccato, PR non può fare check-in', async () => {

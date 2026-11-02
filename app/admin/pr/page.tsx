@@ -8,7 +8,9 @@ import { SceltaSerata } from '@/components/gestione-client';
 import { AggiornamentoLive } from '@/components/admin/live';
 import { TestataAdmin } from '@/components/admin/ui';
 import { StatoPr } from '@/components/admin/azioni-client';
-import { InvitoWhatsApp, LinkPr, NuovoPr } from '@/components/admin/pr-client';
+import { InvioLinkSerata, InvitoWhatsApp, LinkPr, NuovoPr } from '@/components/admin/pr-client';
+import { abilitatoPerSerata, destinatariLinkSerata, motivoNoInvioLink, testoLinkPerPr, testoUltimoInvio } from '@/lib/link-serata';
+import { leggi } from '@/lib/dati/archivio';
 
 export const metadata = { title: 'PR' };
 
@@ -27,6 +29,7 @@ export default async function PaginaPr({ searchParams }: Props) {
   const totaleLista = p.totali.inLista + p.diretta.inLista;
   const nomeSerata = p.evento ? `${giornoSett(p.evento.data)} ${dataPunti(p.evento.data)} · ${p.evento.nome.toUpperCase()}` : 'TUTTE LE SERATE';
   // Il link da dare ai clienti: quello della serata scelta; con "tutte le serate" quello che le mostra tutte.
+  const destinatari = p.evento ? destinatariLinkSerata(await leggi(), p.evento) : [];
   const linkClienti = (handle: string) => (p.evento ? `${origine}/e/${p.evento.slug}/${handle}` : `${origine}/pr/${handle}`);
 
   return (
@@ -42,6 +45,12 @@ export default async function PaginaPr({ searchParams }: Props) {
           <h2 id="aggiungi-pr" className="m-0 font-display text-[26px] font-black uppercase leading-none">Aggiungi PR</h2>
           <NuovoPr />
         </section>
+
+        {p.evento && (
+          <InvioLinkSerata eventoId={p.evento.id} nomeSerata={`${p.evento.nome} (${dataPunti(p.evento.data)})`}
+            destinatari={destinatari.filter((x) => x.email).length} senzaEmail={destinatari.filter((x) => !x.email).length}
+            ultimo={p.evento.invioLinkPr ? testoUltimoInvio(p.evento.invioLinkPr) : null} bloccato={motivoNoInvioLink(p.evento)} />
+        )}
 
         <div className="grid grid-cols-2 border-l border-t border-linea lg:grid-cols-4">
           <Riquadro etichetta="In lista dai PR" valore={p.totali.inLista}
@@ -76,6 +85,9 @@ export default async function PaginaPr({ searchParams }: Props) {
                       <LinkPr url={linkClienti(r.pr.handle)} />
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      {p.evento && abilitatoPerSerata(r.pr, p.evento) && !motivoNoInvioLink(p.evento) && (
+                        <InvitoWhatsApp testo={testoLinkPerPr(r.pr.nomeDisplay, p.evento, linkClienti(r.pr.handle))} etichetta="Manda il link su WhatsApp" primario />
+                      )}
                       {r.email && !sospeso && <InvitoWhatsApp testo={testoInvitoPr(r.pr.nomeDisplay, r.email, origine)} etichetta="Rimanda invito su WhatsApp" />}
                       <StatoPr id={r.pr.id} attivo={!sospeso} />
                       <Link href={`/admin/pr/${r.pr.handle}${q}`} className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}>Dettaglio →</Link>

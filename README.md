@@ -220,6 +220,12 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   salva nessuna data d'invito (niente migrazioni). L'handle si ricava dal nome (se è preso si aggiunge -2, -3…; "canali" è riservato).
   Per ogni PR: stato, in lista, pagati, entrati della serata scelta (il menu si applica subito), il link da dare ai clienti con "Copia",
   "Rimanda invito su WhatsApp", Sospendi/Riattiva e il dettaglio (`/admin/pr/[handle]`: iscritti al giorno, serate, lista, cronologia).
+  **"Manda a tutti il link della serata"** (con una serata scelta): conferma con il numero, poi un'email a ogni PR attivo e abilitato
+  (`prAbilitati`) col **suo** link per quella serata e un testo da girare ai clienti (`lib/invio-link-serata.ts`, regole in `lib/link-serata.ts`).
+  Mostra "Inviate N email · M non partite" e chi non è stato raggiunto (per esempio senza email); sospesi e non abilitati non ricevono nulla;
+  bozza e serate passate: pulsante spento con la spiegazione. L'ultimo invio si ricorda nel campo facoltativo `invioLinkPr` della serata
+  (quando, a quanti): le serate vecchie non ce l'hanno e va bene, nessuna migrazione. In ogni riga "Manda il link su WhatsApp" apre
+  `wa.me` con il messaggio pronto (WhatsApp in blocco non è possibile senza la Business API).
   Lo staff alla porta trova la lista di un PR con "Cerca per nome" e non vede i numeri dei PR.
 - I PR non incassano: niente "Ha pagato" e niente consegne di soldi. Il PR vede nella sua area solo i clienti che hanno
   pagato (o sono entrati); la classifica conta solo le prevendite pagate. **Il PR vede solo la propria posizione** ("Sei 3° su 8 · 42 in lista",

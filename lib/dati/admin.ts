@@ -327,7 +327,7 @@ export async function duplicaSerata(s: Sessione, daEventoId: string, nuovoGiorno
       lineup: [...da.lineup], prAbilitati: da.prAbilitati ? [...da.prAbilitati] : null,
       // L'orario limite scritto per la serata si sposta con la data, alla stessa ora a Roma.
       prevenditaFinoAlle: da.prevenditaFinoAlle ? spostaGiorni(da.prevenditaFinoAlle, giorniTra(da.data, data)) : null,
-      pubblicato: false, inCopertina: false, piantinaUrl: null, createdAt: adesso, updatedAt: adesso,
+      pubblicato: false, inCopertina: false, piantinaUrl: null, invioLinkPr: null, createdAt: adesso, updatedAt: adesso,
     };
     d.eventi.push(nuovo);
     return { nuovo, haTipi: d.lotti.some((l) => l.eventoId === da.id), haTavoli: d.tavoli.some((t) => t.eventoId === da.id) };
