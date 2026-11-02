@@ -37,3 +37,19 @@ export function calcolaClassifica(d: Readonly<Archivio>, eventoId: string, vista
   }
   return [...righe.values()].sort((a, b) => b.inLista - a.inLista || b.entrati - a.entrati || a.nome.localeCompare(b.nome));
 }
+
+export interface PosizionePr { posizione: number; su: number; inLista: number }
+
+/**
+ * Dove si trova un PR nella classifica della serata, e basta: posizione, quanti PR ci sono e quanti ne ha in lista lui.
+ * Nessun nome e nessun numero degli altri PR né di "Maremma Musica" (la lista senza PR non fa classifica).
+ * A pari merito la posizione è la stessa, così non dipende dai nomi degli altri.
+ */
+export function posizionePr(d: Readonly<Archivio>, eventoId: string, prId: string): PosizionePr {
+  const pr = calcolaClassifica(d, eventoId, { admin: false, prId }).filter((r) => r.prId !== null);
+  const mio = pr.find((r) => r.prId === prId);
+  const inLista = mio?.inLista ?? 0;
+  const entrati = mio?.entrati ?? 0;
+  const davanti = pr.filter((r) => r.inLista > inLista || (r.inLista === inLista && r.entrati > entrati)).length;
+  return { posizione: davanti + 1, su: Math.max(1, pr.length), inLista };
+}

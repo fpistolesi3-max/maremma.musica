@@ -6,7 +6,11 @@ import { leggi, modifica, segreto } from './dati/archivio';
 import type { Pr, Ruolo, Utente } from './dati/tipi';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
 import { modalitaProva } from './prova';
-import { percorsoInterno } from './regole';
+import { destinazionePer } from './percorsi-area';
+import { percorsoDopoAccesso } from './regole';
+import { HEADER_PERCORSO, PARAMETRO_AVVISO } from './costanti';
+
+export { destinazionePer, puoAprire } from './percorsi-area';
 
 // Accesso senza password per PR, staff porta e admin: link magico o codice a 6 cifre via email.
 // La sessione è un cookie firmato HMAC (httpOnly). Nessuna password viene mai salvata.
@@ -43,12 +47,18 @@ export async function sessioneCorrente(): Promise<Sessione | null> {
   return { utente, pr };
 }
 
-/** Per le pagine protette: senza sessione rimanda all'accesso, col ruolo sbagliato alla propria area. */
+/**
+ * Per le pagine protette: senza sessione rimanda all'accesso, col ruolo sbagliato alla propria area (con un avviso breve).
+ * `dopo` è la pagina di ripiego; se il middleware ha segnato il percorso davvero aperto (con la sua query), dopo l'accesso si torna lì.
+ */
 export async function richiedi(ruoli: Ruolo[], dopo: string): Promise<Sessione> {
   const s = await sessioneCorrente();
-  if (!s) redirect(`/accedi?dopo=${encodeURIComponent(dopo)}`);
+  if (!s) {
+    const aperto = (await headers()).get(HEADER_PERCORSO);
+    redirect(`/accedi?dopo=${encodeURIComponent(percorsoDopoAccesso(aperto, dopo))}`);
+  }
   // Dentro ma nell'area sbagliata (es. staff su /admin): torna alla propria, niente login.
-  if (!ruoli.includes(s.utente.ruolo)) redirect(destinazionePer(s.utente, s.pr));
+  if (!ruoli.includes(s.utente.ruolo)) redirect(`${destinazionePer(s.utente, s.pr)}?${PARAMETRO_AVVISO}=area`);
   return s;
 }
 
@@ -64,23 +74,6 @@ async function apriSessione(utenteId: string) {
 
 export async function chiudiSessione() {
   (await cookies()).delete(COOKIE);
-}
-
-/** Quali aree può aprire un ruolo (evita i giri tra /accedi e una pagina vietata). */
-export function puoAprire(ruolo: Ruolo, percorso: string) {
-  if (ruolo === 'admin') return true;
-  if (percorso.startsWith('/admin')) return false;
-  if (percorso.startsWith('/door')) return ruolo === 'staff';
-  if (percorso.startsWith('/gestione')) return ruolo === 'staff';
-  if (percorso === '/pr' || percorso.startsWith('/pr/')) return ruolo === 'pr';
-  return true;
-}
-
-export function destinazionePer(utente: Utente, pr: Pr | null, dopo?: string | null) {
-  if (percorsoInterno(dopo) && dopo !== '/pr' && puoAprire(utente.ruolo, dopo)) return dopo;
-  if (utente.ruolo === 'admin') return '/admin';
-  if (utente.ruolo === 'staff') return '/door';
-  return pr ? `/pr/${pr.handle}` : '/';
 }
 
 /** Manda il link. Risponde sempre allo stesso modo, così non si scopre chi è registrato. */

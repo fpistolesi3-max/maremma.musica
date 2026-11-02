@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { eventoPerSlug, prValido, prevenditaOnlineAttiva, usatiPerLotto } from '@/lib/dati/pubblico';
+import { eventoPerSlug, prevenditaOnlineAttiva, usatiPerLotto } from '@/lib/dati/pubblico';
+import { avvisoLinkPr, valutaLinkPr } from '@/lib/link-pr';
 import { leggi } from '@/lib/dati/archivio';
 import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, ora, orari } from '@/lib/formato';
 import { chipLista, limiteIngresso, tipiVista } from '@/lib/regole';
@@ -15,13 +16,18 @@ import { ModuloPrevendita } from './modulo-prevendita';
 
 import { COOKIE_PR } from '@/lib/costanti';
 
-export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; handleDaUrl: string | null }) {
+export async function PaginaPrevendita({ slug, handleDaUrl, senzaPr = false }: { slug: string; handleDaUrl: string | null; senzaPr?: boolean }) {
   const base = await eventoPerSlug(slug);
   if (!base) notFound();
   const e = base.evento;
 
+  // Il link (o il cookie di 3 giorni) vale solo se il PR è attivo e abilitato per questa serata. Se non vale, il cliente lo vede
+  // subito: la Lista Maremma Musica non gli viene data in silenzio.
   const handleCookie = (await cookies()).get(COOKIE_PR)?.value ?? null;
-  const pr = (await prValido(handleDaUrl, e)) ?? (await prValido(handleCookie, e));
+  const d = await leggi();
+  const link = valutaLinkPr(d.pr, e, handleDaUrl, handleCookie, senzaPr);
+  const pr = link.tipo === 'valido' ? link.pr : null;
+  const nonValido = link.tipo === 'non_valido' ? link : null;
   const ep = pr ? (await eventoPerSlug(slug, true, pr.id))! : base;
 
   // A pagamento si vende solo con il pagamento online attivo (sul sito vero serve la chiave di Stripe).
@@ -31,7 +37,7 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
   const totaleEtichetta = aPagamento ? 'Paghi ora online' : 'Ingresso';
   const totaleValore = ep.stato.tipo === 'aperta' ? euro(ep.stato.prezzo) : 'Libero';
   const tipo = ep.stato.tipo === 'aperta' || ep.stato.tipo === 'libero' ? ep.stato.lotto : null;
-  const usati = usatiPerLotto(await leggi(), e.id);
+  const usati = usatiPerLotto(d, e.id);
   const prossimo = tipo ? tipiVista(e, ep.lotti, usati, { daPr: Boolean(pr), prId: pr?.id }).find((t) => t.stato === 'presto' || t.stato === 'dopo_precedente') : null;
   const dataBreve = `${giornoSett(e.data)} ${giorno2(e.data)} ${meseCorto(e.data).toUpperCase()}`;
 
@@ -67,7 +73,20 @@ export async function PaginaPrevendita({ slug, handleDaUrl }: { slug: string; ha
           </div>
 
           <div className="border-t border-linea bg-notte-2 px-4 pb-8 pt-6 md:border-t md:px-8 md:pb-8">
-            {aperta ? (
+            {nonValido && aperta && (
+              <div role="alert" className="mb-6 flex flex-col gap-3 border border-attesa p-4">
+                <b className="font-display text-[24px] font-extrabold uppercase leading-none text-attesa">{avvisoLinkPr(nonValido)}</b>
+                <span className="text-[14px] leading-5 text-osso-2">
+                  {nonValido.da === 'link' ? 'Puoi comunque metterti in lista con la Lista Maremma Musica.' : 'Sei arrivato da quel link qualche giorno fa. Ora ti mettiamo nella Lista Maremma Musica.'}
+                </span>
+                <Link href={`/e/${e.slug}/prevendita?senza_pr=1`} className="mm-btn mm-btn--linea self-start" style={{ minHeight: 44 }}>
+                  {nonValido.da === 'link' ? 'Continua nella Lista Maremma Musica' : 'Ho capito'}
+                </Link>
+              </div>
+            )}
+            {/* Link non valido: prima si sceglie come continuare, poi si inseriscono i dati. Dal cookie: avviso e Lista Maremma Musica.
+                Se la vendita è chiusa (orario limite, serata passata, lista piena…) si vede la lista chiusa, come per ogni altro link. */}
+            {nonValido?.da === 'link' && aperta ? null : aperta ? (
               <ModuloPrevendita slug={e.slug} prHandle={pr?.handle ?? null} totaleEtichetta={totaleEtichetta} totaleValore={totaleValore} etaMinima={e.etaMinima} senzaTelefono={e.senzaTelefono}
                 aPagamento={aPagamento} validaFino={limiteIngresso(e) ? ora(limiteIngresso(e)!) : null}
                 tipo={tipo && (tipo.categoria || ep.lotti.length > 1) ? { nome: tipo.nome, categoria: tipo.categoria, conferma: tipo.confermaCategoria, prossimo: prossimo ? `${prossimo.lotto.nome}${prossimo.dal ? ` dal ${dataPunti(prossimo.dal.toISOString())}` : ' quando finiscono i posti'}` : null } : null}>

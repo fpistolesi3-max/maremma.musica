@@ -286,6 +286,15 @@ export function prenotazioneScaduta(p: Pick<PrenotazioneTavolo, 'stato' | 'scade
  */
 export const percorsoInterno = (p: string | null | undefined): p is string => typeof p === 'string' && /^\/(?![/\\])[^\s\x00-\x1f\\]*$/.test(p);
 
+/**
+ * Dove tornare dopo l'accesso: il percorso completo che si era aperto (con la sua query), solo se è interno al sito.
+ * Altrimenti `fallback`. "/accedi" è escluso: porterebbe in un giro.
+ */
+export function percorsoDopoAccesso(richiesto: string | null | undefined, fallback: string): string {
+  if (!percorsoInterno(richiesto) || /^\/accedi(\/|\?|$)/.test(richiesto)) return fallback;
+  return richiesto;
+}
+
 export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 export const HANDLE_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -376,4 +385,17 @@ export function coordinateDaLinkMaps(testo: string): { lat: number; lng: number 
   const lat = Number(coppia[1]);
   const lng = Number(coppia[2]);
   return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+
+// ── Area PR: la propria posizione e le prevendite non ancora pagate (solo numeri) ──
+
+/** Es. "Sei 3° su 8 · 42 in lista". Nessun dato degli altri PR: solo la posizione e quanti sono in classifica. */
+export function testoPosizione(posizione: number, su: number, inLista: number) {
+  return `Sei ${posizione}° su ${su} · ${inLista} in lista`;
+}
+
+/** Es. "3 non hanno ancora pagato"; null se non c'è nessuno. */
+export function testoNonPagati(n: number): string | null {
+  if (n <= 0) return null;
+  return n === 1 ? '1 non ha ancora pagato' : `${n} non hanno ancora pagato`;
 }

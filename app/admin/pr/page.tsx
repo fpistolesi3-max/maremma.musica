@@ -1,39 +1,116 @@
-import { richiedi } from '@/lib/sessione';
-import { tuttiIPr } from '@/lib/dati/admin';
-import { Suspense } from 'react';
-import { NavGestione } from '@/components/gestione-nav';
-import { Apribile, TestataAdmin } from '@/components/admin/ui';
-import { NuovoPr, StatoPr } from '@/components/admin/azioni-client';
+import Link from 'next/link';
+import { origineRichiesta, richiedi } from '@/lib/sessione';
+import { panoramicaPr } from '@/lib/dati/gestione-pr';
+import { testoInvitoPr } from '@/lib/inviti';
+import { dataPunti, euro, giornoSett } from '@/lib/formato';
+import { Riquadro } from '@/components/gestione';
+import { SceltaSerata } from '@/components/gestione-client';
+import { AggiornamentoLive } from '@/components/admin/live';
+import { TestataAdmin } from '@/components/admin/ui';
+import { StatoPr } from '@/components/admin/azioni-client';
+import { InvioLinkSerata, InvitoWhatsApp, LinkPr, NuovoPr } from '@/components/admin/pr-client';
+import { abilitatoPerSerata, destinatariLinkSerata, motivoNoInvioLink, testoLinkPerPr, testoUltimoInvio } from '@/lib/link-serata';
+import { leggi } from '@/lib/dati/archivio';
 
-export const metadata = { title: 'Account PR' };
+export const metadata = { title: 'PR' };
 
-export default async function AdminPr() {
+type Props = { searchParams: Promise<{ serata?: string }> };
+
+/**
+ * Tutti i PR in una pagina (solo admin): si aggiunge un PR e gli si manda l'invito, e per ognuno si vedono stato, numeri
+ * della serata scelta, link da dare ai clienti e le azioni (sospendi, rimanda l'invito, dettaglio).
+ */
+export default async function PaginaPr({ searchParams }: Props) {
   const s = await richiedi(['admin'], '/admin/pr');
-  const pr = await tuttiIPr(s);
+  const { serata } = await searchParams;
+  const p = await panoramicaPr(s, serata ?? null);
+  const origine = await origineRichiesta();
+  const q = `?serata=${p.evento?.id ?? 'tutte'}`;
+  const totaleLista = p.totali.inLista + p.diretta.inLista;
+  const nomeSerata = p.evento ? `${giornoSett(p.evento.data)} ${dataPunti(p.evento.data)} · ${p.evento.nome.toUpperCase()}` : 'TUTTE LE SERATE';
+  // Il link da dare ai clienti: quello della serata scelta; con "tutte le serate" quello che le mostra tutte.
+  const destinatari = p.evento ? destinatariLinkSerata(await leggi(), p.evento) : [];
+  const linkClienti = (handle: string) => (p.evento ? `${origine}/e/${p.evento.slug}/${handle}` : `${origine}/pr/${handle}`);
+
   return (
     <>
-      <Suspense><NavGestione admin /></Suspense>
-      <TestataAdmin briciole="PR / ACCOUNT" titolo="Account PR" sotto={`${pr.filter((p) => p.pr.stato === 'attivo').length} ATTIVI · CLASSIFICA COMPLESSIVA`} />
+      <TestataAdmin briciole="PR" titolo="PR" sotto={`${p.prAttivi} PR ATTIVI · ${nomeSerata}`}
+        azioni={<div className="flex w-full flex-col gap-3 md:w-auto md:items-end">
+          <SceltaSerata azione="/admin/pr" eventi={p.eventi} scelto={p.evento?.id ?? 'tutte'} />
+          <AggiornamentoLive ogniSecondi={10} aggiornatoAt={new Date().toISOString()} />
+        </div>} />
+
       <div className="flex flex-col gap-8 px-4 py-6 md:px-12">
-        <Apribile titolo="Aggiungi un PR"><NuovoPr /></Apribile>
-        <div className="mm-scroll">
-          <table className="mm-classifica mm-schede">
-            <thead><tr><th>#</th><th>PR</th><th>Link</th><th>Email</th><th className="mm-num">Iscritti</th><th className="mm-num">Entrati</th><th /></tr></thead>
-            <tbody>
-              {pr.slice().sort((a, b) => b.iscritti - a.iscritti).map((p, i) => (
-                <tr key={p.pr.id} style={p.pr.stato === 'sospeso' ? { opacity: 0.55 } : undefined}>
-                  <td className="mm-classifica__pos mm-pieno">{i + 1}</td>
-                  <td className="mm-pieno"><span className="mm-classifica__nome">{p.pr.nomeDisplay}</span>{p.pr.stato === 'sospeso' && <span className="mm-chip mm-chip--annullato ml-2">Sospeso</span>}</td>
-                  <td data-et="Link" className="font-mono text-[12px] text-osso-2">/pr/{p.pr.handle}</td>
-                  <td data-et="Email" className="font-mono text-[12px] text-osso-2">{p.email ?? '—'}</td>
-                  <td data-et="Iscritti" className="mm-num">{p.iscritti}</td>
-                  <td data-et="Entrati" className="mm-num">{p.entrati}</td>
-                  <td className="mm-pieno md:text-right"><StatoPr id={p.pr.id} attivo={p.pr.stato === 'attivo'} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <section aria-labelledby="aggiungi-pr" className="flex flex-col gap-4 border border-linea bg-notte-2 p-4 md:p-5">
+          <h2 id="aggiungi-pr" className="m-0 font-display text-[26px] font-black uppercase leading-none">Aggiungi PR</h2>
+          <NuovoPr />
+        </section>
+
+        {p.evento && (
+          <InvioLinkSerata eventoId={p.evento.id} nomeSerata={`${p.evento.nome} (${dataPunti(p.evento.data)})`}
+            destinatari={destinatari.filter((x) => x.email).length} senzaEmail={destinatari.filter((x) => !x.email).length}
+            ultimo={p.evento.invioLinkPr ? testoUltimoInvio(p.evento.invioLinkPr) : null} bloccato={motivoNoInvioLink(p.evento)} />
+        )}
+
+        <div className="grid grid-cols-2 border-l border-t border-linea lg:grid-cols-4">
+          <Riquadro etichetta="In lista dai PR" valore={p.totali.inLista}
+            nota={totaleLista ? `${Math.round((p.totali.inLista / totaleLista) * 100)}% DEL TOTALE · +${p.totali.nuovi24h} IN 24H` : undefined} />
+          <Riquadro etichetta="Entrati dai PR" valore={p.totali.entrati} colore="text-ok" nota={p.totali.resa != null ? `RESA ${p.totali.resa}%` : 'LA PORTA NON È ANCORA APERTA'} />
+          <Riquadro etichetta="Prevendita dai PR" valore={euro(p.totali.incassatoOnline)} nota="PAGATA ONLINE SUL SITO" />
+          <Riquadro etichetta="Senza PR" valore={p.diretta.inLista} nota={<Link href={`/admin/pr/canali${q}`} className="text-osso-2">DA SOCIAL E SITO · VEDI CANALI →</Link>} />
         </div>
+
+        <section aria-labelledby="elenco-pr" className="flex flex-col gap-1">
+          <h2 id="elenco-pr" className="m-0 pb-3 font-display text-[26px] font-black uppercase leading-none">I PR</h2>
+          <ul className="m-0 flex list-none flex-col p-0">
+            {p.righe.map((r, i) => {
+              const sospeso = r.pr.stato === 'sospeso';
+              const valido = p.evento ? abilitatoPerSerata(r.pr, p.evento) : !sospeso; // il suo link vale per la serata scelta
+              return (
+                <li key={r.pr.id} className={`flex flex-col gap-4 border-t border-linea py-5 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:gap-10 ${i === p.righe.length - 1 ? 'border-b' : ''}`}>
+                  <div className={`flex min-w-0 flex-col gap-3 ${sospeso ? 'opacity-60' : ''}`}>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="font-display text-[26px] font-extrabold uppercase leading-none text-osso no-underline hover:text-osso">{r.pr.nomeDisplay}</Link>
+                      <span className={`mm-chip ${sospeso ? 'mm-chip--annullato' : 'mm-chip--entrato'}`}>{sospeso ? 'Sospeso' : 'Attivo'}</span>
+                    </div>
+                    <span className="break-all font-mono text-[12px] leading-4 text-osso-2">{r.email ?? 'Nessuna email'}</span>
+                    <div className="grid grid-cols-3 gap-2 font-mono text-[11px] text-osso-2">
+                      <span><b className="block font-display text-[26px] font-black leading-none text-osso">{r.inLista}</b>IN LISTA</span>
+                      <span><b className="block font-display text-[26px] font-black leading-none text-osso">{r.pagati}</b>PAGATI</span>
+                      <span><b className="block font-display text-[26px] font-black leading-none text-ok">{r.entrati}</b>ENTRATI</span>
+                    </div>
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-3">
+                    {valido ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] font-semibold leading-[14px] tracking-[.12em] text-osso-2">LINK DA DARE AI CLIENTI</span>
+                        <LinkPr url={linkClienti(r.pr.handle)} />
+                      </div>
+                    ) : (
+                      // Un link che non vale non si copia: chi lo aprisse vedrebbe l'avviso invece della lista del PR.
+                      <p className="m-0 flex flex-col gap-1">
+                        <b className="font-display text-[22px] font-extrabold uppercase leading-none text-attesa">{sospeso ? 'Sospeso' : 'Non in questa serata'}</b>
+                        <span className="text-[13px] leading-5 text-osso-3">{sospeso ? 'Il suo link non funziona finché non lo riattivi.' : 'La serata non è aperta a questo PR: il suo link non vale e non c’è niente da copiare.'}</span>
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {p.evento && valido && !motivoNoInvioLink(p.evento) && (
+                        <InvitoWhatsApp testo={testoLinkPerPr(r.pr.nomeDisplay, p.evento, linkClienti(r.pr.handle))} etichetta="Manda il link su WhatsApp" primario />
+                      )}
+                      {r.email && !sospeso && <InvitoWhatsApp testo={testoInvitoPr(r.pr.nomeDisplay, r.email, origine)} etichetta="Rimanda invito su WhatsApp" />}
+                      <StatoPr id={r.pr.id} attivo={!sospeso} />
+                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}>Dettaglio →</Link>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+            {p.righe.length === 0 && <li className="border-y border-linea py-6 text-osso-2">Ancora nessun PR: aggiungine uno qui sopra.</li>}
+          </ul>
+          <p className="m-0 pt-3 text-[13px] leading-5 text-osso-3">
+            La prevendita si paga solo online: i soldi non passano dai PR. Contano solo le prevendite pagate (&quot;pagati&quot; sono quelle pagate online, le altre in lista sono gratuite).
+          </p>
+        </section>
       </div>
     </>
   );

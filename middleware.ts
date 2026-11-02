@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { COOKIE_PR, DURATA_COOKIE_PR, SEGMENTI_RISERVATI } from './lib/costanti';
+import { COOKIE_PR, DURATA_COOKIE_PR, HEADER_PERCORSO, SEGMENTI_RISERVATI } from './lib/costanti';
 import { COOKIE_CANALE, canaleDaReferer, canaleDaUserAgent, normalizzaCanale } from './lib/canali';
 
 // Attribuzione, ricordata 3 giorni nel browser. Vince l'ultimo arrivo:
@@ -11,7 +11,13 @@ const COOKIE = { maxAge: DURATA_COOKIE_PR, sameSite: 'lax' as const, path: '/' }
 
 export function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl;
-  const res = NextResponse.next();
+  // Il percorso aperto, con la sua query, per `richiedi`: dopo l'accesso si torna alla pagina vera e non solo a /admin.
+  // Il valore si riscrive sempre qui (nessuno può mandarne uno suo) e `richiedi` lo ricontrolla comunque.
+  const intestazioni = new Headers(req.headers);
+  const query = new URLSearchParams(searchParams);
+  query.delete('_rsc'); // parametro interno di Next nelle navigazioni dentro il sito
+  intestazioni.set(HEADER_PERCORSO, `${pathname}${query.toString() ? `?${query}` : ''}`);
+  const res = NextResponse.next({ request: { headers: intestazioni } });
 
   let handle: string | null = null;
   const evento = pathname.match(/^\/e\/[^/]+\/([^/]+)\/?$/);
@@ -22,6 +28,8 @@ export function middleware(req: NextRequest) {
   // Link dei tavoli del PR (/tavoli/[serata]?pr=…): come quello della lista, il sito lo ricorda per qualche giorno.
   if (/^\/tavoli\/[^/]+\/?$/.test(pathname) && searchParams.get('pr')) handle = searchParams.get('pr');
   if (handle && HANDLE.test(handle.toLowerCase())) res.cookies.set(COOKIE_PR, handle.toLowerCase(), COOKIE);
+  // "Continua nella Lista Maremma Musica": il cliente ha scelto di non stare nella lista di un PR, il cookie non deve riportarlo lì.
+  if (/^\/e\/[^/]+\/prevendita\/?$/.test(pathname) && searchParams.get('senza_pr')) res.cookies.set(COOKIE_PR, '', { ...COOKIE, maxAge: 0 });
 
   // Solo sulle pagine pubbliche: le aree di lavoro non contano come arrivi.
   if (!/^\/(admin|door|gestione|accedi|dev|api)(\/|$)/.test(pathname)) {

@@ -208,7 +208,7 @@ export default async function SerataLive({ params }: Props) {
           <section className="flex flex-col gap-[10px]">
             <div className="flex items-baseline justify-between gap-4">
               <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Senza PR, per canale</h2>
-              <Link href={`/gestione/canali?serata=${e.id}`} className="link-sottolineato whitespace-nowrap py-2">Dettaglio e link →</Link>
+              <Link href={`/admin/pr/canali?serata=${e.id}`} className="link-sottolineato whitespace-nowrap py-2">Dettaglio e link →</Link>
             </div>
             <span className="text-[14px] text-osso-2">
               {canali.senzaPr.numeri.inLista} in lista e {canali.senzaPr.numeri.entrati} entrati senza passare da un PR.

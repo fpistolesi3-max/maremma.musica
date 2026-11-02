@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps, chipLista, prevenditeChiuseDa, scadenzaPrevendita, limitePrevendita, limiteIngresso, testoLimite, istanteDopoApertura } from './regole';
+import { finestraLotto, tipiVista, componiData, etaSufficiente, giaIscritto, statoLista, chiaveCognome, richiesteTavoliAperte, scadenzaPagamentoOnline, MINUTI_PAGAMENTO_ONLINE, ORE_PAGAMENTO_ONLINE_PR, iscrizioneScaduta, tienePosto, pagamentoIscrizioneValido, sceltaCopertina, percorsoInterno, percorsoDopoAccesso, testoNonPagati, testoPosizione, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi, pubblicatoDopoSalvataggio, cosaManca, nomiInSerie, coordinateDaLinkMaps, chipLista, prevenditeChiuseDa, scadenzaPrevendita, limitePrevendita, limiteIngresso, testoLimite, istanteDopoApertura } from './regole';
 import { creaCodice, creaTokenQr, leggiTokenQr, verificaTokenQr } from './qr-token';
 import { categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, oltreLimite, trovaVoce, type VocePorta } from './porta-logica';
 import { dataPunti, orari, euro, isoRoma, spostaGiorni, giorniTra } from './formato';
@@ -225,6 +225,23 @@ test('copertina: la scelta dell’admin vale se pubblicata e non passata, altrim
 test('accesso: "dopo" accetta solo percorsi interni (niente reindirizzamenti verso altri siti)', () => {
   for (const ok of ['/', '/admin', '/door', '/gestione/pr?serata=1', '/e/halloween-party/prevendita']) assert.equal(percorsoInterno(ok), true, ok);
   for (const no of ['//evil.com', '/\\evil.com', '/\\\\evil.com', 'https://evil.com', 'evil.com', '/\t/evil.com', '/\n/evil.com', '/ /evil.com', '', null, undefined]) assert.equal(percorsoInterno(no as string), false, String(no));
+});
+
+test('accesso: dopo il login si torna al percorso completo, ma solo se è interno', () => {
+  assert.equal(percorsoDopoAccesso('/admin/iscrizioni', '/admin'), '/admin/iscrizioni');
+  assert.equal(percorsoDopoAccesso('/admin/pr?serata=abc', '/admin'), '/admin/pr?serata=abc', 'resta anche la query');
+  assert.equal(percorsoDopoAccesso(null, '/admin'), '/admin');
+  assert.equal(percorsoDopoAccesso(undefined, '/admin'), '/admin');
+  for (const no of ['//evil.com/admin', '/\\evil.com', 'https://evil.com', 'javascript:alert(1)', '/\t/evil.com', '/accedi', '/accedi?dopo=/admin', '/accedi/verifica?t=x']) {
+    assert.equal(percorsoDopoAccesso(no, '/admin'), '/admin', no);
+  }
+});
+
+test('area PR: testi di posizione e non pagati', () => {
+  assert.equal(testoPosizione(3, 8, 42), 'Sei 3° su 8 · 42 in lista');
+  assert.equal(testoNonPagati(0), null);
+  assert.equal(testoNonPagati(1), '1 non ha ancora pagato');
+  assert.equal(testoNonPagati(3), '3 non hanno ancora pagato');
 });
 
 test('prezzo dai tipi: "da 8 €" per le intestazioni', () => {

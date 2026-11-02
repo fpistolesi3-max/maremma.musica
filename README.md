@@ -45,9 +45,11 @@ Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, 
 L'admin ha il guscio di `components/area/guscio.tsx`: barra laterale su desktop, barra in basso su telefono, sempre con
 **Porta** per prima (accesso allo scanner a un tocco). Voci: admin = Porta · Serate · PR · Iscrizioni · Staff.
 **Lo staff vede solo la porta** (`/door`): barra "Porta · Esci" (con "Admin" in più per l'admin). "PR" ha tre schede, tutte solo
-admin: Attività, Canali · senza PR e Account PR. Dopo il login ogni ruolo arriva alla sua pagina (admin `/admin`, staff `/door`,
-PR la sua area); chi apre un'area che non è sua (uno staff su `/gestione/pr`, `/gestione/canali` o `/admin`) torna alla propria,
-senza passare dal login. Il sito pubblico ha una sola voce, "Accedi". Nelle impostazioni della porta: serata, porta
+admin: **PR** (`/admin/pr`: aggiungi PR, elenco, link, inviti) e **Canali** (`/admin/pr/canali`). I vecchi indirizzi `/gestione/*`
+vanno alla nuova pagina (`redirects` in `next.config.mjs`). Dopo il login ogni ruolo arriva alla sua pagina (admin `/admin`, staff `/door`,
+PR la sua area), oppure al percorso completo che aveva aperto (`dopo`, solo percorsi interni: `percorsoDopoAccesso` in `lib/regole.ts`;
+il middleware segna il percorso aperto nell'header `x-mm-percorso`). Chi apre un'area che non è sua (uno staff su `/admin`) torna alla propria
+con l'avviso "Quell'area non è tua" (`?avviso=area`), senza passare dal login; il CSV senza permesso mostra una pagina leggibile. Il sito pubblico ha una sola voce, "Accedi". Nelle impostazioni della porta: serata, porta
 e, se la porta non è installata, il promemoria "Aggiungi a Home" (manifest `/porta.webmanifest`, parte da `/door`).
 Le voci sono solo navigazione: i permessi restano in `richiedi` e `lib/dati/*`.
 
@@ -212,16 +214,35 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   PR. Le serate vecchie hanno ancora `cassaAttiva` e `prezzoCassa` nella riga: i campi sono tolti dal tipo `Evento`, nessuno li legge più e
   non serve nessuna migrazione. Un telefono con la vecchia porta e ingressi in cassa ancora in coda al momento dell'aggiornamento li perde
   (alla sincronizzazione risultano "non in lista").
-- Gestione attività PR: `/gestione/pr` — solo admin (lo staff vede solo la porta, i PR non entrano). Per ogni PR: in lista,
-  nuovi nelle 24 ore, entrati, resa, prevendita pagata online, annullati, ultima attività (contano solo le prevendite pagate);
-  scheda del singolo PR con iscritti al giorno, serate, lista e cronologia. L'admin la apre dalla barra (voce "PR");
-  lo staff alla porta trova la lista di un PR con "Cerca per nome" e non vede i numeri dei PR.
+- Pagina PR: `/admin/pr` — solo admin (lo staff vede solo la porta, i PR non entrano). In cima "Aggiungi PR" (nome, email): subito dopo
+  compare "Manda invito su WhatsApp" (`wa.me` con testo pronto: indirizzo completo di `/accedi` e l'email) e parte da sola un'email di
+  benvenuto (`lib/benvenuto-pr.ts`, posta di `lib/posta.ts`); se l'email non parte il PR è aggiunto lo stesso e si vede un avviso. Non si
+  salva nessuna data d'invito (niente migrazioni). L'handle si ricava dal nome (se è preso si aggiunge -2, -3…; "canali" è riservato).
+  Per ogni PR: stato, in lista, pagati, entrati della serata scelta (il menu si applica subito), il link da dare ai clienti con "Copia",
+  "Rimanda invito su WhatsApp", Sospendi/Riattiva e il dettaglio (`/admin/pr/[handle]`: iscritti al giorno, serate, lista, cronologia).
+  **"Manda a tutti il link della serata"** (con una serata scelta): conferma con il numero, poi un'email a ogni PR attivo e abilitato
+  (`prAbilitati`) col **suo** link per quella serata e un testo da girare ai clienti (`lib/invio-link-serata.ts`, regole in `lib/link-serata.ts`).
+  Mostra "Inviate N email · M non partite" e chi non è stato raggiunto (per esempio senza email); sospesi e non abilitati non ricevono nulla;
+  bozza e serate passate: pulsante spento con la spiegazione. L'ultimo invio si ricorda nel campo facoltativo `invioLinkPr` della serata
+  (quando, a quanti): le serate vecchie non ce l'hanno e va bene, nessuna migrazione. In ogni riga "Manda il link su WhatsApp" apre
+  `wa.me` con il messaggio pronto (WhatsApp in blocco non è possibile senza la Business API).
+  Lo staff alla porta trova la lista di un PR con "Cerca per nome" e non vede i numeri dei PR.
+- **Link PR non valido** (`lib/link-pr.ts`): il link `/e/<serata>/<handle>` (o il cookie `mm_pr` di 3 giorni) vale solo se il PR esiste, è attivo
+  e abilitato per la serata (`prAbilitati`). Se non vale, la pagina mostra in cima l'avviso ("Il link di X non vale per questa serata." /
+  "non è più attivo." / "Questo link non è valido.") e **non** il modulo: prima si sceglie "Continua nella Lista Maremma Musica"
+  (`/e/<serata>/prevendita?senza_pr=1`, il middleware toglie anche il cookie del PR). Se è il cookie a non valere, c'è lo stesso avviso e il
+  modulo con la Lista Maremma Musica. `creaIscrizione` rifiuta con un errore chiaro un handle che non vale (non assegna a quel PR e non
+  mette in silenzio in Maremma Musica). Nell'area PR le serate dove non è abilitato non ci sono; nella pagina admin PR, con una serata scelta,
+  appare "Non in questa serata" (o "Sospeso") senza link da copiare né WhatsApp.
 - I PR non incassano: niente "Ha pagato" e niente consegne di soldi. Il PR vede nella sua area solo i clienti che hanno
-  pagato (o sono entrati); la classifica conta solo le prevendite pagate. Serata live dell'admin: prevendita incassata
+  pagato (o sono entrati); la classifica conta solo le prevendite pagate. **Il PR vede solo la propria posizione** ("Sei 3° su 8 · 42 in lista",
+  `posizionePr` in `lib/dati/classifica.ts`): nessun nome né numero degli altri PR o di Maremma Musica arriva al suo browser. Delle prevendite
+  iniziate e non pagate vede **solo quante sono** ("3 non hanno ancora pagato"), mai nomi, email, telefoni o date (i test in `permessi.test.ts` lo controllano).
+  L'admin vede la classifica completa nella serata live. Serata live dell'admin: prevendita incassata
   online e tavoli a parte (più gli ingressi in cassa storici, se ci sono), più i pagamenti da rimborsare. Sotto, il **Riepilogo** della serata:
   incassato lordo, rimborsato e netto (`soldiSerata` in `lib/dati/rimborsi.ts`, dai dati esistenti, in centesimi interi),
   prevendite vendute per tipo, tavoli pagati, entrati alla porta.
-- Canali `/gestione/canali` (solo admin): chi si iscrive senza PR, per canale (Instagram, Facebook, TikTok,
+- Canali `/admin/pr/canali` (solo admin): chi si iscrive senza PR, per canale (Instagram, Facebook, TikTok,
   WhatsApp, Google, locandina, diretto). Il canale si riconosce dal social di provenienza o dal link
   etichettato `/e/[slug]?da=instagram` (la pagina dà i link pronti da copiare). Anche nella serata live
   dell'admin e alla porta ("Lista: Maremma Musica · da Instagram").

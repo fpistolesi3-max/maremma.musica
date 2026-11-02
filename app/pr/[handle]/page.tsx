@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
+import type { Pr } from '@/lib/dati/tipi';
+import { prAbilitato } from '@/lib/link-pr';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { sessioneCorrente } from '@/lib/sessione';
@@ -8,7 +11,7 @@ import { tavoliDelPr } from '@/lib/dati/tavoli';
 import { modoPagamentoOnline } from '@/lib/pagamenti';
 import { linkPagamento, quandoScade } from '@/lib/tavolo-email';
 import { AzioniPrenotazione } from '@/components/tavoli-azioni';
-import { chipLista, isAttiva, testoPrezzoTipi } from '@/lib/regole';
+import { chipLista, isAttiva, testoNonPagati, testoPosizione, testoPrezzoTipi } from '@/lib/regole';
 import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, orari, quandoRelativo } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
 import { CampoLink } from '@/components/client';
@@ -16,6 +19,7 @@ import { CondividiLink, ListaPr, MandaLinkPagamento } from '@/components/area-pr
 import { CampoLista, Monogramma } from '@/components/ui';
 import { Locandina } from '@/components/evento';
 import { esci } from '@/app/azioni/accesso';
+import { AvvisoArea } from '@/components/avviso-area';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,11 +42,13 @@ export default async function PaginaPr({ params, searchParams }: Props) {
   const s = await sessioneCorrente();
   const { serata, tavolo } = await searchParams;
   if (s?.utente.ruolo === 'pr' && s.pr?.id === pr.id) return <AreaPr sessioneHandle={pr.handle} serataScelta={serata} nuovoTavolo={tavolo} />;
-  return <LinkGenerico handle={pr.handle} nome={pr.nomeDisplay} />;
+  return <LinkGenerico pr={pr} />;
 }
 
-async function LinkGenerico({ handle, nome }: { handle: string; nome: string }) {
-  const { prossimi } = await eventiPubblici();
+async function LinkGenerico({ pr }: { pr: Pr }) {
+  const { handle, nomeDisplay: nome } = pr;
+  // Solo le serate per cui questo PR è abilitato: per le altre il suo link non vale.
+  const prossimi = (await eventiPubblici()).prossimi.filter((x) => prAbilitato(pr, x.evento));
   return (
     <div className="mm-grana flex min-h-dvh flex-col">
       <header className="flex h-16 items-center gap-[10px] border-b border-linea px-4 md:px-10">
@@ -87,8 +93,6 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
   const iniziali = pr.nomeDisplay.split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
   const max = serata ? Math.max(1, ...serata.perGiorno.map((g) => g.n)) : 1;
   const inLista = serata ? serata.mie.filter(isAttiva).length : 0;
-  const primo = serata?.classifica[0];
-  const mio = serata?.classifica.find((r) => r.sonoIo);
   const GIORNI = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
   const tavoli = serata ? await tavoliDelPr(s, serata.evento.id) : null;
   // I tavoli si pagano con Stripe: finché il pagamento online non è attivo non si prenotano.
@@ -97,6 +101,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
 
   return (
     <div className="mm-grana flex min-h-dvh flex-col">
+      <Suspense><AvvisoArea /></Suspense>
       <header className="flex h-16 flex-none items-center gap-[10px] border-b border-linea px-4 md:px-10">
         <Link href="/" aria-label="Sito Maremma Musica"><Monogramma /></Link>
         <span className="flex-grow font-sans text-[11px] font-semibold leading-none tracking-logo">AREA RISERVATA · PR</span>
@@ -132,7 +137,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
               <div className="grid grid-cols-3 border-t border-linea">
                 <Stat valore={String(inLista)} etichetta="In lista" />
                 <Stat valore={`+${serata.oggi}`} etichetta="Oggi" arancio bordo />
-                <Stat valore={serata.posizione ? `${serata.posizione}ª` : '—'} etichetta="In classifica" bordo />
+                <Stat valore={`${serata.classifica.posizione}°`} etichetta="In classifica" bordo />
               </div>
               <div className="flex flex-col gap-[10px] border-t border-linea px-5 pb-5 pt-4">
                 <span className="text-[11px] font-semibold leading-[14px] tracking-[.12em] text-osso-2">ISCRITTI AL GIORNO · ULTIMI 7</span>
@@ -167,6 +172,12 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
                 <h2 className="m-0 font-display text-[36px] font-black uppercase leading-[.9]">La tua lista</h2>
                 <span className="font-mono text-[11px] text-osso-2">{inLista} NOMI</span>
               </div>
+              {testoNonPagati(serata.nonPagati) && (
+                <p role="status" className="m-0 flex flex-col gap-1 border border-attesa px-4 py-3 text-[14px] leading-5">
+                  <b className="font-display text-[22px] font-extrabold uppercase leading-none text-attesa">{testoNonPagati(serata.nonPagati)}</b>
+                  <span className="text-osso-2">Hanno iniziato la prevendita ma non l&apos;hanno finita. Ricordalo ai tuoi: il biglietto vale solo dopo il pagamento.</span>
+                </p>
+              )}
               <ListaPr righe={serata.mie.map((i) => ({ id: i.id, nome: `${i.nome} ${i.cognome}`, quando: quandoRelativo(i.createdAt), stato: i.stato }))} />
               <span className="text-[13px] leading-5 text-osso-3">Qui c&apos;è solo chi ha già pagato la prevendita online: i soldi non passano da te.</span>
             </section>
@@ -221,24 +232,12 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
           {serata && (
             <section className="flex flex-col gap-[14px] pt-8">
               <h2 className="m-0 font-display text-[36px] font-black uppercase leading-[.9]">Classifica</h2>
-              <div className="mm-scroll">
-                <table className="mm-classifica">
-                  <thead><tr><th>#</th><th>PR</th><th className="mm-num">Lista</th><th className="mm-num">Entrati</th></tr></thead>
-                  <tbody>
-                    {serata.classifica.map((r, i) => (
-                      <tr key={r.prId ?? 'mm'} className={r.sonoIo ? 'mm-tu' : undefined}>
-                        <td className="mm-classifica__pos">{i + 1}</td>
-                        <td><span className="mm-classifica__nome">{r.nome}</span>{r.sonoIo && <span className="mm-classifica__tu">TU</span>}</td>
-                        <td className="mm-num">{r.inLista}</td>
-                        <td className="mm-num">{r.entrati}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <span className="text-[14px] leading-5 text-osso-2">
-                {mio && primo && !mio.sonoIo && primo !== mio ? `Ti mancano ${primo.inLista - mio.inLista + 1} iscritti per il primo posto.` : mio && primo === mio ? 'Sei primo. Tieni duro.' : ''}
-              </span>
+              <p className="m-0 flex flex-col gap-1 border border-linea bg-notte-2 px-5 py-4">
+                <b className="font-display text-[32px] font-black uppercase leading-[.9] text-arancio">{testoPosizione(serata.classifica.posizione, serata.classifica.su, serata.classifica.inLista)}</b>
+                <span className="text-[14px] leading-5 text-osso-2">
+                  {serata.classifica.posizione === 1 && serata.classifica.su > 1 ? 'Sei primo. Tieni duro.' : 'Vedi solo la tua posizione, non quella degli altri.'}
+                </span>
+              </p>
             </section>
           )}
         </div>

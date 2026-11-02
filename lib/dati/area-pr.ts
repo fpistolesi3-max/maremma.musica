@@ -2,16 +2,17 @@ import 'server-only';
 import { leggi } from './archivio';
 import type { Evento, Iscrizione } from './tipi';
 import type { Sessione } from '../sessione';
-import { calcolaClassifica, type RigaClassifica } from './classifica';
-import { eventoPassato, isAttiva, prezzoVendibile, type PrezzoTipi } from '../regole';
+import { posizionePr, type PosizionePr } from './classifica';
+import { eventoPassato, isAttiva, iscrizioneScaduta, prezzoVendibile, type PrezzoTipi } from '../regole';
 import { usatiPerLotto } from './pubblico';
 import { dataIso } from '../formato';
 
 // Area PR. Ogni funzione riceve la sessione e filtra SEMPRE per il PR della sessione:
 // è l'equivalente della policy RLS "iscrizioni_pr" (pr_id = pr_corrente()).
 // La UI non passa mai un pr_id: non c'è modo di chiedere i clienti di un altro.
-// I soldi non passano dal PR: la prevendita si paga solo online. Il PR vede chi ha pagato ed è in lista, non chi
-// ha iniziato senza pagare.
+// I soldi non passano dal PR: la prevendita si paga solo online. Il PR vede chi ha pagato ed è in lista; di chi ha
+// iniziato senza pagare vede soltanto quanti sono (nessun nome, email, telefono o data).
+// Degli altri PR e di "Maremma Musica" non vede niente: solo la propria posizione in classifica.
 
 export interface SerataPr {
   evento: Evento;
@@ -19,8 +20,8 @@ export interface SerataPr {
   mie: Pick<Iscrizione, 'id' | 'nome' | 'cognome' | 'stato' | 'createdAt' | 'importo' | 'oraCheckIn'>[];
   oggi: number;
   perGiorno: { giorno: string; n: number }[]; // ultimi 7 giorni, oggi per ultimo
-  classifica: RigaClassifica[];
-  posizione: number | null;
+  nonPagati: number;              // prevendite iniziate e non ancora pagate (ancora nel termine): solo il numero
+  classifica: PosizionePr;        // la sua posizione e basta
 }
 
 function soloPr(s: Sessione) {
@@ -43,14 +44,14 @@ export async function serateDelPr(s: Sessione): Promise<SerataPr[]> {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .map(({ id, nome, cognome, stato, createdAt, importo, oraCheckIn }) => ({ id, nome, cognome, stato, createdAt, importo, oraCheckIn }));
       const attive = mie.filter(isAttiva);
-      const classifica = calcolaClassifica(d, evento.id, { admin: false, prId: pr.id });
-      const pos = classifica.findIndex((r) => r.sonoIo);
+      const adesso = new Date();
+      const nonPagati = d.iscrizioni.filter((i) => i.eventoId === evento.id && i.prId === pr.id && i.stato === 'in_attesa' && !iscrizioneScaduta(i, adesso)).length;
       return {
         evento, mie, prezzoTipi: prezzoVendibile(evento, d.lotti, usatiPerLotto(d, evento.id)),
         oggi: attive.filter((i) => dataIso(i.createdAt) === oggi).length,
         perGiorno: giorni.map((g) => ({ giorno: g, n: attive.filter((i) => dataIso(i.createdAt) === g).length })),
-        classifica,
-        posizione: pos >= 0 ? pos + 1 : null,
+        nonPagati,
+        classifica: posizionePr(d, evento.id, pr.id),
       };
     });
 }

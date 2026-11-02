@@ -19,6 +19,7 @@ function soloAdmin(s: Sessione) {
 
 export interface NumeriPr {
   inLista: number;
+  pagati: number;               // in lista con prevendita pagata online (gli altri sono prevendite gratis)
   nuovi24h: number;
   entrati: number;
   resa: number | null;          // entrati / in lista, solo se la serata è passata o in corso
@@ -47,6 +48,7 @@ function numeri(tutte: Iscrizione[], conResa: boolean): NumeriPr {
   const date = iscr.flatMap((i) => [i.createdAt, i.pagatoAt, i.oraCheckIn, i.annullatoAt]).filter((x): x is string => Boolean(x));
   return {
     inLista: attive.length,
+    pagati: attive.filter((i) => i.metodoPagamento === 'online').length,
     nuovi24h: attive.filter((i) => new Date(i.createdAt).getTime() > ora24()).length,
     entrati,
     resa: conResa && attive.length ? Math.round((entrati / attive.length) * 100) : null,

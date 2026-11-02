@@ -327,7 +327,7 @@ export async function duplicaSerata(s: Sessione, daEventoId: string, nuovoGiorno
       lineup: [...da.lineup], prAbilitati: da.prAbilitati ? [...da.prAbilitati] : null,
       // L'orario limite scritto per la serata si sposta con la data, alla stessa ora a Roma.
       prevenditaFinoAlle: da.prevenditaFinoAlle ? spostaGiorni(da.prevenditaFinoAlle, giorniTra(da.data, data)) : null,
-      pubblicato: false, inCopertina: false, piantinaUrl: null, createdAt: adesso, updatedAt: adesso,
+      pubblicato: false, inCopertina: false, piantinaUrl: null, invioLinkPr: null, createdAt: adesso, updatedAt: adesso,
     };
     d.eventi.push(nuovo);
     return { nuovo, haTipi: d.lotti.some((l) => l.eventoId === da.id), haTavoli: d.tavoli.some((t) => t.eventoId === da.id) };
@@ -513,19 +513,33 @@ export async function csvTavoli(s: Sessione, eventoId: string) {
   return { nome: `${evento.slug}-tavoli.csv`, testo: '\ufeff' + [intestazione.join(';'), ...righe].join('\r\n') };
 }
 
-export async function creaPr(s: Sessione, input: { nome: string; handle: string; email: string }) {
+/** Pagine fisse sotto /admin/pr/: non possono essere l'handle di un PR. */
+const RISERVATI = ['canali'];
+
+/** `handle` vuoto = dal nome (se è già preso si aggiunge -2, -3…). Un handle scritto a mano che esiste già è un errore. */
+export async function creaPr(s: Sessione, input: { nome: string; handle?: string; email: string }) {
   soloAdmin(s);
-  const handle = input.handle.trim().toLowerCase();
+  const scritto = (input.handle ?? '').trim().toLowerCase();
   const email = input.email.trim().toLowerCase();
-  if (!input.nome.trim()) throw new Error('Scrivi il nome della lista');
-  if (!HANDLE_RE.test(handle)) throw new Error('Handle: solo lettere minuscole, numeri e trattini');
+  const nome = input.nome.trim();
+  if (!nome) throw new Error('Scrivi il nome della lista');
+  if (scritto && !HANDLE_RE.test(scritto)) throw new Error('Handle: solo lettere minuscole, numeri e trattini');
+  if (RISERVATI.includes(scritto)) throw new Error('Handle riservato: scegline un altro');
   if (!EMAIL_RE.test(email)) throw new Error('Email non valida');
-  await modifica((d) => {
-    if (d.pr.some((p) => p.handle === handle)) throw new Error('Handle già usato da un altro PR');
+  return modifica((d) => {
     if (d.utenti.some((u) => u.email === email)) throw new Error('Email già usata da un altro accesso');
-    const pr = { id: randomUUID(), handle, nomeDisplay: input.nome.trim(), stato: 'attivo' as const, createdAt: new Date().toISOString() };
+    let handle = scritto;
+    if (scritto) {
+      if (d.pr.some((p) => p.handle === scritto)) throw new Error('Handle già usato da un altro PR');
+    } else {
+      const base = slugDa(nome) || 'pr';
+      handle = base;
+      for (let n = 2; d.pr.some((p) => p.handle === handle) || RISERVATI.includes(handle); n++) handle = `${base}-${n}`;
+    }
+    const pr = { id: randomUUID(), handle, nomeDisplay: nome, stato: 'attivo' as const, createdAt: new Date().toISOString() };
     d.pr.push(pr);
     d.utenti.push({ id: randomUUID(), email, ruolo: 'pr', prId: pr.id, createdAt: pr.createdAt });
+    return { nome, handle, email };
   });
 }
 
