@@ -13,6 +13,15 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.supabase.co' },
     ],
   },
+  // L'area PR dell'admin era sotto /gestione: i vecchi indirizzi portano alla nuova pagina (la serata scelta resta).
+  async redirects() {
+    return [
+      { source: '/gestione', destination: '/admin/pr', permanent: false },
+      { source: '/gestione/pr', destination: '/admin/pr', permanent: false },
+      { source: '/gestione/pr/:handle', destination: '/admin/pr/:handle', permanent: false },
+      { source: '/gestione/canali', destination: '/admin/pr/canali', permanent: false },
+    ];
+  },
   async headers() {
     return [
       // Il link di recupero contiene l'email: non passarla a siti terzi.

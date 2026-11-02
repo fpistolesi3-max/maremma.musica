@@ -1,21 +1,4 @@
 import type { ReactNode } from 'react';
-import { dataPunti, parti } from '@/lib/formato';
-
-/** Scelta della serata (GET, funziona senza JavaScript). */
-export function SceltaSerata({ azione, eventi, scelto }: { azione: string; eventi: { id: string; nome: string; data: string }[]; scelto: string }) {
-  return (
-    <form action={azione} className="flex items-end gap-2">
-      <div className="mm-campo flex-grow md:w-[320px] md:flex-grow-0">
-        <label className="mm-campo__etichetta" htmlFor="g-serata">Serata</label>
-        <select id="g-serata" name="serata" defaultValue={scelto} className="mm-campo__input" style={{ height: 44 }}>
-          <option value="tutte">Tutte le serate</option>
-          {eventi.map((e) => <option key={e.id} value={e.id}>{dataPunti(e.data)}.{String(parti(e.data).anno).slice(2)} · {e.nome}</option>)}
-        </select>
-      </div>
-      <button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }}>Vedi</button>
-    </form>
-  );
-}
 
 export function Resa({ valore }: { valore: number | null }) {
   if (valore == null) return <span className="font-mono text-[11px] text-osso-3" title="La resa si calcola quando apre la porta">—</span>;

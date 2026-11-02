@@ -3,11 +3,12 @@ import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
 import { dettaglioPr, type TipoAttivita } from '@/lib/dati/gestione-pr';
 import { dataPunti, euro, giornoSett, ora, parti, quandoRelativo } from '@/lib/formato';
-import { Resa, Riquadro, SceltaSerata } from '@/components/gestione';
+import { Resa, Riquadro } from '@/components/gestione';
+import { SceltaSerata } from '@/components/gestione-client';
 import { ChipIscrizione } from '@/components/ui';
 import { etichettaCanale } from '@/lib/canali';
 
-export const metadata = { title: 'Attività PR' };
+export const metadata = { title: 'Dettaglio PR' };
 
 type Props = { params: Promise<{ handle: string }>; searchParams: Promise<{ serata?: string }> };
 
@@ -22,7 +23,7 @@ const GIORNI = ['DOM', 'LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB'];
 /** Scheda di un PR: numeri per serata, iscritti al giorno, lista e attività recente. */
 export default async function DettaglioPr({ params, searchParams }: Props) {
   const { handle } = await params;
-  const s = await richiedi(['admin'], `/gestione/pr/${handle}`);
+  const s = await richiedi(['admin'], `/admin/pr/${handle}`);
   const { serata } = await searchParams;
   const x = await dettaglioPr(s, handle, (serata as string) ?? null);
   if (!x) notFound();
@@ -31,9 +32,9 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
 
   return (
     <>
-      <div className="flex flex-col gap-4 border-b border-linea px-4 pb-6 pt-6 md:flex-row md:items-end md:justify-between md:px-10">
+      <div className="flex flex-col gap-4 border-b border-linea px-4 pb-6 pt-2 md:flex-row md:items-end md:justify-between md:px-12">
         <div className="flex flex-col gap-[10px]">
-          <Link href={`/gestione/pr${x.evento ? `?serata=${x.evento.id}` : '?serata=tutte'}`} className="font-mono text-[11px] text-osso-2 no-underline">← GESTIONE / PR</Link>
+          <Link href={`/admin/pr${x.evento ? `?serata=${x.evento.id}` : '?serata=tutte'}`} className="inline-flex min-h-[44px] items-center font-mono text-[11px] text-osso-2 no-underline">← PR</Link>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="m-0 font-display text-[44px] font-black uppercase leading-[.85] md:text-[64px]">{x.pr.nomeDisplay}</h1>
             <span className={`mm-chip ${x.pr.stato === 'attivo' ? 'mm-chip--entrato' : 'mm-chip--annullato'}`}>{x.pr.stato === 'attivo' ? 'Attivo' : 'Sospeso'}</span>
@@ -42,7 +43,7 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
             /pr/{x.pr.handle}{x.email ? ` · ${x.email}` : ''} · PR DAL {dataPunti(x.pr.createdAt)}.{String(parti(x.pr.createdAt).anno).slice(2)}
           </span>
         </div>
-        <SceltaSerata azione={`/gestione/pr/${x.pr.handle}`} eventi={x.eventi} scelto={x.evento?.id ?? 'tutte'} />
+        <SceltaSerata azione={`/admin/pr/${x.pr.handle}`} eventi={x.eventi} scelto={x.evento?.id ?? 'tutte'} />
       </div>
 
       <div className="grid grid-cols-2 border-l border-linea lg:grid-cols-4">
@@ -52,7 +53,7 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
         <Riquadro etichetta="Annullati" valore={n.annullati} nota={n.ultimaAttivita ? `ULTIMA ATTIVITÀ ${quandoRelativo(n.ultimaAttivita)}` : 'NESSUNA ATTIVITÀ'} />
       </div>
 
-      <div className="grid gap-x-12 px-4 md:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid gap-x-12 px-4 md:px-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col">
           <section className="flex flex-col gap-[10px] py-6">
             <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Iscritti al giorno · 14 giorni</h2>
@@ -77,7 +78,7 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
                 <tbody>
                   {x.serate.map((r) => (
                     <tr key={r.evento.id}>
-                      <td className="whitespace-nowrap"><Link href={`/gestione/pr/${x.pr.handle}?serata=${r.evento.id}`} className="no-underline"><span className="font-mono text-[12px] text-osso-2">{giornoSett(r.evento.data)} {dataPunti(r.evento.data)}</span> <span className="font-display text-[18px] font-extrabold uppercase">{r.evento.nome}</span></Link></td>
+                      <td className="whitespace-nowrap"><Link href={`/admin/pr/${x.pr.handle}?serata=${r.evento.id}`} className="no-underline"><span className="font-mono text-[12px] text-osso-2">{giornoSett(r.evento.data)} {dataPunti(r.evento.data)}</span> <span className="font-display text-[18px] font-extrabold uppercase">{r.evento.nome}</span></Link></td>
                       <td className="mm-num">{r.inLista}</td>
                       <td className="mm-num">{r.entrati}</td>
                       <td><Resa valore={r.resa} /></td>

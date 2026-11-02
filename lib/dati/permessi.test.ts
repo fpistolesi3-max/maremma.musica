@@ -70,13 +70,75 @@ test('area PR: vede solo i propri iscritti, non può toccare quelli degli altri'
   const serate = await m.areaPr.serateDelPr(s);
   const halloween = serate.find((x) => x.evento.slug === 'halloween-party')!;
   const d = await m.archivio.leggi();
-  assert.ok(halloween.classifica.every((r) => r.incassato === null), 'niente incassi degli altri');
+  assert.deepEqual(Object.keys(halloween.classifica).sort(), ['inLista', 'posizione', 'su'], 'della classifica ha solo la propria posizione');
   // Il PR vede solo chi ha pagato: chi ha chiesto la prevendita senza pagarla non c'è
   const mie = d.iscrizioni.filter((i) => i.prId === s.pr!.id && i.eventoId === halloween.evento.id && i.stato !== 'in_attesa' && i.stato !== 'scaduta').map((i) => i.id).sort();
   assert.deepEqual(halloween.mie.map((i) => i.id).sort(), mie);
   assert.ok(halloween.mie.every((i) => i.stato !== 'in_attesa'));
   const staff = await sessione('porta@maremmamusica.test');
   await assert.rejects(m.areaPr.serateDelPr(staff), /non_autorizzato/);
+});
+
+test('area PR: della classifica vede solo la propria posizione, niente degli altri PR né di Maremma Musica', async () => {
+  const s = await sessione('test-pr@maremmamusica.test');
+  const serate = await m.areaPr.serateDelPr(s);
+  const d = await m.archivio.leggi();
+  const halloween = serate.find((x) => x.evento.slug === 'halloween-party')!;
+  // Quello che arriva alla pagina (e quindi al browser) non contiene nomi o handle degli altri, né la lista senza PR.
+  const json = JSON.stringify(serate);
+  for (const altro of d.pr.filter((p) => p.id !== s.pr!.id)) {
+    assert.ok(!json.includes(altro.nomeDisplay), `nome di ${altro.nomeDisplay}`);
+    assert.ok(!json.includes(altro.handle), `handle di ${altro.handle}`);
+    assert.ok(!json.includes(altro.id), `id di ${altro.handle}`);
+  }
+  assert.ok(!json.includes('Maremma Musica'), 'la lista senza PR non compare');
+  assert.ok(!Array.isArray(halloween.classifica), 'niente righe di classifica');
+  // I numeri sono i suoi e la posizione torna con quella calcolata sull'archivio.
+  const inLista = (id: string | null) => d.iscrizioni.filter((i) => i.eventoId === halloween.evento.id && i.prId === id && ['in_lista', 'pagato', 'entrato'].includes(i.stato)).length;
+  assert.equal(halloween.classifica.inLista, inLista(s.pr!.id));
+  const davanti = d.pr.filter((p) => p.id !== s.pr!.id && inLista(p.id) > inLista(s.pr!.id)).length;
+  assert.ok(halloween.classifica.posizione >= davanti + 1, 'dietro almeno a chi ha più iscritti');
+  assert.ok(halloween.classifica.su >= halloween.classifica.posizione);
+  // Anche con zero iscritti ha una posizione, e nessun'altra informazione.
+  const { posizionePr } = await import('./classifica');
+  const calcolo = posizionePr(d, halloween.evento.id, d.pr.find((p) => p.handle === 'zarro-pollicino')!.id);
+  assert.deepEqual(Object.keys(calcolo).sort(), ['inLista', 'posizione', 'su']);
+});
+
+test('area PR: delle prevendite non pagate vede solo quante sono, mai nomi, email, telefoni o date', async () => {
+  const base = { slug: 'halloween-party', dataNascita: '1990-04-04', marketing: false, handlePr: 'test-pr' };
+  const a = await m.pubblico.creaIscrizione({ ...base, nome: 'Fantasma', cognome: 'Inattesa', email: 'fantasma.inattesa@esempio.it' });
+  const b = await m.pubblico.creaIscrizione({ ...base, nome: 'Spettro', cognome: 'Sospeso', email: 'spettro.sospeso@esempio.it' });
+  const altroPr = await m.pubblico.creaIscrizione({ ...base, nome: 'Mostro', cognome: 'Altrui', email: 'mostro.altrui@esempio.it', handlePr: 'zarro-pollicino' });
+  assert.ok(a.ok && b.ok && altroPr.ok);
+  const s = await sessione('test-pr@maremmamusica.test');
+  const prima = (await m.areaPr.serateDelPr(s)).find((x) => x.evento.slug === 'halloween-party')!;
+  assert.equal(typeof prima.nonPagati, 'number');
+  const d = await m.archivio.leggi();
+  const attesi = d.iscrizioni.filter((i) => i.eventoId === prima.evento.id && i.prId === s.pr!.id && i.stato === 'in_attesa').length;
+  assert.equal(prima.nonPagati, attesi);
+  assert.ok(prima.nonPagati >= 2, 'conta le sue (non quelle di un altro PR)');
+  const json = JSON.stringify(await m.areaPr.serateDelPr(s));
+  for (const segreto of ['Fantasma', 'Inattesa', 'fantasma.inattesa', 'Spettro', 'spettro.sospeso', 'Mostro', 'mostro.altrui']) assert.ok(!json.includes(segreto), segreto);
+  for (const i of d.iscrizioni.filter((x) => x.stato === 'in_attesa')) assert.ok(!json.includes(i.id), 'nemmeno gli id delle non pagate');
+  // Se ne paga una, scende di uno e compare nella lista di chi ha pagato.
+  assert.ok(a.ok && (await m.prevendita.confermaPagamentoIscrizione(a.iscrizione.id, 'prova_np1')).esito === 'confermata');
+  const dopo = (await m.areaPr.serateDelPr(s)).find((x) => x.evento.slug === 'halloween-party')!;
+  assert.equal(dopo.nonPagati, prima.nonPagati - 1);
+  assert.ok(dopo.mie.some((i) => i.nome === 'Fantasma'));
+});
+
+test('PR nuovo: handle libero dal nome, email già usata rifiutata, "canali" riservato', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const uno = await m.admin.creaPr(admin, { nome: 'Lista Nuova', email: 'nuova@esempio.it' });
+  assert.equal(uno.handle, 'lista-nuova');
+  const due = await m.admin.creaPr(admin, { nome: 'Lista Nuova', email: 'nuova2@esempio.it' });
+  assert.equal(due.handle, 'lista-nuova-2', 'stesso nome: l’handle si distingue da solo');
+  const canali = await m.admin.creaPr(admin, { nome: 'Canali', email: 'canali@esempio.it' });
+  assert.equal(canali.handle, 'canali-2', '"canali" è una pagina fissa');
+  await assert.rejects(m.admin.creaPr(admin, { nome: 'X', handle: 'canali', email: 'x@esempio.it' }), /riservato/);
+  await assert.rejects(m.admin.creaPr(admin, { nome: 'Doppia', email: 'NUOVA@esempio.it' }), /Email già usata/);
+  await assert.rejects(m.admin.creaPr(await sessione('test-pr@maremmamusica.test'), { nome: 'Abusivo', email: 'abusivo@esempio.it' }), /non_autorizzato/);
 });
 
 test('porta: QR falsificato non valido, doppio passaggio bloccato, PR non può fare check-in', async () => {

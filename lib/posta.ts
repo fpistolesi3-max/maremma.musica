@@ -1,6 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { MAX_POSTA, modifica } from './dati/archivio';
+import { escapeHtmlBase } from './html';
 
 // Email transazionali. Finché il servizio vero non è configurato (TODO: cliente — es. Resend, Postmark,
 // Brevo) le email restano in archivio e si leggono su /dev/posta. Se in .env.local ci sono SMTP_HOST,
@@ -44,9 +45,7 @@ export async function inviaEmail(m: Messaggio) {
   });
 }
 
-export function escapeHtml(s: string) {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-}
+export const escapeHtml = escapeHtmlBase;
 
 /** Guscio comune delle email, colori del Design System. */
 export function guscioEmail(titolo: string, corpo: string) {

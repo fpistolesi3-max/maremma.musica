@@ -1,7 +1,9 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { esci } from '@/app/azioni/accesso';
 import { Monogramma } from '@/components/ui';
 import { NavArea, type VoceArea } from '@/components/area/nav';
+import { AvvisoArea } from '@/components/avviso-area';
 import type { Ruolo } from '@/lib/dati/tipi';
 
 /** Voci per ruolo. È solo la barra: l'accesso alle pagine lo controlla comunque `richiedi` e `lib/dati/*`. */
@@ -11,7 +13,7 @@ export function vociArea(ruolo: Ruolo): VoceArea[] {
   return [
     porta,
     { href: '/admin', testo: 'Serate', icona: 'serate' },
-    { href: '/gestione/pr', testo: 'PR', icona: 'pr' },
+    { href: '/admin/pr', testo: 'PR', icona: 'pr' },
     { href: '/admin/iscrizioni', testo: 'Iscrizioni', icona: 'iscrizioni' },
     { href: '/admin/staff', testo: 'Staff', icona: 'staff' },
   ];
@@ -47,6 +49,7 @@ export function GuscioArea({ ruolo, email, children }: { ruolo: Ruolo; email: st
       </aside>
       <main className="min-w-0 flex-grow pb-[76px] md:pb-0">{children}</main>
       <NavArea voci={voci} variante="basso" />
+      <Suspense><AvvisoArea /></Suspense>
     </div>
   );
 }

@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
 import { richiedi } from '@/lib/sessione';
 import { eventiPorta } from '@/lib/dati/porta';
 import { esci } from '@/app/azioni/accesso';
 import { Porta } from '@/components/porta/porta';
 import { RegistraServiceWorker } from '@/components/porta/sw';
+import { AvvisoArea } from '@/components/avviso-area';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Porta', robots: { index: false }, manifest: '/porta.webmanifest' };
@@ -16,6 +18,7 @@ export default async function PaginaPorta() {
   return (
     <>
       <RegistraServiceWorker />
+      <Suspense><AvvisoArea /></Suspense>
       <Porta eventi={eventi} email={s.utente.email} admin={s.utente.ruolo === 'admin'} esci={esci} />
     </>
   );

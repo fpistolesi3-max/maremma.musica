@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from 'react';
 import {
-  azioneIscrizione, cambiaNominativoAzione, creaPrAzione, creaStaffAzione, rimuoviStaffAzione, statoPrAzione, type EsitoAzione,
+  azioneIscrizione, cambiaNominativoAzione, creaStaffAzione, rimuoviStaffAzione, statoPrAzione, type EsitoAzione,
 } from '@/app/azioni/admin';
 
 /**
@@ -72,23 +72,10 @@ function CambiaNome({ id, nominativo, chiudi }: { id: string; nominativo: { nome
   );
 }
 
-export function NuovoPr() {
-  const [s, invia, inCorso] = useActionState(creaPrAzione, {} as EsitoAzione);
-  return (
-    <form action={invia} className="grid gap-3 md:grid-cols-[1fr_1fr_1.2fr_auto] md:items-end">
-      <Mini id="npr-nome" nome="nome" etichetta="Nome della lista" aiuto="Come lo sceglie il PR" />
-      <Mini id="npr-handle" nome="handle" etichetta="Handle" aiuto="Nel link: vuoto = dal nome" />
-      <Mini id="npr-email" nome="email" etichetta="Email" tipo="email" aiuto="Per entrare senza password" />
-      <button type="submit" className="mm-btn mm-btn--primario" disabled={inCorso}>Aggiungi PR</button>
-      {(s.ok || s.errore) && <span role="status" className={`text-[14px] md:col-span-4 ${s.errore ? 'text-stop-testo' : 'text-ok'}`}>{s.errore ?? s.ok}</span>}
-    </form>
-  );
-}
-
 export function StatoPr({ id, attivo }: { id: string; attivo: boolean }) {
   const [inCorso, avvia] = useTransition();
   return (
-    <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 32, fontSize: 12 }}
+    <button type="button" disabled={inCorso} className="mm-btn mm-btn--muto" style={{ minHeight: 44, fontSize: 13 }}
       onClick={() => { if (attivo && !window.confirm('Sospendere il PR? Il suo link smette di attribuire iscrizioni e non può più entrare.')) return; avvia(() => statoPrAzione(id, !attivo)); }}>
       {attivo ? 'Sospendi' : 'Riattiva'}
     </button>
@@ -122,11 +109,11 @@ export function RimuoviStaff({ id }: { id: string }) {
   );
 }
 
-function Mini({ id, nome, etichetta, tipo = 'text', aiuto }: { id: string; nome: string; etichetta: string; tipo?: string; aiuto?: string }) {
+export function Mini({ id, nome, etichetta, tipo = 'text', aiuto, valore }: { id: string; nome: string; etichetta: string; tipo?: string; aiuto?: string; valore?: string }) {
   return (
     <div className="mm-campo">
       <label className="mm-campo__etichetta" htmlFor={id}>{etichetta}</label>
-      <input className="mm-campo__input" style={{ height: 44, fontSize: 15 }} id={id} name={nome} type={tipo} autoCapitalize="none" aria-describedby={aiuto ? `${id}-a` : undefined} />
+      <input className="mm-campo__input" style={{ height: 44, fontSize: 15 }} id={id} name={nome} type={tipo} autoCapitalize="none" defaultValue={valore} aria-describedby={aiuto ? `${id}-a` : undefined} />
       {aiuto && <span className="mm-campo__aiuto" id={`${id}-a`}>{aiuto}</span>}
     </div>
   );

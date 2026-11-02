@@ -7,7 +7,7 @@ import { ModuloAccesso } from '@/components/modulo-accesso';
 import { leggi } from '@/lib/dati/archivio';
 import { MarchioLink } from '@/components/ui';
 import { modalitaProva } from '@/lib/prova';
-import { percorsoInterno } from '@/lib/regole';
+import { percorsoDopoAccesso } from '@/lib/regole';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Accedi', robots: { index: false } };
@@ -18,7 +18,7 @@ type Props = { searchParams: Promise<{ dopo?: string; errore?: string }> };
 export default async function Accedi({ searchParams }: Props) {
   const { dopo, errore } = await searchParams;
   const s = await sessioneCorrente();
-  const dopoSicuro = percorsoInterno(dopo) ? dopo : undefined;
+  const dopoSicuro = percorsoDopoAccesso(dopo, '') || undefined;
   // Già dentro e con il ruolo giusto: si va diretti. Con il ruolo sbagliato si resta qui (niente giri infiniti).
   const altroRuolo = s && dopoSicuro && dopoSicuro !== '/pr' && !puoAprire(s.utente.ruolo, dopoSicuro);
   if (s && !altroRuolo) redirect(destinazionePer(s.utente, s.pr, dopoSicuro));

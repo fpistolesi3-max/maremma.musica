@@ -2,9 +2,10 @@ import { richiedi } from '@/lib/sessione';
 import { canaliSerata, type RigaCanale } from '@/lib/dati/gestione-pr';
 import { CANALI, CANALI_CONDIVISIBILI } from '@/lib/canali';
 import { dataPunti, giornoSett } from '@/lib/formato';
-import { Resa, Riquadro, SceltaSerata } from '@/components/gestione';
+import { Resa, Riquadro } from '@/components/gestione';
 import { AggiornamentoLive } from '@/components/admin/live';
-import { LinkCanale } from '@/components/gestione-client';
+import { TestataAdmin } from '@/components/admin/ui';
+import { LinkCanale, SceltaSerata } from '@/components/gestione-client';
 
 export const metadata = { title: 'Canali' };
 
@@ -15,7 +16,7 @@ type Props = { searchParams: Promise<{ serata?: string }> };
  * L'admin lo usa per capire quanto rendono i social della crew.
  */
 export default async function Canali({ searchParams }: Props) {
-  const s = await richiedi(['admin'], '/gestione/canali');
+  const s = await richiedi(['admin'], '/admin/pr/canali');
   const { serata } = await searchParams;
   const c = await canaliSerata(s, (serata as string) ?? null);
   const tot = c.senzaPr.numeri.inLista + c.conPr.numeri.inLista;
@@ -23,19 +24,12 @@ export default async function Canali({ searchParams }: Props) {
 
   return (
     <>
-      <div className="flex flex-col gap-4 border-b border-linea px-4 pb-6 pt-6 md:flex-row md:items-end md:justify-between md:px-10">
-        <div className="flex flex-col gap-[10px]">
-          <span className="font-mono text-[11px] text-osso-2">GESTIONE / CANALI</span>
-          <h1 className="m-0 font-display text-[44px] font-black uppercase leading-[.85] md:text-[64px]">Senza PR</h1>
-          <span className="font-mono text-[12px] text-osso-2">
-            {c.evento ? `${giornoSett(c.evento.data)} ${dataPunti(c.evento.data)} · ${c.evento.nome.toUpperCase()}` : 'TUTTE LE SERATE'} · DA DOVE ARRIVA CHI SI ISCRIVE DA SOLO
-          </span>
-        </div>
-        <div className="flex flex-col gap-3 md:items-end">
-          <SceltaSerata azione="/gestione/canali" eventi={c.eventi} scelto={c.evento?.id ?? 'tutte'} />
+      <TestataAdmin briciole="PR / CANALI" titolo="Canali"
+        sotto={`${c.evento ? `${giornoSett(c.evento.data)} ${dataPunti(c.evento.data)} · ${c.evento.nome.toUpperCase()}` : 'TUTTE LE SERATE'} · DA DOVE ARRIVA CHI SI ISCRIVE SENZA PR`}
+        azioni={<div className="flex w-full flex-col gap-3 md:w-auto md:items-end">
+          <SceltaSerata azione="/admin/pr/canali" eventi={c.eventi} scelto={c.evento?.id ?? 'tutte'} />
           <AggiornamentoLive ogniSecondi={10} aggiornatoAt={new Date().toISOString()} />
-        </div>
-      </div>
+        </div>} />
 
       <div className="grid grid-cols-2 border-l border-linea lg:grid-cols-4">
         <Riquadro etichetta="In lista senza PR" valore={c.senzaPr.numeri.inLista} nota={tot ? `${Math.round((c.senzaPr.numeri.inLista / tot) * 100)}% DEL TOTALE · +${c.senzaPr.numeri.nuovi24h} IN 24H` : undefined} />
@@ -44,7 +38,7 @@ export default async function Canali({ searchParams }: Props) {
         <Riquadro etichetta="Dai PR, per confronto" valore={c.conPr.numeri.inLista} nota={c.conPr.numeri.resa != null ? `RESA ${c.conPr.numeri.resa}%` : `${c.conPr.numeri.entrati} ENTRATI`} />
       </div>
 
-      <div className="grid gap-x-12 px-4 md:px-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <div className="grid gap-x-12 px-4 md:px-12 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col">
           <Tabella titolo="Per canale · senza PR" righe={c.senzaPr.canali} vuoto="Ancora nessuno si è iscritto da solo." />
           <Tabella titolo="Come vengono aperti i link dei PR" righe={c.conPr.canali} vuoto="Nessuna iscrizione dai PR." piccola />
