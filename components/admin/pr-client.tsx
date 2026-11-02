@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState, useTransition } from 'react';
+import { useActionState, useRef, useState, useTransition } from 'react';
 import { creaPrAzione, inviaLinkSerataAzione, type EsitoLinkSerata, type EsitoNuovoPr } from '@/app/azioni/admin';
 import { copiaTesto } from '@/components/client';
 import { linkWhatsApp } from '@/lib/inviti';
@@ -61,15 +61,20 @@ export function InvioLinkSerata({ eventoId, nomeSerata, destinatari, senzaEmail,
 }) {
   const [inCorso, avvia] = useTransition();
   const [esito, setEsito] = useState<EsitoLinkSerata | null>(null);
+  const inviando = useRef(false); // un secondo clic prima che il pulsante si disattivi non deve mandare le email due volte
   const ultimoVisto = esito?.ultimo ?? ultimo;
   const manda = () => {
+    if (inviando.current) return;
     const domanda = ultimoVisto
       ? `Il link di ${nomeSerata} è già stato mandato. ${ultimoVisto}.
 
 Vuoi mandarlo di nuovo a ${destinatari} PR? Riceveranno un'altra email.`
       : `Mando il link di ${nomeSerata} a ${destinatari} PR?`;
     if (!window.confirm(domanda)) return;
-    avvia(async () => setEsito(await inviaLinkSerataAzione(eventoId)));
+    inviando.current = true;
+    avvia(async () => {
+      try { setEsito(await inviaLinkSerataAzione(eventoId)); } finally { inviando.current = false; }
+    });
   };
   const disabilitato = inCorso || Boolean(bloccato) || destinatari === 0;
   return (
