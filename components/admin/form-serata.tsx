@@ -289,7 +289,7 @@ export function FormSerata({ v, pr, tipi, tavoli, copiaTavoliDa = [], manca = []
             {!erroreModuli && <p className="m-0 font-mono text-[12px] text-osso-2">PRIMA DI PUBBLICARE MANCANO {mancaOra.length} {mancaOra.length === 1 ? 'COSA' : 'COSE'}</p>}
           </div>
         )}
-        <div className="fixed inset-x-0 bottom-[61px] z-30 flex flex-col gap-2 border-t border-linea bg-notte px-4 py-3 md:sticky md:inset-x-auto md:bottom-0 md:z-10 md:border-0 md:px-0">
+        <div className="fixed inset-x-0 bottom-[calc(61px+env(safe-area-inset-bottom))] z-30 flex flex-col gap-2 border-t border-linea bg-notte px-4 py-3 md:sticky md:inset-x-auto md:bottom-0 md:z-10 md:border-0 md:px-0">
           {erroreModuli && <p role="alert" className="m-0 border border-stop-testo px-3 py-2 text-[13px] leading-5 text-stop-testo lg:hidden">{erroreModuli}</p>}
           <div className="flex gap-2">
             {nuova ? (
