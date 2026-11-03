@@ -51,7 +51,7 @@ export function classeEOggetto(c: CampiPass, k: Pick<ChiaviGoogle, 'issuerId' | 
     ticketHolderName: c.titolare,
     ticketNumber: c.codice,
     ...(c.tipo ? { ticketType: testo(c.tipo) } : {}),
-    validTimeInterval: { start: { date: c.inizio }, end: { date: c.scadenza } },
+    validTimeInterval: { start: { date: c.validoDal }, end: { date: c.scadenza } },
     textModulesData: [
       { id: 'giorno', header: 'DATA', body: `${c.giorno} · ${c.orari}` },
       ...(c.validaFinoAlle ? [{ id: 'limite', header: 'VALIDA FINO ALLE', body: c.validaFinoAlle }] : []),

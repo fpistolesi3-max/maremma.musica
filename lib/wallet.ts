@@ -57,6 +57,7 @@ export interface CampiPass {
   tipo: string | null;             // tipo di prevendita (categoria), se c'è
   lista: string;
   validaFinoAlle: string | null;   // "01:00" (niente per l'ingresso libero)
+  validoDal: string;               // ISO: acquisto/pagamento (o adesso se manca); mai l'inizio della serata, o prima apparirebbe "non ancora valido"
   scadenza: string;                // ISO: da qui il pass risulta scaduto
   qr: string;                      // lo stesso identico token della pagina del biglietto
   codice: string;                  // "ABCD-1234", scritto sotto il QR
@@ -83,6 +84,7 @@ export function campiPass(b: Biglietto, adesso = new Date()): CampiPass {
     tipo: i.categoria,
     lista: b.lista,
     validaFinoAlle: limite ? ora(limite) : null,
+    validoDal: new Date(Math.min(Date.parse(i.pagatoAt ?? '') || adesso.getTime(), adesso.getTime())).toISOString(),
     scadenza: scadenzaPass(b),
     qr: i.tokenQr,
     codice: mostraCodice(i.codice),

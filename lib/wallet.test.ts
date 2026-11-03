@@ -41,6 +41,13 @@ test('pass: stesso token del QR della pagina e dati della serata', () => {
   assert.equal(campiPass(biglietto({}, { location: null, comune: null }), PRIMA).testoLuogo, 'Location in arrivo', 'luogo non ancora scelto');
 });
 
+test("pass: valido dal pagamento (o da adesso), mai dall'inizio serata", () => {
+  const pagato = campiPass(biglietto({ pagatoAt: '2026-10-10T08:00:00.000Z' }), PRIMA);
+  assert.equal(pagato.validoDal, '2026-10-10T08:00:00.000Z');
+  assert.equal(campiPass(biglietto({ pagatoAt: null }), PRIMA).validoDal, PRIMA.toISOString(), 'senza data di pagamento: adesso');
+  assert.equal(campiPass(biglietto({ pagatoAt: '2026-12-01T00:00:00.000Z' }), PRIMA).validoDal, PRIMA.toISOString(), 'data nel futuro: adesso');
+});
+
 test("pass: valida fino all'orario limite (di default l'1 di notte), per l'ingresso libero fino a fine serata", () => {
   const b = biglietto();
   const c = campiPass(b);
@@ -123,6 +130,8 @@ test('Google Wallet: JWT firmato con la chiave del service account, classe per s
   assert.match(oggetto.id, /^3388000000000000000\.biglietto_[A-Za-z0-9._-]+$/);
   assert.deepEqual(oggetto.barcode, { type: 'QR_CODE', value: b.iscrizione.tokenQr, alternateText: mostraCodice(b.iscrizione.codice) });
   assert.equal(oggetto.ticketHolderName, 'Giulia Rossi');
+  assert.equal(oggetto.validTimeInterval.start.date, campiPass(b, PRIMA).validoDal, "valido dall'acquisto, non dall'inizio serata");
+  assert.ok(Date.parse(oggetto.validTimeInterval.start.date) <= PRIMA.getTime(), "già valido prima dell'apertura porte");
   assert.equal(oggetto.validTimeInterval.end.date, new Date(limiteIngresso(b.evento)!).toISOString());
   assert.equal(classe.venue.name.defaultValue.value, 'Grosseto · Villa Aurora');
   assert.equal(classe.hexBackgroundColor, '#0c0f14');
