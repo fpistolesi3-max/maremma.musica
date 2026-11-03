@@ -96,10 +96,10 @@ export function LinkPr({ url, testoWhatsApp, nomePr }: { url: string; testoWhats
     }
     await copia();
   };
-  const icona = 'grid h-11 w-11 flex-none place-items-center border-0 bg-transparent text-osso-2 hover:text-osso';
+  const icona = 'grid h-10 w-10 flex-none place-items-center border border-linea-forte bg-transparent text-osso-2 hover:border-osso hover:text-osso';
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1 border border-linea-forte pl-3">
+      <div className="flex items-center gap-2 border border-linea p-1.5 pl-3">
         <span className="min-w-0 flex-grow truncate font-mono text-[12px] leading-4 text-osso-2" title={url}>{breve}</span>
         <button type="button" className={icona} aria-label={`Copia il link di ${nomePr}`} title="Copia il link" onClick={() => void copia()}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="1.5" /><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" /></svg>
@@ -110,7 +110,7 @@ export function LinkPr({ url, testoWhatsApp, nomePr }: { url: string; testoWhats
           </a>
         )}
         <button type="button" className={icona} aria-label={`Condividi il link di ${nomePr}`} title="Condividi" onClick={() => void condividi()}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4" /><path d="M6 12H5v8h14v-8h-1" /></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6" /></svg>
         </button>
       </div>
       <span role="status" className="min-h-4 font-mono text-[11px] leading-4 text-ok">{avviso}</span>

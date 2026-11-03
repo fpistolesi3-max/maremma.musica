@@ -60,12 +60,12 @@ export default async function PaginaPr({ searchParams }: Props) {
         <section aria-labelledby="elenco-pr" className="flex flex-col gap-1">
           <h2 id="elenco-pr" className="m-0 font-display text-[26px] font-black uppercase leading-none">I PR</h2>
           <p className="m-0 pb-3 text-[13px] leading-5 text-osso-3">Tocca il nome di un PR per anagrafica e numeri.</p>
-          <ul className="m-0 flex list-none flex-col p-0">
-            {p.righe.map((r, i) => {
+          <ul className="m-0 flex list-none flex-col gap-3 p-0">
+            {p.righe.map((r) => {
               const sospeso = r.pr.stato === 'sospeso';
               const valido = p.evento ? abilitatoPerSerata(r.pr, p.evento) : !sospeso; // il suo link vale per la serata scelta
               return (
-                <li key={r.pr.id} className={`flex flex-col gap-4 border-t border-linea py-5 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:gap-10 ${i === p.righe.length - 1 ? 'border-b' : ''}`}>
+                <li key={r.pr.id} className="flex flex-col gap-4 border border-linea bg-notte-2 p-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:items-center md:gap-10 md:p-5">
                   <div className={`flex min-w-0 flex-col gap-3 ${sospeso ? 'opacity-60' : ''}`}>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <Link href={`/admin/pr/${r.pr.handle}${q}`} className="group font-display text-[26px] font-extrabold uppercase leading-none text-osso no-underline hover:text-osso" aria-label={`${r.pr.nomeDisplay}: anagrafica e numeri`}>
@@ -98,7 +98,7 @@ export default async function PaginaPr({ searchParams }: Props) {
                 </li>
               );
             })}
-            {p.righe.length === 0 && <li className="border-y border-linea py-6 text-osso-2">Ancora nessun PR: aggiungine uno qui sopra.</li>}
+            {p.righe.length === 0 && <li className="border border-linea p-4 text-osso-2">Ancora nessun PR: aggiungine uno qui sopra.</li>}
           </ul>
           <p className="m-0 pt-3 text-[13px] leading-5 text-osso-3">
             La prevendita si paga solo online: i soldi non passano dai PR. Contano solo le prevendite pagate (&quot;pagati&quot; sono quelle pagate online, le altre in lista sono gratuite).
