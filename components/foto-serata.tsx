@@ -3,25 +3,25 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { testoAltFoto } from '@/lib/foto';
+import {
+  cssTrasf, DURATA_APERTURA, DURATA_CHIUSURA, esitoTrascinamento, fotogrammiVolo, rettContenuto, STACCO, type Rett,
+} from '@/lib/volo';
 import { Rivela } from '@/components/rivela';
 
 export interface FotoPubblica { id: string; urlGrande: string; urlMini: string; larghezza: number; altezza: number }
 
-// PROVA (da togliere dopo la scelta): con ?prova=c nell'indirizzo il visore si apre "volando" dalla miniatura e la foto
-// segue il dito. Senza, tutto come prima.
-const provaC = () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('prova') === 'c'
-  && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 const MOLLA = 'cubic-bezier(.2,.7,.2,1)';
-const STACCO = 16; // spazio tra una foto e l'altra mentre scorrono
+const movimentoRidotto = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /**
  * Griglia delle foto di una serata e vista a schermo intero (scorrimento col dito, frecce, tastiera, tasto Indietro del telefono).
  * Fatta in casa: nessuna libreria. Le miniature arrivano per prime; la foto grande si carica solo quando si apre.
+ * Con il movimento attivo la foto vola dalla miniatura a tutto schermo e ritorno, e nello scorrimento segue il dito;
+ * con prefers-reduced-motion niente animazioni.
  */
 export function GrigliaFoto({ foto, titolo, data, credito }: { foto: FotoPubblica[]; titolo: string; data: string; credito: string }) {
   const [aperta, setAperta] = useState<number | null>(null);
-  const [volo, setVolo] = useState(false);
+  const [movimento, setMovimento] = useState(false);
   const ultimo = useRef<HTMLElement | null>(null);
   const miniature = useRef<(HTMLButtonElement | null)[]>([]);
   const alt = useCallback((i: number) => testoAltFoto(titolo, data, i + 1, foto.length), [titolo, data, foto.length]);
@@ -40,7 +40,7 @@ export function GrigliaFoto({ foto, titolo, data, credito }: { foto: FotoPubblic
                 ref={(el) => { miniature.current[i] = el; }}
                 type="button"
                 className="mm-zoom relative block aspect-[3/4] w-full cursor-pointer overflow-hidden border-0 bg-[#111419] p-0"
-                onClick={(e) => { ultimo.current = e.currentTarget; setVolo(provaC()); setAperta(i); }}
+                onClick={(e) => { ultimo.current = e.currentTarget; setMovimento(!movimentoRidotto()); setAperta(i); }}
                 aria-haspopup="dialog"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -51,40 +51,41 @@ export function GrigliaFoto({ foto, titolo, data, credito }: { foto: FotoPubblic
         ))}
       </ul>
       {credito && <p className="m-0 font-mono text-[12px] leading-4 text-osso-2">Foto di {credito}</p>}
-      {aperta !== null && <Visore foto={foto} indice={aperta} alt={alt} credito={credito} cambia={setAperta} chiudi={chiudi} volo={volo} miniatura={miniatura} />}
+      {aperta !== null && <Visore foto={foto} indice={aperta} alt={alt} credito={credito} cambia={setAperta} chiudi={chiudi} movimento={movimento} miniatura={miniatura} />}
     </>
   );
 }
 
-/** Dove sta la foto intera dentro `area` (come object-fit: contain). */
-function contenuta(area: DOMRect, f: FotoPubblica) {
-  const s = Math.min(area.width / f.larghezza, area.height / f.altezza);
-  const w = f.larghezza * s, h = f.altezza * s;
-  return { left: area.left + (area.width - w) / 2, top: area.top + (area.height - h) / 2, width: w, height: h };
-}
+const rett = (r: DOMRect): Rett => ({ left: r.left, top: r.top, width: r.width, height: r.height });
 
 /**
- * Il "volo" tra la miniatura e lo schermo intero: una copia della foto, posata sul rettangolo finale, parte ingrandita e
- * ritagliata come la miniatura (object-fit: cover) e si allarga fino alla foto intera. `verso` 'chiudi' fa il contrario.
+ * Il volo tra la miniatura e lo schermo intero. Usa la miniatura già scaricata e decodificata nella griglia (niente attese)
+ * e muove solo `transform` (vedi `fotogrammiVolo`). `miniatura` è il pulsante della griglia: la sua cornice e la foto dentro
+ * (che col mouse sopra è un po' ingrandita). `verso` 'chiudi' fa il contrario. La copia sparisce a fine volo.
  */
-function vola(f: FotoPubblica, mini: DOMRect, finale: ReturnType<typeof contenuta>, verso: 'apri' | 'chiudi', durata: number) {
+function vola(f: FotoPubblica, miniatura: HTMLElement, finale: Rett, verso: 'apri' | 'chiudi', durata: number) {
+  const img = miniatura.querySelector('img');
+  const cornice = rett(miniatura.getBoundingClientRect());
+  const { guscio, foto } = fotogrammiVolo(cornice, img ? rett(img.getBoundingClientRect()) : cornice, finale);
+  if (verso === 'chiudi') { guscio.reverse(); foto.reverse(); }
+
   const copia = document.createElement('div');
   copia.setAttribute('aria-hidden', 'true');
-  Object.assign(copia.style, {
-    position: 'fixed', left: `${finale.left}px`, top: `${finale.top}px`, width: `${finale.width}px`, height: `${finale.height}px`,
-    zIndex: '201', pointerEvents: 'none', transformOrigin: '0 0', willChange: 'transform, clip-path',
-    background: `center / cover no-repeat url("${f.urlMini}")`,
-  });
+  const base = { position: 'absolute', left: '0', top: '0', width: `${finale.width}px`, height: `${finale.height}px`, transformOrigin: '0 0', willChange: 'transform' };
+  Object.assign(copia.style, base, { position: 'fixed', left: `${finale.left}px`, top: `${finale.top}px`, zIndex: '201', overflow: 'hidden', pointerEvents: 'none' });
+  const dentro = document.createElement('img');
+  dentro.src = f.urlMini;
+  dentro.alt = '';
+  Object.assign(dentro.style, base, { maxWidth: 'none' });
+  copia.appendChild(dentro);
   document.body.appendChild(copia);
-  const s = Math.max(mini.width / finale.width, mini.height / finale.height);
-  const dx = (finale.width - mini.width / s) / 2, dy = (finale.height - mini.height / s) / 2;
-  const tx = mini.left + mini.width / 2 - (finale.width * s) / 2, ty = mini.top + mini.height / 2 - (finale.height * s) / 2;
-  const daMini = { transform: `translate(${tx - finale.left}px, ${ty - finale.top}px) scale(${s})`, clipPath: `inset(${dy}px ${dx}px)` };
-  const intera = { transform: 'translate(0px, 0px) scale(1)', clipPath: 'inset(0px 0px)' };
-  const a = copia.animate(verso === 'apri' ? [daMini, intera] : [intera, daMini], { duration: durata, easing: MOLLA, fill: 'both' });
-  const fine = () => copia.remove();
-  a.finished.then(fine, fine);
-  return a;
+
+  const tempi = { duration: durata, easing: 'linear', fill: 'both' } as const; // la curva è già nei fotogrammi
+  const a = copia.animate(guscio.map((t) => ({ transform: cssTrasf(t) })), tempi);
+  const b = dentro.animate(foto.map((t) => ({ transform: cssTrasf(t) })), tempi);
+  const togli = () => copia.remove();
+  a.finished.then(togli, togli);
+  return { finito: a.finished, ferma: () => { a.cancel(); b.cancel(); togli(); } };
 }
 
 /** La miniatura sotto il volo si nasconde, così sembra che la foto si stacchi davvero dalla griglia. */
@@ -93,9 +94,15 @@ function nascondi(miniatura: HTMLElement | null, si: boolean) {
   if (img) img.style.opacity = si ? '0' : '';
 }
 
-function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }: {
+/** È visibile almeno in parte sullo schermo? */
+const inVista = (el: HTMLElement | null): el is HTMLElement => {
+  const r = el?.getBoundingClientRect();
+  return !!r && r.width > 0 && r.bottom > 0 && r.top < window.innerHeight;
+};
+
+function Visore({ foto, indice, alt, credito, cambia, chiudi, movimento, miniatura }: {
   foto: FotoPubblica[]; indice: number; alt: (i: number) => string; credito: string; cambia: (i: number) => void; chiudi: () => void;
-  volo: boolean; miniatura: (i: number) => HTMLElement | null;
+  movimento: boolean; miniatura: (i: number) => HTMLElement | null;
 }) {
   const bottoneChiudi = useRef<HTMLButtonElement>(null);
   const contenitore = useRef<HTMLDivElement>(null);
@@ -104,30 +111,37 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
   const scorrimento = useRef<Animation | null>(null);
   const inCammino = useRef(false); // una foto sta scivolando via: finché non arriva la prossima, niente altri scorrimenti
   const chiudendo = useRef(false);
-  const tocco = useRef<{ id: number; x: number; y: number; t: number; asse: 'x' | 'y' | null; dx: number; ultimi: { x: number; t: number }[] } | null>(null);
+  const apertura = useRef<(() => void) | null>(null); // ferma il volo d'apertura, se si chiude mentre la foto vola ancora
+  const tocco = useRef<{ id: number; x: number; y: number; asse: 'x' | 'y' | null; dx: number; ultimi: { x: number; t: number }[] } | null>(null);
+  // Durante il volo d'apertura si vede solo la copia: le foto grandi si montano (e si scaricano) solo all'atterraggio,
+  // così niente scaricamento o decodifica di file grandi mentre la foto vola.
+  const [atterrata, setAtterrata] = useState(!movimento);
   const n = foto.length;
   const attuale = useRef(indice);
   attuale.current = indice;
 
-  // Uscita: con la prova C la foto torna nella sua miniatura (se è in vista), altrimenti si dissolve. Poi si chiude davvero.
+  // Uscita: la foto torna nella sua miniatura (se è in vista), altrimenti la finestra si dissolve. Parte subito, nello
+  // stesso istante del tocco su Chiudi o di Esc; poi si chiude davvero.
   const esci = useCallback(() => {
     if (chiudendo.current) return;
     chiudendo.current = true;
     const radice = contenitore.current, area = palco.current;
-    if (!volo || !radice || !area) { chiudi(); return; }
+    if (!movimento || !radice || !area) { chiudi(); return; }
+    apertura.current?.();
     const i = attuale.current;
-    const mini = miniatura(i)?.getBoundingClientRect();
-    const inVista = mini && mini.bottom > 0 && mini.top < window.innerHeight && mini.width > 0;
+    const mini = miniatura(i);
+    const conVolo = inVista(mini);
+    const finale = rettContenuto(rett(area.getBoundingClientRect()), foto[i].larghezza, foto[i].altezza);
     area.style.visibility = 'hidden';
-    const sfondo = radice.animate([{ opacity: 1 }, { opacity: 0 }], { duration: inVista ? 320 : 200, easing: 'ease-out', fill: 'forwards' });
-    let a: Animation = sfondo;
-    if (inVista) {
-      nascondi(miniatura(i), true);
-      a = vola(foto[i], mini, contenuta(area.getBoundingClientRect(), foto[i]), 'chiudi', 340);
+    const sfondo = radice.animate([{ opacity: 1 }, { opacity: 0 }], { duration: conVolo ? DURATA_CHIUSURA : 180, easing: 'ease-out', fill: 'forwards' });
+    let finito = sfondo.finished;
+    if (conVolo) {
+      nascondi(mini, true);
+      finito = vola(foto[i], mini, finale, 'chiudi', DURATA_CHIUSURA).finito;
     }
-    const fine = () => { nascondi(miniatura(i), false); chiudi(); };
-    a.finished.then(fine, fine);
-  }, [volo, chiudi, miniatura, foto]);
+    const fine = () => { nascondi(mini, false); chiudi(); };
+    finito.then(fine, fine);
+  }, [movimento, chiudi, miniatura, foto]);
 
   // Tasto Indietro del telefono: con la foto aperta c'è una voce in più nella cronologia. Indietro la toglie e chiude la foto
   // (resti nella pagina); chiudendo con X o Esc si fa tornare indietro la cronologia, così non restano voci in più.
@@ -138,24 +152,24 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
     return () => window.removeEventListener('popstate', alIndietro);
   }, [esci]);
   const chiediChiusura = useCallback(() => {
-    if (history.state?.mmFoto) history.back(); // poi arriva popstate e chiude
-    else esci();
+    // Prima l'animazione, poi la cronologia: il popstate che arriva dopo trova la chiusura già avviata e non fa niente.
+    esci();
+    if (history.state?.mmFoto) history.back();
   }, [esci]);
 
-  // Con la prova C anche frecce e tastiera fanno scorrere la foto di lato; senza, cambia e basta.
-  const scorri = useCallback((verso: 1 | -1, da = 0) => {
+  // Con il movimento anche frecce e tastiera fanno scorrere la foto di lato; senza, cambia e basta.
+  const vai = useCallback((verso: 1 | -1, da = 0) => {
     const b = binario.current, area = palco.current;
     const prossima = (attuale.current + verso + n) % n;
-    if (!volo || !b || !area || n < 2) { cambia(prossima); return; }
+    if (!movimento || !b || !area || n < 2) { cambia(prossima); return; }
     if (inCammino.current) return;
     inCammino.current = true;
     const w = area.clientWidth + STACCO;
     const resto = Math.max(0.3, (w - Math.abs(da)) / w);
-    const a = b.animate([{ transform: `translateX(${da}px)` }, { transform: `translateX(${-verso * w}px)` }], { duration: 300 * resto, easing: MOLLA, fill: 'forwards' });
+    const a = b.animate([{ transform: `translateX(${da}px)` }, { transform: `translateX(${-verso * w}px)` }], { duration: 280 * resto, easing: MOLLA, fill: 'forwards' });
     scorrimento.current = a;
-    a.onfinish = () => cambia(prossima); // l'animazione resta ferma in fondo finché la nuova foto non è al centro (sotto)
-  }, [volo, n, cambia]);
-  const vai = scorri;
+    a.finished.then(() => cambia(prossima), () => {}); // l'animazione resta ferma in fondo finché la nuova foto non è al centro (sotto)
+  }, [movimento, n, cambia]);
 
   // Appena la nuova foto è al centro il binario torna a zero, prima che il browser disegni: nessun salto.
   useLayoutEffect(() => {
@@ -194,37 +208,42 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
     return () => { document.body.style.overflow = prima.overflow; document.body.style.paddingRight = prima.padding; };
   }, []);
 
-  // Apertura con la prova C: la foto vola dalla miniatura toccata. Parte prima che il browser disegni la finestra.
+  // Apertura: la foto vola dalla miniatura toccata. Parte prima che il browser disegni la finestra, così il primo
+  // fotogramma è già quello del volo.
   useLayoutEffect(() => {
     const radice = contenitore.current, area = palco.current;
-    const mini = miniatura(indice)?.getBoundingClientRect();
-    if (!volo || !radice || !area || !mini) return;
+    const mini = miniatura(indice);
+    if (!movimento || !radice || !area) return;
+    if (!inVista(mini)) { setAtterrata(true); return; }
     const i = indice;
     area.style.visibility = 'hidden';
-    nascondi(miniatura(i), true);
-    const sfondo = radice.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out' });
-    const a = vola(foto[i], mini, contenuta(area.getBoundingClientRect(), foto[i]), 'apri', 420);
-    const fine = () => { area.style.visibility = ''; nascondi(miniatura(i), false); };
-    a.finished.then(fine, fine);
-    return () => { sfondo.cancel(); a.cancel(); fine(); };
+    nascondi(mini, true);
+    const finale = rettContenuto(rett(area.getBoundingClientRect()), foto[i].larghezza, foto[i].altezza);
+    const sfondo = radice.animate([{ opacity: 0 }, { opacity: 1 }], { duration: DURATA_APERTURA, easing: 'ease-out' });
+    const v = vola(foto[i], mini, finale, 'apri', DURATA_APERTURA);
+    const ripristina = () => { area.style.visibility = ''; nascondi(mini, false); };
+    v.finito.then(() => { ripristina(); setAtterrata(true); }, () => {});
+    apertura.current = () => { sfondo.cancel(); v.ferma(); nascondi(mini, false); };
+    return () => { apertura.current = null; sfondo.cancel(); v.ferma(); ripristina(); };
     // solo all'apertura
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Si scaricano in anticipo la foto prima e la seguente, così lo scorrimento è subito.
+  // Si scaricano in anticipo la foto prima e la seguente, così lo scorrimento è subito (dopo l'atterraggio).
   useEffect(() => {
+    if (!atterrata) return;
     for (const j of [indice + 1, indice - 1]) { if (foto[(j + n) % n]) new Image().src = foto[(j + n) % n].urlGrande; }
-  }, [indice, foto, n]);
+  }, [atterrata, indice, foto, n]);
 
-  // Dito (o mouse) sulla foto. Senza la prova C basta il gesto finale; con la prova C la foto segue il dito e alla fine
+  // Dito (o mouse) sulla foto. Senza movimento basta il gesto finale; con il movimento la foto segue il dito e alla fine
   // scatta alla successiva (spinta oltre un quarto, o lanciata) o torna al suo posto.
   const giu = (e: React.PointerEvent) => {
     if (!e.isPrimary || chiudendo.current || inCammino.current) return;
-    tocco.current = { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp, asse: null, dx: 0, ultimi: [{ x: e.clientX, t: e.timeStamp }] };
+    tocco.current = { id: e.pointerId, x: e.clientX, y: e.clientY, asse: null, dx: 0, ultimi: [{ x: e.clientX, t: e.timeStamp }] };
   };
   const muovi = (e: React.PointerEvent) => {
     const t = tocco.current, b = binario.current;
-    if (!volo || !t || t.id !== e.pointerId || !b) return;
+    if (!movimento || !t || t.id !== e.pointerId || !b) return;
     const dx = e.clientX - t.x, dy = e.clientY - t.y;
     if (!t.asse && Math.max(Math.abs(dx), Math.abs(dy)) > 8) {
       t.asse = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
@@ -243,16 +262,15 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
     const t = tocco.current; tocco.current = null;
     if (!t || t.id !== e.pointerId) return;
     const dx = e.clientX - t.x, dy = e.clientY - t.y;
-    if (!volo) {
+    if (!movimento) {
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) vai(dx < 0 ? 1 : -1);
       return;
     }
     if (t.asse !== 'x') return;
-    const w = palco.current?.clientWidth ?? window.innerWidth;
     const primo = t.ultimi[0];
     const velocita = (e.clientX - primo.x) / Math.max(1, e.timeStamp - primo.t); // px al millisecondo
-    const lancio = Math.abs(velocita) > 0.5 && Math.sign(velocita) === Math.sign(dx);
-    if (n > 1 && (Math.abs(dx) > w / 4 || (lancio && Math.abs(dx) > 30))) scorri(dx < 0 ? 1 : -1, t.dx);
+    const esito = esitoTrascinamento({ dx, velocita, larghezza: palco.current?.clientWidth ?? window.innerWidth, quante: n });
+    if (esito) vai(esito, t.dx);
     else torna(t.dx);
   };
   const torna = (da: number) => {
@@ -262,9 +280,9 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
     if (da) scorrimento.current = b.animate([{ transform: `translateX(${da}px)` }, { transform: 'translateX(0px)' }], { duration: 220, easing: MOLLA });
   };
 
-  // Con la prova C ci sono anche le foto accanto, pronte fuori dallo schermo. Con due foto sole quella "accanto" è la
-  // stessa da tutte e due le parti: le chiavi tengono conto del lato.
-  const lati = volo && n > 1 ? [-1, 0, 1] : [0];
+  // Con il movimento (e dopo l'atterraggio) ci sono anche le foto accanto, pronte fuori dallo schermo. Con due foto sole
+  // quella "accanto" è la stessa da tutte e due le parti: le chiavi tengono conto del lato.
+  const lati = movimento && atterrata && n > 1 ? [-1, 0, 1] : [0];
 
   return createPortal(
     <div ref={contenitore} role="dialog" aria-modal="true" aria-label="Foto a schermo intero" className="fixed inset-0 z-[200] flex flex-col bg-[#08090c] text-osso">
@@ -278,7 +296,7 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
         onPointerDown={giu}
         onPointerMove={muovi}
         onPointerUp={su}
-        onPointerCancel={() => { const t = tocco.current; tocco.current = null; if (volo && t?.asse === 'x') torna(t.dx); }}
+        onPointerCancel={() => { const t = tocco.current; tocco.current = null; if (movimento && t?.asse === 'x') torna(t.dx); }}
       >
         <div ref={binario} className="absolute inset-0">
           {lati.map((lato) => {
@@ -286,7 +304,7 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
             return (
               <Diapositiva
                 key={n === 2 ? `${lato}-${foto[j].id}` : foto[j].id}
-                f={foto[j]} alt={lato === 0 ? alt(j) : ''} lato={lato}
+                f={foto[j]} alt={lato === 0 ? alt(j) : ''} lato={lato} grande={atterrata}
               />
             );
           })}
@@ -306,19 +324,21 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
   );
 }
 
-/** Una foto del visore: prima la miniatura (già scaricata nella griglia), poi la foto grande sopra. */
-function Diapositiva({ f, alt, lato }: { f: FotoPubblica; alt: string; lato: number }) {
+/** Una foto del visore: prima la miniatura (già scaricata nella griglia), poi la foto grande sopra (con `grande`). */
+function Diapositiva({ f, alt, lato, grande }: { f: FotoPubblica; alt: string; lato: number; grande: boolean }) {
   const [pronta, setPronta] = useState(false);
   const accanto = lato !== 0;
   return (
     <div className="absolute inset-0" style={accanto ? { transform: `translateX(calc(${lato * 100}% + ${lato * STACCO}px))` } : undefined} aria-hidden={accanto || undefined}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={f.urlMini} alt="" aria-hidden="true" draggable={false} className="absolute inset-0 h-full w-full object-contain" />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={f.urlGrande} alt={alt} draggable={false} onLoad={() => setPronta(true)}
-        className={`absolute inset-0 h-full w-full object-contain motion-safe:transition-opacity motion-safe:duration-300 ${pronta ? 'opacity-100' : 'opacity-0'}`}
-      />
+      <img src={f.urlMini} alt={grande ? '' : alt} aria-hidden={grande || undefined} draggable={false} className="absolute inset-0 h-full w-full object-contain" />
+      {grande && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={f.urlGrande} alt={alt} draggable={false} decoding="async" onLoad={() => setPronta(true)}
+          className={`absolute inset-0 h-full w-full object-contain motion-safe:transition-opacity motion-safe:duration-300 ${pronta ? 'opacity-100' : 'opacity-0'}`}
+        />
+      )}
     </div>
   );
 }
