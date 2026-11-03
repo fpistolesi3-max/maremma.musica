@@ -6,7 +6,7 @@ import { Riquadro } from '@/components/gestione';
 import { SceltaSerata } from '@/components/gestione-client';
 import { AggiornamentoLive } from '@/components/admin/live';
 import { TestataAdmin } from '@/components/admin/ui';
-import { InvioLinkSerata, InvitoWhatsApp, LinkPr, NuovoPr } from '@/components/admin/pr-client';
+import { InvioLinkSerata, LinkPr, NuovoPr } from '@/components/admin/pr-client';
 import { abilitatoPerSerata, destinatariLinkSerata, motivoNoInvioLink, testoLinkPerPr, testoUltimoInvio } from '@/lib/link-serata';
 import { leggi } from '@/lib/dati/archivio';
 
@@ -39,16 +39,15 @@ export default async function PaginaPr({ searchParams }: Props) {
         </div>} />
 
       <div className="flex flex-col gap-8 px-4 py-6 md:px-12">
-        <section aria-labelledby="aggiungi-pr" className="flex flex-col gap-4 border border-linea bg-notte-2 p-4 md:p-5">
-          <h2 id="aggiungi-pr" className="m-0 font-display text-[26px] font-black uppercase leading-none">Aggiungi PR</h2>
+        {/* Azioni chiuse in due pulsanti: ognuno apre il suo riquadro, che prende tutta la riga. */}
+        <div className="flex flex-wrap items-start gap-3">
           <NuovoPr />
-        </section>
-
-        {p.evento && (
-          <InvioLinkSerata eventoId={p.evento.id} nomeSerata={`${p.evento.nome} (${dataPunti(p.evento.data)})`}
-            destinatari={destinatari.filter((x) => x.email).length} senzaEmail={destinatari.filter((x) => !x.email).length}
-            ultimo={p.evento.invioLinkPr ? testoUltimoInvio(p.evento.invioLinkPr) : null} bloccato={motivoNoInvioLink(p.evento)} />
-        )}
+          {p.evento && (
+            <InvioLinkSerata eventoId={p.evento.id} nomeSerata={`${p.evento.nome} (${dataPunti(p.evento.data)})`}
+              destinatari={destinatari.filter((x) => x.email).length} senzaEmail={destinatari.filter((x) => !x.email).length}
+              ultimo={p.evento.invioLinkPr ? testoUltimoInvio(p.evento.invioLinkPr) : null} bloccato={motivoNoInvioLink(p.evento)} />
+          )}
+        </div>
 
         <div className="grid grid-cols-2 border-l border-t border-linea lg:grid-cols-4">
           <Riquadro etichetta="In lista dai PR" valore={p.totali.inLista}
@@ -59,16 +58,19 @@ export default async function PaginaPr({ searchParams }: Props) {
         </div>
 
         <section aria-labelledby="elenco-pr" className="flex flex-col gap-1">
-          <h2 id="elenco-pr" className="m-0 pb-3 font-display text-[26px] font-black uppercase leading-none">I PR</h2>
-          <ul className="m-0 flex list-none flex-col p-0">
-            {p.righe.map((r, i) => {
+          <h2 id="elenco-pr" className="m-0 font-display text-[26px] font-black uppercase leading-none">I PR</h2>
+          <p className="m-0 pb-3 text-[13px] leading-5 text-osso-3">Tocca il nome di un PR per anagrafica e numeri.</p>
+          <ul className="m-0 flex list-none flex-col gap-3 p-0">
+            {p.righe.map((r) => {
               const sospeso = r.pr.stato === 'sospeso';
               const valido = p.evento ? abilitatoPerSerata(r.pr, p.evento) : !sospeso; // il suo link vale per la serata scelta
               return (
-                <li key={r.pr.id} className={`flex flex-col gap-4 border-t border-linea py-5 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:gap-10 ${i === p.righe.length - 1 ? 'border-b' : ''}`}>
+                <li key={r.pr.id} className="flex flex-col gap-4 border border-linea bg-notte-2 p-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:items-center md:gap-10 md:p-5">
                   <div className={`flex min-w-0 flex-col gap-3 ${sospeso ? 'opacity-60' : ''}`}>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="font-display text-[26px] font-extrabold uppercase leading-none text-osso no-underline hover:text-osso">{r.pr.nomeDisplay}</Link>
+                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="group font-display text-[26px] font-extrabold uppercase leading-none text-osso no-underline hover:text-osso" aria-label={`${r.pr.nomeDisplay}: anagrafica e numeri`}>
+                        {r.pr.nomeDisplay} <span aria-hidden="true" className="text-osso-3 group-hover:text-arancio">›</span>
+                      </Link>
                       <span className={`mm-chip ${sospeso ? 'mm-chip--annullato' : 'mm-chip--entrato'}`}>{sospeso ? 'Sospeso' : 'Attivo'}</span>
                     </div>
                     <span className="break-all font-mono text-[12px] leading-4 text-osso-2">{r.email ?? 'Nessuna email'}</span>
@@ -82,7 +84,8 @@ export default async function PaginaPr({ searchParams }: Props) {
                     {valido ? (
                       <div className="flex flex-col gap-1">
                         <span className="text-[11px] font-semibold leading-[14px] tracking-[.12em] text-osso-2">LINK DA DARE AI CLIENTI</span>
-                        <LinkPr url={linkClienti(r.pr.handle)} />
+                        <LinkPr url={linkClienti(r.pr.handle)} nomePr={r.pr.nomeDisplay}
+                          testoWhatsApp={p.evento && !motivoNoInvioLink(p.evento) ? testoLinkPerPr(r.pr.nomeDisplay, p.evento, linkClienti(r.pr.handle)) : undefined} />
                       </div>
                     ) : (
                       // Un link che non vale non si copia: chi lo aprisse vedrebbe l'avviso invece della lista del PR.
@@ -91,17 +94,11 @@ export default async function PaginaPr({ searchParams }: Props) {
                         <span className="text-[13px] leading-5 text-osso-3">{sospeso ? 'Il suo link non funziona finché non lo riattivi.' : 'La serata non è aperta a questo PR: il suo link non vale e non c’è niente da copiare.'}</span>
                       </p>
                     )}
-                    <div className="flex flex-wrap gap-2">
-                      {p.evento && valido && !motivoNoInvioLink(p.evento) && (
-                        <InvitoWhatsApp testo={testoLinkPerPr(r.pr.nomeDisplay, p.evento, linkClienti(r.pr.handle))} etichetta="Manda il link su WhatsApp" primario />
-                      )}
-                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}>Anagrafica e numeri →</Link>
-                    </div>
                   </div>
                 </li>
               );
             })}
-            {p.righe.length === 0 && <li className="border-y border-linea py-6 text-osso-2">Ancora nessun PR: aggiungine uno qui sopra.</li>}
+            {p.righe.length === 0 && <li className="border border-linea p-4 text-osso-2">Ancora nessun PR: aggiungine uno qui sopra.</li>}
           </ul>
           <p className="m-0 pt-3 text-[13px] leading-5 text-osso-3">
             La prevendita si paga solo online: i soldi non passano dai PR. Contano solo le prevendite pagate (&quot;pagati&quot; sono quelle pagate online, le altre in lista sono gratuite).
