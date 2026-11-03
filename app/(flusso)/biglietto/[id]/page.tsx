@@ -7,12 +7,15 @@ import { linkPagaBiglietto } from '@/lib/biglietto-email';
 import { qrMostrabile, testoLimite } from '@/lib/regole';
 import { lasciaPostoAzione } from '@/app/azioni/prevendita';
 import { origineRichiesta } from '@/lib/sessione';
+import { headers } from 'next/headers';
+import { appleConfigurato, esitoPass, googleConfigurato } from '@/lib/wallet';
 import { euro, numeroEvento, ora } from '@/lib/formato';
 import { BigliettoQr } from '@/components/biglietto';
 import { CampoLink, RicordaBiglietto } from '@/components/client';
 import { ModuloRecupero } from '@/components/modulo-recupero';
 import { Monogramma } from '@/components/ui';
 import { PulsanteMorph } from '@/components/pulsante-morph';
+import { PulsantiWallet, type WalletDisponibili } from '@/components/pulsanti-wallet';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Il tuo QR', robots: { index: false, follow: false } };
@@ -36,6 +39,10 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
   // Il QR (anche barrato, se annullato dopo) c'è solo per chi è stato davvero in lista e non è stato rimborsato.
   const conQr = Boolean(b && qrMostrabile(b.iscrizione));
   const appenaPagato = Boolean(nuovo || pagato);
+  // Pulsanti del Wallet: solo se le chiavi ci sono e il biglietto può avere il pass; per primo quello giusto per il telefono (su computer, Apple).
+  const ua = (await headers()).get('user-agent') ?? '';
+  const passPossibile = Boolean(b && conQr && esitoPass(b).ok);
+  const wallet: WalletDisponibili = { apple: passPossibile && appleConfigurato(), google: passPossibile && googleConfigurato(), primaGoogle: /Android/i.test(ua) };
 
   return (
     <div className="mm-grana mm-curve flex min-h-dvh flex-col bg-notte bg-[position:-1000px_-80px]">
@@ -78,14 +85,14 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
               )}
             </section>
             <section className="hidden flex-col gap-3 md:flex">
-              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} />
+              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} wallet={wallet} />
             </section>
           </div>
 
           <div className="flex flex-col">
             <section id="qr" className="flex justify-center px-4 md:px-0"><BigliettoQr b={b} appenaPagato={appenaPagato} /></section>
             <section className="flex flex-col gap-3 px-4 pt-7 md:hidden">
-              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} />
+              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} wallet={wallet} />
             </section>
             <section className="mx-4 mt-9 flex flex-col gap-[14px] border border-linea bg-notte-2 px-5 py-6 md:mx-0">
               <span className="font-display text-[30px] font-black uppercase leading-[.95]">Porta la tua gente</span>
@@ -163,14 +170,13 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
   );
 }
 
-function Azioni({ id, email, nuovo, senzaTelefono }: { id: string; email: string; nuovo: boolean; senzaTelefono: boolean }) {
+function Azioni({ id, email, nuovo, senzaTelefono, wallet }: { id: string; email: string; nuovo: boolean; senzaTelefono: boolean; wallet: WalletDisponibili }) {
   const q = `?email=${encodeURIComponent(email)}`;
   return (
     <>
       {nuovo && <span className="text-[14px] leading-5 text-osso-2">{senzaTelefono ? 'Ti abbiamo mandato la conferma a' : 'Ti abbiamo mandato il QR a'} <span className="text-osso">{email}</span>.</span>}
       {!senzaTelefono && <a className="mm-btn mm-btn--clip mm-btn--linea mm-btn--pieno" href={`/api/biglietto/${id}/pdf${q}`} target="_blank" rel="noopener">Scarica PDF</a>}
-      {/* Fase 2: Apple/Google Wallet */}
-      <button type="button" className="mm-btn mm-btn--clip mm-btn--linea mm-btn--pieno" disabled>Salva nel Wallet · in arrivo</button>
+      <PulsantiWallet id={id} query={q} wallet={wallet} />
       <a className="mm-btn mm-btn--muto self-center" href={`/api/biglietto/${id}/calendario${q}`}>Aggiungi al calendario</a>
     </>
   );
