@@ -244,7 +244,7 @@ test('Supabase: elimina una foto o le foto di una serata con i file, il credito 
   assert.equal(await m.foto.fotoSerataPubblica(passata), null);
 });
 
-test('Supabase: senza le tabelle delle foto le pagine pubbliche e la serata live si aprono lo stesso, la pagina Foto mostra l’errore', async (t) => {
+test('Supabase: senza le tabelle delle foto le pagine pubbliche e la pagina Modifica si aprono lo stesso, la pagina Foto mostra l’errore', async (t) => {
   const f = nuovo();
   delete (f.tabelle as Partial<typeof f.tabelle>).foto_serate;
   delete (f.tabelle as Partial<typeof f.tabelle>).serate_foto_credito;
@@ -252,7 +252,7 @@ test('Supabase: senza le tabelle delle foto le pagine pubbliche e la serata live
   assert.deepEqual(await m.foto.serateConFoto([passata]), [], 'home e galleria: nessuna foto, nessun errore');
   assert.deepEqual(await m.foto.serateConFoto([passata], { max: 4 }), []);
   assert.equal(await m.foto.fotoSerataPubblica(passata), null, 'scheda serata: nessuna foto, nessun errore');
-  assert.deepEqual(await m.foto.riepilogoFoto(admin, passata.id), { totale: 0, nascoste: 0, anteprime: [], nonLette: true }, 'la serata live si apre lo stesso');
+  assert.deepEqual(await m.foto.riepilogoFoto(admin, passata.id), { totale: 0, inEvidenza: 0, nascoste: 0, anteprime: [], nonLette: true }, 'la pagina Modifica si apre lo stesso');
   assert.equal(log.mock.callCount(), 4, 'l’errore resta nei log');
   await assert.rejects(m.foto.fotoAdmin(admin, passata.id), /Foto: lettura non riuscito/);
 });

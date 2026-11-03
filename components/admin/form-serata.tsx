@@ -29,12 +29,14 @@ export interface ValoriSerata {
  * tutti i suoi campi ci si agganciano con l'attributo form. Così i moduli dei tipi e dei tavoli stanno al loro posto
  * nelle sezioni. Il «Salva» in basso salva prima quelli cambiati (si iscrivono a `RegistroSalvataggi`) e poi i dati.
  */
-export function FormSerata({ v, pr, tipi, tavoli, copiaTavoliDa = [], manca = [], prezzoTesto, notaTipi }: {
+export function FormSerata({ v, pr, tipi, tavoli, foto, copiaTavoliDa = [], manca = [], prezzoTesto, notaTipi }: {
   v: ValoriSerata; pr: { id: string; nome: string; stato: string }[];
   /** Solo in modifica: l'elenco dei tipi di prevendita (modulo a sé), nella sezione Ingresso. */
   tipi?: React.ReactNode;
   /** Solo in modifica: la sezione Tavoli (moduli a sé). Nella serata nuova la sezione c'è già, con «Riprendi tavoli da…». */
   tavoli?: React.ReactNode;
+  /** Solo in modifica: la sezione Foto (07). Le foto si salvano da sole, fuori dal modulo e dal pulsante Salva. */
+  foto?: React.ReactNode;
   /** Solo per la serata nuova: serate da cui riprendere tavoli e piantina al primo salvataggio. */
   copiaTavoliDa?: { id: string; etichetta: string }[];
   /** Cosa manca prima di pubblicare (dai dati salvati). */
@@ -277,6 +279,7 @@ export function FormSerata({ v, pr, tipi, tavoli, copiaTavoliDa = [], manca = []
           <span className="mm-campo__aiuto">Chi arriva dal link di un PR non abilitato finisce nella Lista Maremma Musica.</span>
         </Sezione>
 
+        {foto}
       </div>
 
       {/* Su telefono la barra sta fissa in fondo; su desktop resta accanto. */}

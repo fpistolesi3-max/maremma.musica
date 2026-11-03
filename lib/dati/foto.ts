@@ -263,19 +263,19 @@ export async function fotoAdmin(s: Sessione, eventoId: string) {
   return { evento, foto: serata.map(vista), credito, byteSerata: serata.reduce((n, f) => n + f.byte, 0), byteTotali };
 }
 
-/** Riquadro "Foto" della scheda serata: quante sono, quante nascoste e le prime miniature. */
+/** Sezione "Foto" della pagina Modifica serata: quante sono, quante in evidenza e nascoste, e le prime miniature. */
 export async function riepilogoFoto(s: Sessione, eventoId: string) {
   soloAdmin(s);
   let foto: Foto[];
   try {
     foto = (await store.perSerate([eventoId])).filter((f) => f.pronta).sort(perOrdine);
   } catch (e) {
-    // È la pagina della serata live: senza foto deve aprirsi lo stesso. L'errore si vede nella pagina Foto.
+    // È la pagina Modifica serata: senza foto deve aprirsi lo stesso. L'errore si vede nella pagina Foto.
     fotoNonLette(e);
-    return { totale: 0, nascoste: 0, anteprime: [], nonLette: true };
+    return { totale: 0, inEvidenza: 0, nascoste: 0, anteprime: [], nonLette: true };
   }
   const anteprime = foto.filter((f) => f.inEvidenza).concat(foto.filter((f) => !f.inEvidenza)).slice(0, 4);
-  return { totale: foto.length, nascoste: foto.filter((f) => f.nascosta).length, anteprime: anteprime.map(vista), nonLette: false };
+  return { totale: foto.length, inEvidenza: foto.filter((f) => f.inEvidenza).length, nascoste: foto.filter((f) => f.nascosta).length, anteprime: anteprime.map(vista), nonLette: false };
 }
 
 /**

@@ -88,6 +88,8 @@ test('in evidenza: al massimo 4, una nascosta non può esserlo, nascondere la to
   await m.foto.impostaFoto(admin, ids[4], { inEvidenza: true });
   const s = (await m.foto.serateConFoto(await eventi())).find((x) => x.evento.id === passata)!;
   assert.deepEqual(s.evidenza.map((f) => f.id), [ids[1], ids[2], ids[3], ids[4]]);
+  const r = await m.foto.riepilogoFoto(admin, passata);
+  assert.deepEqual([r.totale, r.inEvidenza, r.nascoste, r.nonLette], [6, 4, 1, false], 'il riepilogo della pagina Modifica conta tutto');
   await m.foto.eliminaFotoSerata(admin, passata);
 });
 

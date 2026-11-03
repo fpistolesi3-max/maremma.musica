@@ -68,8 +68,6 @@ export default async function AdminSerate() {
                   <td className="mm-pieno whitespace-nowrap md:text-right">
                     <Link href={`/admin/eventi/${e.id}`} className="mm-btn mm-btn--muto" style={{ minHeight: 36 }}>Live</Link>
                     <Link href={`/admin/eventi/${e.id}/modifica`} className="mm-btn mm-btn--muto" style={{ minHeight: 36 }}>Modifica</Link>
-                    {/* <a> e non <Link>: con il caricamento normale il browser scende da solo alla sezione */}
-                    <a href={`/admin/eventi/${e.id}/modifica#tavoli`} className="mm-btn mm-btn--muto" style={{ minHeight: 36 }}>Tavoli</a>
                   </td>
                 </tr>
               ))}
