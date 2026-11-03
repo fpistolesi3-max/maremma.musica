@@ -47,7 +47,7 @@ export function GuscioArea({ ruolo, email, children }: { ruolo: Ruolo; email: st
           <form action={esci}><button type="submit" className="border-0 bg-transparent p-0 py-2 text-[12px] font-semibold tracking-[.12em] text-osso-2 hover:text-osso">ESCI</button></form>
         </div>
       </aside>
-      <main className="min-w-0 flex-grow pb-[76px] md:pb-0">{children}</main>
+      <main className="min-w-0 flex-grow pb-[calc(76px+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
       <NavArea voci={voci} variante="basso" />
       <Suspense><AvvisoArea /></Suspense>
     </div>
