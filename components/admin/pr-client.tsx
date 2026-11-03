@@ -84,15 +84,36 @@ export function ModificaPr({ prId, nome, email, handle }: { prId: string; nome: 
 }
 
 /** Il link da dare ai clienti, scritto per intero, con "Copia". */
-export function LinkPr({ url }: { url: string }) {
-  const [copiato, setCopiato] = useState(false);
+export function LinkPr({ url, testoWhatsApp, nomePr }: { url: string; testoWhatsApp?: string; nomePr: string }) {
+  const [avviso, setAvviso] = useState<string | null>(null);
+  const breve = url.replace(/^https?:\/\/[^/]+/, '…');
+  const mostra = (t: string) => { setAvviso(t); setTimeout(() => setAvviso(null), 1600); };
+  const copia = async () => { if (await copiaTesto(url)) mostra('Link copiato'); };
+  // Sul telefono "Condividi" apre il menu del telefono (WhatsApp, Telegram, Messaggi…); dove non c'è, copia il link.
+  const condividi = async () => {
+    if (typeof navigator.share === 'function') {
+      try { await navigator.share({ text: testoWhatsApp ?? url }); return; } catch (e) { if ((e as Error).name === 'AbortError') return; }
+    }
+    await copia();
+  };
+  const icona = 'grid h-11 w-11 flex-none place-items-center border-0 bg-transparent text-osso-2 hover:text-osso';
   return (
-    <div className="flex items-center gap-3">
-      <span className="min-w-0 flex-grow break-all font-mono text-[12px] leading-4 text-osso-2">{url}</span>
-      <button type="button" className="mm-btn mm-btn--linea flex-none" style={{ minHeight: 44, padding: '0 16px' }} aria-label={`Copia il link ${url}`}
-        onClick={async () => { if (await copiaTesto(url)) { setCopiato(true); setTimeout(() => setCopiato(false), 1600); } }}>
-        {copiato ? 'Copiato' : 'Copia'}
-      </button>
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1 border border-linea-forte pl-3">
+        <span className="min-w-0 flex-grow truncate font-mono text-[12px] leading-4 text-osso-2" title={url}>{breve}</span>
+        <button type="button" className={icona} aria-label={`Copia il link di ${nomePr}`} title="Copia il link" onClick={() => void copia()}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="1.5" /><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" /></svg>
+        </button>
+        {testoWhatsApp && (
+          <a href={linkWhatsApp(testoWhatsApp)} target="_blank" rel="noopener noreferrer" className={`${icona} no-underline`} aria-label={`Manda il link a ${nomePr} su WhatsApp`} title="Manda al PR su WhatsApp" style={{ color: '#25D366' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden="true"><path d="M4.5 19.5l1.2-3.6A8 8 0 1 1 8.4 18.6z" /><path d="M9.2 8.6c.2-.5.5-.6.8-.6h.5c.2 0 .4.1.5.4l.6 1.5c.1.2 0 .4-.1.6l-.5.6c.6 1.2 1.6 2.1 2.8 2.7l.6-.5c.2-.2.4-.2.6-.1l1.5.6c.3.1.4.3.4.5v.5c0 .3-.1.6-.6.8-.6.3-1.5.4-2.6-.1a8.4 8.4 0 0 1-4.3-4.3c-.5-1.1-.4-2-.2-2.6z" /></svg>
+          </a>
+        )}
+        <button type="button" className={icona} aria-label={`Condividi il link di ${nomePr}`} title="Condividi" onClick={() => void condividi()}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4" /><path d="M6 12H5v8h14v-8h-1" /></svg>
+        </button>
+      </div>
+      <span role="status" className="min-h-4 font-mono text-[11px] leading-4 text-ok">{avviso}</span>
     </div>
   );
 }

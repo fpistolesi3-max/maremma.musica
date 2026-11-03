@@ -6,7 +6,7 @@ import { Riquadro } from '@/components/gestione';
 import { SceltaSerata } from '@/components/gestione-client';
 import { AggiornamentoLive } from '@/components/admin/live';
 import { TestataAdmin } from '@/components/admin/ui';
-import { InvioLinkSerata, InvitoWhatsApp, LinkPr, NuovoPr } from '@/components/admin/pr-client';
+import { InvioLinkSerata, LinkPr, NuovoPr } from '@/components/admin/pr-client';
 import { abilitatoPerSerata, destinatariLinkSerata, motivoNoInvioLink, testoLinkPerPr, testoUltimoInvio } from '@/lib/link-serata';
 import { leggi } from '@/lib/dati/archivio';
 
@@ -58,7 +58,8 @@ export default async function PaginaPr({ searchParams }: Props) {
         </div>
 
         <section aria-labelledby="elenco-pr" className="flex flex-col gap-1">
-          <h2 id="elenco-pr" className="m-0 pb-3 font-display text-[26px] font-black uppercase leading-none">I PR</h2>
+          <h2 id="elenco-pr" className="m-0 font-display text-[26px] font-black uppercase leading-none">I PR</h2>
+          <p className="m-0 pb-3 text-[13px] leading-5 text-osso-3">Tocca il nome di un PR per anagrafica e numeri.</p>
           <ul className="m-0 flex list-none flex-col p-0">
             {p.righe.map((r, i) => {
               const sospeso = r.pr.stato === 'sospeso';
@@ -67,7 +68,9 @@ export default async function PaginaPr({ searchParams }: Props) {
                 <li key={r.pr.id} className={`flex flex-col gap-4 border-t border-linea py-5 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] md:gap-10 ${i === p.righe.length - 1 ? 'border-b' : ''}`}>
                   <div className={`flex min-w-0 flex-col gap-3 ${sospeso ? 'opacity-60' : ''}`}>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="font-display text-[26px] font-extrabold uppercase leading-none text-osso no-underline hover:text-osso">{r.pr.nomeDisplay}</Link>
+                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="group font-display text-[26px] font-extrabold uppercase leading-none text-osso no-underline hover:text-osso" aria-label={`${r.pr.nomeDisplay}: anagrafica e numeri`}>
+                        {r.pr.nomeDisplay} <span aria-hidden="true" className="text-osso-3 group-hover:text-arancio">›</span>
+                      </Link>
                       <span className={`mm-chip ${sospeso ? 'mm-chip--annullato' : 'mm-chip--entrato'}`}>{sospeso ? 'Sospeso' : 'Attivo'}</span>
                     </div>
                     <span className="break-all font-mono text-[12px] leading-4 text-osso-2">{r.email ?? 'Nessuna email'}</span>
@@ -81,7 +84,8 @@ export default async function PaginaPr({ searchParams }: Props) {
                     {valido ? (
                       <div className="flex flex-col gap-1">
                         <span className="text-[11px] font-semibold leading-[14px] tracking-[.12em] text-osso-2">LINK DA DARE AI CLIENTI</span>
-                        <LinkPr url={linkClienti(r.pr.handle)} />
+                        <LinkPr url={linkClienti(r.pr.handle)} nomePr={r.pr.nomeDisplay}
+                          testoWhatsApp={p.evento && !motivoNoInvioLink(p.evento) ? testoLinkPerPr(r.pr.nomeDisplay, p.evento, linkClienti(r.pr.handle)) : undefined} />
                       </div>
                     ) : (
                       // Un link che non vale non si copia: chi lo aprisse vedrebbe l'avviso invece della lista del PR.
@@ -90,12 +94,6 @@ export default async function PaginaPr({ searchParams }: Props) {
                         <span className="text-[13px] leading-5 text-osso-3">{sospeso ? 'Il suo link non funziona finché non lo riattivi.' : 'La serata non è aperta a questo PR: il suo link non vale e non c’è niente da copiare.'}</span>
                       </p>
                     )}
-                    <div className="flex flex-wrap gap-2">
-                      {p.evento && valido && !motivoNoInvioLink(p.evento) && (
-                        <InvitoWhatsApp testo={testoLinkPerPr(r.pr.nomeDisplay, p.evento, linkClienti(r.pr.handle))} etichetta="Manda il link su WhatsApp" primario />
-                      )}
-                      <Link href={`/admin/pr/${r.pr.handle}${q}`} className="mm-btn mm-btn--muto" style={{ minHeight: 44 }}>Anagrafica e numeri →</Link>
-                    </div>
                   </div>
                 </li>
               );
