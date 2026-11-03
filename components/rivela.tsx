@@ -5,8 +5,9 @@ import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 /**
  * Entrata allo scroll: maschera dal basso, scaglionata con `indice`.
  * Se l'elemento è già in vista al caricamento, o il movimento è ridotto, non si nasconde mai.
+ * `className` va sul guscio (per esempio il posto nella griglia), `interno` sulla parte che si scopre (per esempio `h-full`).
  */
-export function Rivela({ children, indice = 0, className = '' }: { children: ReactNode; indice?: number; className?: string }) {
+export function Rivela({ children, indice = 0, className = '', interno = '' }: { children: ReactNode; indice?: number; className?: string; interno?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
 
@@ -26,5 +27,5 @@ export function Rivela({ children, indice = 0, className = '' }: { children: Rea
   }, []);
 
   // l'osservato è il guscio esterno: il clip-path dell'interno lo renderebbe "invisibile" all'observer
-  return <div ref={ref} className={className}><div ref={inner} className="mm-rivela" style={{ '--i': indice } as CSSProperties}>{children}</div></div>;
+  return <div ref={ref} className={className}><div ref={inner} className={`mm-rivela ${interno}`} style={{ '--i': indice } as CSSProperties}>{children}</div></div>;
 }

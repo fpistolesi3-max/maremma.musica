@@ -8,6 +8,7 @@ import { dataPunti, giorno2, giornoSett, meseCorto, numeroEvento, orari, parti }
 import { Locandina, luogo } from '@/components/evento';
 import { Parallasse } from '@/components/parallasse';
 import { NotaFoto } from '@/components/foto-privacy';
+import { Rivela } from '@/components/rivela';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Serate', description: 'Le prossime serate techno di Maremma Musica e l’archivio di quelle passate.' };
@@ -61,14 +62,16 @@ export default async function Eventi() {
                 <span className="dato flex-none text-osso-2">{dataPunti(e.data)}.{String(parti(e.data).anno).slice(2)}</span>
               </div>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-4">
-                <Parallasse className="aspect-[3/4]" velocita={0.1}><Locandina e={e} className="absolute inset-0 h-full w-full" alt={`Locandina: ${e.nome}`} /></Parallasse>
+                <Rivela><Parallasse className="aspect-[3/4]" velocita={0.1}><Locandina e={e} className="absolute inset-0 h-full w-full" alt={`Locandina: ${e.nome}`} /></Parallasse></Rivela>
                 {evidenza.slice(0, 3).map((f, i) => (
-                  <Parallasse key={f.id} className="aspect-[3/4] bg-[#111419]" velocita={i % 2 ? 0.06 : -0.06}>
-                    <Link href={`/e/${e.slug}#foto`} className="absolute inset-0 block" aria-label={`Vedi le foto della serata ${e.nome}`}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.urlMini} alt={testoAltFoto(e.nome, dataPunti(e.data))} width={f.larghezza} height={f.altezza} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                    </Link>
-                  </Parallasse>
+                  <Rivela key={f.id} indice={i + 1}>
+                    <Parallasse className="aspect-[3/4] bg-[#111419]" velocita={i % 2 ? 0.06 : -0.06}>
+                      <Link href={`/e/${e.slug}#foto`} className="mm-zoom absolute inset-0 block overflow-hidden" aria-label={`Vedi le foto della serata ${e.nome}`}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={f.urlMini} alt={testoAltFoto(e.nome, dataPunti(e.data))} width={f.larghezza} height={f.altezza} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                      </Link>
+                    </Parallasse>
+                  </Rivela>
                 ))}
               </div>
               <Link href={`/e/${e.slug}#foto`} className="link-sottolineato self-start py-2">Vedi tutte le foto ({foto.length}) →</Link>

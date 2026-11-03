@@ -123,14 +123,17 @@ export default async function Home() {
             {foto.map(({ evento: e, foto: f }, i) => {
               const mosaico = foto.length >= 4;
               const posto = mosaico ? ['col-span-2 md:col-span-1 md:row-span-2', '', 'md:row-span-2', 'hidden md:block'][i] : `aspect-[4/3] ${foto.length === 1 ? 'col-span-2 md:col-span-1' : ''}`;
+              // Entrano dal basso una dopo l'altra (Rivela non nasconde ciò che è già in vista all'apertura).
               return (
-                <Link key={f.id} href={`/e/${e.slug}#foto`} className={`relative block overflow-hidden bg-[#111419] ${posto}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={f.urlMini} alt={testoAltFoto(e.nome, dataPunti(e.data))} width={f.larghezza} height={f.altezza} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="absolute inset-0 h-full w-full object-cover" />
-                  <span className="absolute inset-x-0 bottom-0 bg-vinile px-[10px] py-2 font-mono text-[10px] leading-3 text-osso md:p-[14px] md:text-[11px] md:leading-[14px]">
-                    {dataPunti(e.data)} · {e.nome.toUpperCase()}
-                  </span>
-                </Link>
+                <Rivela key={f.id} indice={i} className={posto} interno="h-full">
+                  <Link href={`/e/${e.slug}#foto`} className="mm-zoom relative block h-full overflow-hidden bg-[#111419]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={f.urlMini} alt={testoAltFoto(e.nome, dataPunti(e.data))} width={f.larghezza} height={f.altezza} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                    <span className="mm-zoom__etichetta absolute inset-x-0 bottom-0 bg-vinile px-[10px] py-2 font-mono text-[10px] leading-3 text-osso md:p-[14px] md:text-[11px] md:leading-[14px]">
+                      {dataPunti(e.data)} · {e.nome.toUpperCase()}
+                    </span>
+                  </Link>
+                </Rivela>
               );
             })}
           </div>
