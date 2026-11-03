@@ -13,6 +13,7 @@ const provaC = () => typeof window !== 'undefined' && new URLSearchParams(window
   && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const MOLLA = 'cubic-bezier(.2,.7,.2,1)';
+const STACCO = 16; // spazio tra una foto e l'altra mentre scorrono
 
 /**
  * Griglia delle foto di una serata e vista a schermo intero (scorrimento col dito, frecce, tastiera, tasto Indietro del telefono).
@@ -105,7 +106,6 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
   const chiudendo = useRef(false);
   const tocco = useRef<{ id: number; x: number; y: number; t: number; asse: 'x' | 'y' | null; dx: number; ultimi: { x: number; t: number }[] } | null>(null);
   const n = foto.length;
-  const f = foto[indice];
   const attuale = useRef(indice);
   attuale.current = indice;
 
@@ -149,7 +149,7 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
     if (!volo || !b || !area || n < 2) { cambia(prossima); return; }
     if (inCammino.current) return;
     inCammino.current = true;
-    const w = area.clientWidth;
+    const w = area.clientWidth + STACCO;
     const resto = Math.max(0.3, (w - Math.abs(da)) / w);
     const a = b.animate([{ transform: `translateX(${da}px)` }, { transform: `translateX(${-verso * w}px)` }], { duration: 300 * resto, easing: MOLLA, fill: 'forwards' });
     scorrimento.current = a;
@@ -230,7 +230,7 @@ function Visore({ foto, indice, alt, credito, cambia, chiudi, volo, miniatura }:
       t.asse = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       if (t.asse === 'x') {
         // Il puntatore si "prende" solo quando è davvero un trascinamento, così il clic sulle frecce resta un clic.
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* il dito si è già staccato */ }
         scorrimento.current?.cancel(); // se stava ancora tornando al suo posto, si riprende da dove è
       }
     }
@@ -311,7 +311,7 @@ function Diapositiva({ f, alt, lato }: { f: FotoPubblica; alt: string; lato: num
   const [pronta, setPronta] = useState(false);
   const accanto = lato !== 0;
   return (
-    <div className="absolute inset-0" style={accanto ? { transform: `translateX(${lato * 100}%)` } : undefined} aria-hidden={accanto || undefined}>
+    <div className="absolute inset-0" style={accanto ? { transform: `translateX(calc(${lato * 100}% + ${lato * STACCO}px))` } : undefined} aria-hidden={accanto || undefined}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={f.urlMini} alt="" aria-hidden="true" draggable={false} className="absolute inset-0 h-full w-full object-contain" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
