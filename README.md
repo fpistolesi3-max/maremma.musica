@@ -286,6 +286,63 @@ Finché non c'è l'account Stripe questi punti sono coperti solo dai test (con `
 8. Rimborso di un pagamento già interamente rimborsato: Stripe risponde `charge_already_refunded` e il sito lo segna fatto.
 9. Rimborso parziale fatto dalla Dashboard: il sito non chiude niente.
 
+## Wallet
+
+Dopo l'acquisto il cliente può aggiungere il biglietto al telefono: **Apple Wallet** (iPhone) e **Google Wallet** (Android) dalla pagina del biglietto (`/biglietto/[id]`). Il pass mostra nome della serata, data e orari, luogo (solo quando non è più segreto), nome del titolare, tipo di prevendita e lista, "valida fino alle …", il **QR identico a quello della pagina** e il codice di 8 caratteri. Colori e logo sono quelli del sito. Dopo l'orario limite il pass risulta scaduto.
+
+Il pass è solo una comodità: **alla porta il QR si controlla sempre sul server** (orario limite, rimborsi, doppio ingresso). Un pass di una prevendita rimborsata o annullata resta nel telefono ma alla porta viene rifiutato. Non c'è pass per le prevendite non pagate, per quelle annullate o rimborsate e per le serate "senza telefono".
+
+**Finché non si configurano le chiavi qui sotto non succede niente**: la route risponde 404 e il pulsante non compare. Ogni wallet si attiva da solo, indipendentemente dall'altro. Se manca anche una sola variabile di un wallet, quel wallet resta spento.
+
+### Apple Wallet: cosa deve fare il cliente
+
+1. Iscriversi all'**Apple Developer Program** (99 €/anno) su developer.apple.com, con un Apple ID. Serve il **Team ID** (Account → Membership details, 10 caratteri).
+2. In *Certificates, Identifiers & Profiles → Identifiers* creare un **Pass Type ID** (es. `pass.it.maremmamusica.biglietto`).
+3. Aprire il Pass Type ID → *Create Certificate*: Apple chiede un file `.csr`. Si crea con Accesso Portachiavi (Mac) oppure da terminale:
+   `openssl req -new -newkey rsa:2048 -nodes -keyout chiave.key -out richiesta.csr -subj "/CN=Maremma Musica"`
+   Si carica il `.csr`, si scarica il certificato `pass.cer`.
+4. Convertire il certificato in PEM: `openssl x509 -inform der -in pass.cer -out certificato.pem`. Se la chiave è senza password, aggiungerne una: `openssl rsa -aes256 -in chiave.key -out chiave.pem` (se la chiave è stata creata in Portachiavi, esportarla in `.p12` e fare `openssl pkcs12 -in chiave.p12 -nocerts -out chiave.pem`).
+5. Scaricare da Apple il certificato intermedio **WWDR** (apple.com/certificateauthority, "Worldwide Developer Relations - G4", `.cer`) e convertirlo: `openssl x509 -inform der -in AppleWWDRCAG4.cer -out wwdr.pem`.
+6. Trasformare i tre file in base64 su una riga sola (`base64 -w0 certificato.pem`; su Windows PowerShell `[Convert]::ToBase64String([IO.File]::ReadAllBytes("certificato.pem"))`) e metterli su Vercel:
+
+| Variabile | Valore |
+| --- | --- |
+| `APPLE_PASS_TYPE_ID` | il Pass Type ID, es. `pass.it.maremmamusica.biglietto` |
+| `APPLE_TEAM_ID` | il Team ID di 10 caratteri |
+| `APPLE_PASS_CERT_BASE64` | `certificato.pem` in base64 |
+| `APPLE_PASS_KEY_BASE64` | `chiave.pem` in base64 |
+| `APPLE_PASS_KEY_PASSWORD` | la password della chiave |
+| `APPLE_WWDR_CERT_BASE64` | `wwdr.pem` in base64 |
+
+Il certificato Apple dura circa un anno: alla scadenza i pulsanti risponderanno "non disponibile" finché non se ne genera uno nuovo e si aggiornano le variabili (l'errore compare nei log di Vercel con `[wallet apple]`).
+
+### Google Wallet: cosa deve fare il cliente
+
+1. Aprire la **Google Pay & Wallet Console** (pay.google.com/business/console) con un account Google e creare un account da emittente (*Google Wallet API*). Copiare l'**Issuer ID** (numero lungo).
+2. Su **Google Cloud Console** creare un progetto, attivare la *Google Wallet API* e creare un **service account** (IAM → Account di servizio). Creare per il service account una chiave **JSON** e scaricarla.
+3. Nella Wallet Console, *Users* → invitare l'email del service account con ruolo *Developer* (o Admin).
+4. All'inizio l'emittente è in **modalità demo**: i pass si possono salvare solo dagli account Google aggiunti come "tester" nella console. Per aprirlo a tutti: nella Wallet Console, *Google Wallet API → Manage → Request production access* (richiesta di passaggio in produzione): Google controlla il nome, il logo e i pulsanti del sito (serve la pagina del biglietto raggiungibile) e di solito risponde in pochi giorni.
+5. Dalla chiave JSON si prendono `client_email` e `private_key`:
+
+| Variabile | Valore |
+| --- | --- |
+| `GOOGLE_WALLET_ISSUER_ID` | l'Issuer ID |
+| `GOOGLE_WALLET_EMAIL` | `client_email` del JSON |
+| `GOOGLE_WALLET_PRIVATE_KEY` | `private_key` del JSON (da `-----BEGIN PRIVATE KEY-----` in poi; si può incollare con gli "a capo" scritti come `
+`) |
+
+Il logo del pass è `/img/logo-maremma-musica.png` del sito (deve essere raggiungibile da fuori: usare `SITO_URL` con l'indirizzo pubblico).
+
+### Come funziona (per chi mette le mani sul codice)
+
+- `lib/wallet.ts` (puro, testato): `campiPass(biglietto)` prepara i dati del pass, uguali per Apple e Google; `esitoPass` decide se il pass si può dare (404 non valido, 410 annullato/rimborsato/scaduto, come il PDF); `appleConfigurato()` / `googleConfigurato()` guardano le variabili.
+- `lib/wallet-apple.ts` crea il `.pkpass` con `passkit-generator` (MIT); le immagini (`lib/wallet-immagini.ts`, ricavate dal logo) sono in base64 nel codice.
+- `lib/wallet-google.ts` fa il link `https://pay.google.com/gp/v/save/<jwt>` (JWT RS256 con `node:crypto`, niente librerie): una *classe* per serata, un *oggetto* per biglietto.
+- Route: `/api/biglietto/[id]/wallet/apple` e `/wallet/google` (con `?email=`, come il PDF). Pulsanti: `components/pulsanti-wallet.tsx`.
+- **Non provato su telefono vero** finché non ci sono gli account: i test controllano il contenuto del pass, lo zip con `pass.json`/`manifest.json`/`signature` (con un certificato di prova) e la firma del link Google.
+- Passo futuro, non fatto: aggiornamento automatico dei pass (web service di Apple con notifiche push, `PATCH` degli oggetti Google) per cambi di orario o di luogo dopo l'emissione. Oggi un pass già salvato non cambia; la classe Google di una serata si crea al primo salvataggio, con i dati di quel momento.
+- Tavoli: il QR dei tavoli non ha ancora il pulsante Wallet (ha un'altra pagina e altri dati).
+
 ## Animazioni
 
 Solo sulle pagine pubbliche, mai alla porta né nelle aree riservate; tutte rispettano `prefers-reduced-motion`. Quelle della pagina (caricamento della home, titoli che si decodificano, copertina viva, nastro, entrate allo scroll, pulsanti) sono in CSS o in piccoli componenti senza librerie.
