@@ -28,7 +28,7 @@ export function NuovoPr() {
 
   if (esito?.invito) {
     return (
-      <div role="status" className="flex flex-col gap-3 border border-ok bg-notte-2 p-4 md:p-5">
+      <div role="status" className="flex w-full flex-col gap-3 border border-ok bg-notte-2 p-4 md:p-5">
         <span className="text-[14px] leading-5 text-ok">✓ {esito.ok}</span>
         {esito.avviso && <span role="alert" className="border border-attesa px-3 py-2 text-[14px] leading-5 text-attesa">{esito.avviso}</span>}
         <div className="flex flex-wrap gap-2">
@@ -41,10 +41,10 @@ export function NuovoPr() {
     );
   }
   if (!aperto) {
-    return <button type="button" className="mm-btn mm-btn--linea self-start" style={{ minHeight: 44 }} onClick={() => setAperto(true)} aria-expanded={false}>+ Aggiungi PR</button>;
+    return <button type="button" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} onClick={() => setAperto(true)} aria-expanded={false}>+ Aggiungi PR</button>;
   }
   return (
-    <div className="flex flex-col gap-4 border border-linea bg-notte-2 p-4 md:p-5">
+    <div className="flex w-full flex-col gap-4 border border-linea bg-notte-2 p-4 md:p-5">
       <h2 className="m-0 font-display text-[26px] font-black uppercase leading-none">Aggiungi PR</h2>
       <form action={invia} className="flex flex-col gap-3">
         <div className="grid gap-3 md:grid-cols-[1fr_1.2fr]">
@@ -106,6 +106,7 @@ export function InvioLinkSerata({ eventoId, nomeSerata, destinatari, senzaEmail,
 }) {
   const [inCorso, avvia] = useTransition();
   const [esito, setEsito] = useState<EsitoLinkSerata | null>(null);
+  const [aperto, setAperto] = useState(false);
   const inviando = useRef(false); // un secondo clic prima che il pulsante si disattivi non deve mandare le email due volte
   const ultimoVisto = esito?.ultimo ?? ultimo;
   const manda = () => {
@@ -122,9 +123,19 @@ Vuoi mandarlo di nuovo a ${destinatari} PR? Riceveranno un'altra email.`
     });
   };
   const disabilitato = inCorso || Boolean(bloccato) || destinatari === 0;
+  if (!aperto) {
+    return (
+      <button type="button" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} onClick={() => setAperto(true)} aria-expanded={false}>
+        Link della serata ai PR
+      </button>
+    );
+  }
   return (
-    <section aria-labelledby="link-serata" className="flex flex-col gap-3 border border-linea bg-notte-2 p-4 md:p-5">
-      <h2 id="link-serata" className="m-0 font-display text-[26px] font-black uppercase leading-none">Link della serata ai PR</h2>
+    <section aria-labelledby="link-serata" className="flex w-full flex-col gap-3 border border-linea bg-notte-2 p-4 md:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <h2 id="link-serata" className="m-0 font-display text-[26px] font-black uppercase leading-none">Link della serata ai PR</h2>
+        <button type="button" className="mm-btn mm-btn--muto" style={{ minHeight: 44 }} onClick={() => { setAperto(false); setEsito(null); }} disabled={inCorso}>Chiudi</button>
+      </div>
       <span className="text-[14px] leading-5 text-osso-2">
         Manda a ogni PR attivo il suo link personale per <b className="text-osso">{nomeSerata}</b>, con un testo pronto da girare ai clienti.
         {!bloccato && ` L'email arriverebbe a ${destinatari} PR${senzaEmail ? `; ${senzaEmail} non hanno un'email` : ''}.`}

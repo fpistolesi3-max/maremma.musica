@@ -39,15 +39,15 @@ export default async function PaginaPr({ searchParams }: Props) {
         </div>} />
 
       <div className="flex flex-col gap-8 px-4 py-6 md:px-12">
-        <section aria-label="Aggiungi PR" className="flex flex-col">
+        {/* Azioni chiuse in due pulsanti: ognuno apre il suo riquadro, che prende tutta la riga. */}
+        <div className="flex flex-wrap items-start gap-3">
           <NuovoPr />
-        </section>
-
-        {p.evento && (
-          <InvioLinkSerata eventoId={p.evento.id} nomeSerata={`${p.evento.nome} (${dataPunti(p.evento.data)})`}
-            destinatari={destinatari.filter((x) => x.email).length} senzaEmail={destinatari.filter((x) => !x.email).length}
-            ultimo={p.evento.invioLinkPr ? testoUltimoInvio(p.evento.invioLinkPr) : null} bloccato={motivoNoInvioLink(p.evento)} />
-        )}
+          {p.evento && (
+            <InvioLinkSerata eventoId={p.evento.id} nomeSerata={`${p.evento.nome} (${dataPunti(p.evento.data)})`}
+              destinatari={destinatari.filter((x) => x.email).length} senzaEmail={destinatari.filter((x) => !x.email).length}
+              ultimo={p.evento.invioLinkPr ? testoUltimoInvio(p.evento.invioLinkPr) : null} bloccato={motivoNoInvioLink(p.evento)} />
+          )}
+        </div>
 
         <div className="grid grid-cols-2 border-l border-t border-linea lg:grid-cols-4">
           <Riquadro etichetta="In lista dai PR" valore={p.totali.inLista}
