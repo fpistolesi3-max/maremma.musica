@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (104 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta), `npm run typecheck`,
+Altri comandi: `npm test` (140 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -74,8 +74,9 @@ Le voci sono solo navigazione: i permessi restano in `richiedi` e `lib/dati/*`.
 
 ### Foto delle serate
 
-Sezione **Foto** nella scheda della serata (`/admin/eventi/[id]`, riquadro con le prime miniature) e pagina di lavoro `/admin/eventi/[id]/foto`
-(solo admin). Si caricano molte foto insieme (coda da 3, avanzamento per foto, "Riprova" solo su quella fallita), si scelgono fino a 4
+Sezione **07 Foto della serata** dentro *Modifica serata* (`/admin/eventi/[id]/modifica#foto`, con il pulsante «Foto» in testata, le prime miniature e
+«Aggiungi foto» / «Galleria»; sta fuori dal modulo: le foto si salvano subito, non c'entrano con «Salva») e pagina di lavoro `/admin/eventi/[id]/foto`
+(solo admin). «Aggiungi foto» apre la pagina Foto con la scelta dei file già aperta (`?aggiungi=1`; se il browser la blocca basta il pulsante in cima); con le foto c'è anche «Gestisci le N foto →». L'elenco serate segna «Senza foto» le serate passate e pubblicate senza nessuna foto e il riquadro «Da fare» ricorda la più recente (`serateSenzaFoto`: una sola lettura per tutte; se le foto non si leggono, niente etichette né righe). La serata live non mostra più le foto; se le foto non si leggono la sezione dice «Foto non disponibili» e il resto della pagina funziona. Si caricano molte foto insieme (coda da 3, avanzamento per foto, "Riprova" solo su quella fallita), si scelgono fino a 4
 **in evidenza** (se non ne scegli, il sito usa le prime 4 visibili), si ordina con "← Prima / Dopo →", si **nasconde** o si **elimina**.
 Campo facoltativo "Foto di …" (un credito per serata, max 80 caratteri). Massimo 150 foto per serata. La pagina mostra anche lo spazio occupato.
 

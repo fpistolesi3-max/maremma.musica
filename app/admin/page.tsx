@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { richiedi } from '@/lib/sessione';
 import { cruscotto, elencoSerate } from '@/lib/dati/admin';
+import { serateSenzaFoto } from '@/lib/dati/foto';
 import { euro, dataPunti, giornoSett, numeroEvento, orari, parti } from '@/lib/formato';
 import { luogoTesto } from '@/lib/luogo';
 import { Numero, TestataAdmin } from '@/components/admin/ui';
@@ -11,12 +12,16 @@ export const metadata = { title: 'Serate' };
 export default async function AdminSerate() {
   const s = await richiedi(['admin'], '/admin');
   const [serate, c] = await Promise.all([elencoSerate(s), cruscotto(s)]);
+  // Promemoria: serate già pubblicate e finite che non hanno ancora nessuna foto (una sola lettura per tutte; se non si leggono, niente allarmi).
+  const senzaFoto = new Set((await serateSenzaFoto(s, serate.filter((x) => x.passata && x.evento.pubblicato).map((x) => x.evento.id))).ids);
+  const ultimaSenzaFoto = serate.find((x) => senzaFoto.has(x.evento.id))?.evento; // l'elenco è dalla più recente
   // Ogni voce porta dritta al punto giusto: rimborsi della serata, pagamenti con importo sbagliato, tavoli in attesa, "Cosa manca" delle bozze.
   const daFare = [
     ...c.rimborsi.map((r) => ({ chiave: `rimb-${r.eventoId}`, testo: `${r.n} ${r.n === 1 ? 'rimborso da fare' : 'rimborsi da fare'} · ${euro(r.importo)} · ${r.nome}`, href: `/admin/rimborsi?evento=${r.eventoId}` })),
     c.importoSbagliato > 0 && { chiave: 'importo', testo: `${c.importoSbagliato} ${c.importoSbagliato === 1 ? 'pagamento con importo sbagliato' : 'pagamenti con importo sbagliato'}: non confermati, vanno restituiti`, href: '/admin/rimborsi?motivo=importo' },
     ...c.tavoliInAttesa.map((t) => ({ chiave: t.eventoId, testo: `${t.n} ${t.n === 1 ? 'tavolo' : 'tavoli'} in attesa di pagamento · ${t.nome}`, href: `/admin/eventi/${t.eventoId}/modifica#tavoli` })),
     ...c.bozze.map((b) => ({ chiave: `bozza-${b.eventoId}`, testo: `Bozza «${b.nome}»: ${b.manca.length === 1 ? 'manca 1 cosa' : `mancano ${b.manca.length} cose`} (${b.manca.map((m) => ({ tipi: 'tipi di prevendita', locandina: 'locandina', tavoli: 'tavoli' })[m.id]).join(', ')})`, href: `/admin/eventi/${b.eventoId}/modifica#${b.manca[0].ancora}` })),
+    ultimaSenzaFoto && { chiave: 'senza-foto', testo: `${senzaFoto.size} ${senzaFoto.size === 1 ? 'serata passata senza foto' : 'serate passate senza foto'}${senzaFoto.size > 1 ? ' · la più recente: ' : ' · '}${ultimaSenzaFoto.nome}`, href: `/admin/eventi/${ultimaSenzaFoto.id}/modifica#foto` },
   ].filter((x): x is { chiave: string; testo: string; href: string } => Boolean(x));
   const p = c.prossima;
   return (
@@ -39,7 +44,7 @@ export default async function AdminSerate() {
       )}
       <section aria-label="Da fare" className="flex flex-col gap-2 border-b border-linea px-4 py-5 md:px-12">
         <span className="text-[11px] font-semibold tracking-etichetta text-osso-2">DA FARE</span>
-        {daFare.length === 0 && <span className="text-[14px] text-osso-2">Niente in sospeso: nessun rimborso, nessun tavolo da confermare, nessuna bozza incompleta.</span>}
+        {daFare.length === 0 && <span className="text-[14px] text-osso-2">Niente in sospeso: nessun rimborso, nessun tavolo da confermare, nessuna bozza incompleta, nessuna serata senza foto.</span>}
         {daFare.map((x) => (
           <Link key={x.chiave} href={x.href} className="flex items-center justify-between gap-3 border border-linea bg-notte-2 px-4 py-3 text-[15px] no-underline">
             <span><span className="mm-chip mm-chip--incassare mr-3">Da fare</span>{x.testo}</span><span aria-hidden="true">→</span>
@@ -62,14 +67,13 @@ export default async function AdminSerate() {
                   <td data-et="Stato">
                     <ChipSerata pubblicata={e.pubblicato} passata={passata} />
                     {e.inCopertina && <span className="mm-chip mm-chip--libero ml-2">Copertina</span>}
+                    {senzaFoto.has(e.id) && <span className="mm-chip mm-chip--incassare ml-2">Senza foto</span>}
                   </td>
                   <td data-et="In lista" className="mm-num">{inLista}</td>
                   <td data-et="Entrati" className="mm-num">{entrati}</td>
                   <td className="mm-pieno whitespace-nowrap md:text-right">
                     <Link href={`/admin/eventi/${e.id}`} className="mm-btn mm-btn--muto" style={{ minHeight: 36 }}>Live</Link>
                     <Link href={`/admin/eventi/${e.id}/modifica`} className="mm-btn mm-btn--muto" style={{ minHeight: 36 }}>Modifica</Link>
-                    {/* <a> e non <Link>: con il caricamento normale il browser scende da solo alla sezione */}
-                    <a href={`/admin/eventi/${e.id}/modifica#tavoli`} className="mm-btn mm-btn--muto" style={{ minHeight: 36 }}>Tavoli</a>
                   </td>
                 </tr>
               ))}

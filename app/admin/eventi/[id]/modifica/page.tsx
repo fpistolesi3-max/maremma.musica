@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { richiedi } from '@/lib/sessione';
 import { eventoAdmin, serateConTavoli, serateConTipi } from '@/lib/dati/admin';
 import { prenotazioniAdmin } from '@/lib/dati/tavoli';
+import { riepilogoFoto } from '@/lib/dati/foto';
 import { cosaManca, limitePrevendita, prenotazioneAttiva, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi } from '@/lib/regole';
 import { linkPagamento, quandoScade } from '@/lib/tavolo-email';
 import { dataIso, euro, numeroEvento, ora } from '@/lib/formato';
@@ -33,6 +34,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
   const prenotazioni = tutte.filter((v) => prenotazioneAttiva(v.prenotazione));
   const chiuse = tutte.filter((v) => !prenotazioneAttiva(v.prenotazione));
   const conTavoli = await serateConTavoli(s, id);
+  const foto = await riepilogoFoto(s, id);
   const prezzi = prezzoDaTipi(x.lotti);
   const prezzoOra = prezzoVendibile(e, x.lotti, x.usati);
   const manca = cosaManca(e, x.lotti, x.tavoli.length);
@@ -46,7 +48,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
       <TestataAdmin briciole={`SERATE / ${numeroEvento(e.numero)}`} titolo={e.nome}
         chip={<ChipSerata pubblicata={e.pubblicato} />}
         sotto={copia ? 'COPIA CREATA IN BOZZA ✓ · CONTROLLA LE DATE E PUBBLICA QUANDO È PRONTA' : salvato ? 'SALVATO ✓ · DATI, TIPI E TAVOLI' : undefined}
-        azioni={<><a className="mm-btn mm-btn--muto" href="#lotti">Ingresso</a><a className="mm-btn mm-btn--muto" href="#tavoli">Tavoli</a><Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}`}>Serata live</Link><Link className="mm-btn mm-btn--muto" href={`/e/${e.slug}`} target="_blank">Vedi pagina</Link></>} />
+        azioni={<><a className="mm-btn mm-btn--muto" href="#lotti">Ingresso</a><a className="mm-btn mm-btn--muto" href="#tavoli">Tavoli</a><a className="mm-btn mm-btn--muto" href="#foto">Foto</a><Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}`}>Serata live</Link><Link className="mm-btn mm-btn--muto" href={`/e/${e.slug}`} target="_blank">Vedi pagina</Link></>} />
       <FormSerata key={e.updatedAt} manca={manca} prezzoTesto={prezzoOra ? testoPrezzoTipi(prezzoOra) : undefined}
         notaTipi={`${x.lotti.length} ${x.lotti.length === 1 ? 'TIPO' : 'TIPI'}${prezzoOra ? ` · ${testoPrezzoTipi(prezzoOra).toUpperCase()}` : ''}`} pr={x.pr.map((p) => ({ id: p.id, nome: p.nomeDisplay, stato: p.stato }))} v={{
         id: e.id, numero: e.numero == null ? '' : String(e.numero), nome: e.nome, slug: e.slug,
@@ -63,6 +65,32 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
           categoria: l.categoria ?? '', confermaCategoria: l.confermaCategoria, uscitaGiorniPrima: l.uscitaGiorniPrima, fineOrePrima: l.fineOrePrima,
           dopoPrecedente: l.dopoPrecedente, prAbilitati: l.prAbilitati,
         }))} pr={x.pr.filter((p) => p.stato === 'attivo').map((p) => ({ id: p.id, nome: p.nomeDisplay }))} altreSerate={await serateConTipi(s, id)} />
+      } foto={
+        // Le foto si salvano subito, una per una: la sezione sta fuori dal modulo e non c'entra con "Salva".
+        <Sezione id="foto" n="07" titolo="Foto della serata" nota={foto.nonLette ? 'FOTO NON DISPONIBILI' : foto.totale === 0 ? 'NESSUNA FOTO' : (
+          `${foto.totale} FOTO${foto.inEvidenza ? ` · ${foto.inEvidenza} IN EVIDENZA` : ''}${foto.nascoste ? ` · ${foto.nascoste} NASCOSTE` : ''}`
+        )}>
+          <span className="text-[14px] text-osso-2">Le foto si salvano da sole, una per una: non serve premere Salva. Compaiono sulla pagina della serata, tra le Serate passate e in home.</span>
+          {foto.nonLette ? (
+            <p className="m-0 text-[14px] text-osso-2">Foto non disponibili in questo momento. Il resto della serata funziona normalmente.</p>
+          ) : foto.totale === 0 ? (
+            <p className="m-0 text-[14px] text-osso-2">Nessuna foto. Dopo la serata carica quelle belle.</p>
+          ) : (
+            <div className="flex gap-1">
+              {foto.anteprime.map((f) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={f.id} src={f.urlMini} alt="" className="h-14 w-14 object-cover" />
+              ))}
+            </div>
+          )}
+          {!foto.nonLette && (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              {/* ?aggiungi=1: la pagina Foto apre da sola la scelta dei file */}
+              <Link className="mm-btn mm-btn--primario" href={`/admin/eventi/${e.id}/foto?aggiungi=1`}>Aggiungi foto</Link>
+              {foto.totale > 0 && <Link className="link-sottolineato py-2" href={`/admin/eventi/${e.id}/foto`}>Gestisci {foto.totale === 1 ? 'la foto' : `le ${foto.totale} foto`} →</Link>}
+            </div>
+          )}
+        </Sezione>
       } tavoli={
         <Sezione id="tavoli" n="04" titolo="Tavoli" forza={Boolean(richiesta)} nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
           <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} PRENOTATI{inAttesa > 0 && <span className="text-attesa"> · {inAttesa} IN ATTESA DI PAGAMENTO</span>}</>

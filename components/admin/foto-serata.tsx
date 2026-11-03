@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { FotoVista } from '@/lib/foto';
 import { CACHE_FOTO_SECONDI, MAX_FOTO_SERATA, MAX_IN_EVIDENZA } from '@/lib/foto';
@@ -41,8 +41,8 @@ function invia(dest: Destinazione, blob: Blob, avanza: (byte: number) => void): 
 }
 
 /** Sezione Foto della serata: carica (con coda e "Riprova"), sceglie le in evidenza, ordina, nasconde, elimina. */
-export function FotoSerata({ eventoId, foto, credito, byteSerata, byteTotali }: {
-  eventoId: string; foto: FotoVista[]; credito: string; byteSerata: number; byteTotali: number;
+export function FotoSerata({ eventoId, apriSubito = false, foto, credito, byteSerata, byteTotali }: {
+  eventoId: string; apriSubito?: boolean; foto: FotoVista[]; credito: string; byteSerata: number; byteTotali: number;
 }) {
   const router = useRouter();
   const [voci, setVoci] = useState<Voce[]>([]);
@@ -55,6 +55,14 @@ export function FotoSerata({ eventoId, foto, credito, byteSerata, byteTotali }: 
   const attivi = useRef(0);
   const coda = useRef<number[]>([]);
   const input = useRef<HTMLInputElement>(null);
+
+  // Da "Aggiungi foto" di Modifica: la scelta dei file si apre da sola. Se il browser la blocca (senza un tocco sulla pagina
+  // lo fanno Safari su iPhone e talvolta Chrome) non succede niente: resta il pulsante "+ Aggiungi foto" qui in cima.
+  useEffect(() => {
+    if (!apriSubito) return;
+    router.replace(`/admin/eventi/${eventoId}/foto`, { scroll: false }); // togliere ?aggiungi=1: un ricaricamento non riapre la scelta
+    try { input.current?.click(); } catch { /* bloccato: basta il pulsante */ }
+  }, [apriSubito]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const aggiornaVoce = (chiave: number, patch: Partial<Voce>) => setVoci((v) => v.map((x) => (x.chiave === chiave ? { ...x, ...patch } : x)));
 
@@ -207,7 +215,7 @@ export function FotoSerata({ eventoId, foto, credito, byteSerata, byteTotali }: 
                 aria-label={`Foto ${i + 1}${f.inEvidenza ? ', in evidenza' : ''}${f.nascosta ? ', nascosta' : ''}`}
                 className={`relative block aspect-square w-full overflow-hidden border-0 bg-notte-2 p-0 ${scelta === f.id ? 'outline outline-2 outline-arancio' : ''}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={f.urlMini} alt="" loading="lazy" className={`h-full w-full object-cover ${f.nascosta ? 'opacity-30' : ''}`} />
+                <img src={f.urlMini} alt="" loading={i < 24 ? 'eager' : 'lazy'} className={`h-full w-full object-cover ${f.nascosta ? 'opacity-30' : ''}`} />
                 <span className="absolute left-1 top-1 bg-notte px-[6px] py-[2px] font-mono text-[10px] leading-3">{i + 1}</span>
                 {f.inEvidenza && <span className="absolute right-1 top-1 bg-arancio px-[6px] py-[2px] font-mono text-[10px] leading-3 text-notte">★</span>}
                 {f.nascosta && <span className="absolute inset-x-0 bottom-0 bg-notte px-1 py-[2px] text-center font-mono text-[10px] leading-3">NASCOSTA</span>}

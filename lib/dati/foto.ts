@@ -35,6 +35,8 @@ interface StoreFoto {
   /** Le foto di queste serate (anche in caricamento), tutte, a pagine; con `soloVisibili` solo pronte e non nascoste. */
   perSerate(eventoIds: string[], opzioni?: { soloVisibili?: boolean }): Promise<Foto[]>;
   perId(id: string): Promise<Foto | null>;
+  /** Quali di queste serate hanno almeno una foto pronta (anche nascosta): una lettura a gruppi, solo la colonna della serata. */
+  conFoto(eventoIds: string[]): Promise<Set<string>>;
   /** Somma dei byte di tutte le foto pronte (per lo spazio occupato). */
   byteTotali(): Promise<number>;
   inserisci(f: Foto): Promise<void>;
@@ -98,6 +100,7 @@ function storeLocale(): StoreFoto {
       return foto.filter((f) => eventoIds.includes(f.eventoId) && (!o?.soloVisibili || (f.pronta && !f.nascosta)));
     },
     async perId(id) { return (await leggiDati()).foto.find((f) => f.id === id) ?? null; },
+    async conFoto(eventoIds) { return new Set((await leggiDati()).foto.filter((f) => f.pronta && eventoIds.includes(f.eventoId)).map((f) => f.eventoId)); },
     async byteTotali() { return (await leggiDati()).foto.filter((f) => f.pronta).reduce((n, f) => n + f.byte, 0); },
     inserisci: (f) => modifica((d) => { d.foto.push(f); }),
     aggiorna: (id, patch) => modifica((d) => { const f = d.foto.find((x) => x.id === id); if (f) Object.assign(f, patch); }),
@@ -169,6 +172,14 @@ function storeSupabase(sb: SupabaseClient): StoreFoto {
       const { data, error } = await sb.from('foto_serate').select('*').eq('id', id).maybeSingle();
       errore('lettura', error);
       return data ? daRiga(data as RigaFoto) : null;
+    },
+    async conFoto(eventoIds) {
+      const con = new Set<string>();
+      for (const g of gruppi(eventoIds, GRUPPO)) {
+        const righe = await pagine<{ evento_id: string }>((da, a) => sb.from('foto_serate').select('evento_id').in('evento_id', g).eq('pronta', true).order('id').range(da, a));
+        for (const r of righe) con.add(r.evento_id);
+      }
+      return con;
     },
     async byteTotali() {
       const righe = await pagine<{ byte: number }>((da, a) => sb.from('foto_serate').select('byte').eq('pronta', true).order('id').range(da, a));
@@ -263,19 +274,35 @@ export async function fotoAdmin(s: Sessione, eventoId: string) {
   return { evento, foto: serata.map(vista), credito, byteSerata: serata.reduce((n, f) => n + f.byte, 0), byteTotali };
 }
 
-/** Riquadro "Foto" della scheda serata: quante sono, quante nascoste e le prime miniature. */
+/** Sezione "Foto" della pagina Modifica serata: quante sono, quante in evidenza e nascoste, e le prime miniature. */
 export async function riepilogoFoto(s: Sessione, eventoId: string) {
   soloAdmin(s);
   let foto: Foto[];
   try {
     foto = (await store.perSerate([eventoId])).filter((f) => f.pronta).sort(perOrdine);
   } catch (e) {
-    // È la pagina della serata live: senza foto deve aprirsi lo stesso. L'errore si vede nella pagina Foto.
+    // È la pagina Modifica serata: senza foto deve aprirsi lo stesso. L'errore si vede nella pagina Foto.
     fotoNonLette(e);
-    return { totale: 0, nascoste: 0, anteprime: [], nonLette: true };
+    return { totale: 0, inEvidenza: 0, nascoste: 0, anteprime: [], nonLette: true };
   }
   const anteprime = foto.filter((f) => f.inEvidenza).concat(foto.filter((f) => !f.inEvidenza)).slice(0, 4);
-  return { totale: foto.length, nascoste: foto.filter((f) => f.nascosta).length, anteprime: anteprime.map(vista), nonLette: false };
+  return { totale: foto.length, inEvidenza: foto.filter((f) => f.inEvidenza).length, nascoste: foto.filter((f) => f.nascosta).length, anteprime: anteprime.map(vista), nonLette: false };
+}
+
+/**
+ * Promemoria dell'elenco serate: quali di queste serate non hanno ancora nessuna foto (una sola lettura per tutte).
+ * Se le foto non si leggono niente è "senza foto": nessun falso allarme e la pagina si apre lo stesso.
+ */
+export async function serateSenzaFoto(s: Sessione, eventoIds: string[]) {
+  soloAdmin(s);
+  if (!eventoIds.length) return { ids: [] as string[], nonLette: false };
+  try {
+    const con = await store.conFoto(eventoIds);
+    return { ids: eventoIds.filter((id) => !con.has(id)), nonLette: false };
+  } catch (e) {
+    fotoNonLette(e);
+    return { ids: [] as string[], nonLette: true };
+  }
 }
 
 /**
