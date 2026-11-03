@@ -97,6 +97,10 @@ Campo facoltativo "Foto di …" (un credito per serata, max 80 caratteri). Massi
   Home, Galleria e pagina della serata ricevono le serate già lette dalla pagina (nessuna lettura in più dell'archivio). `lib/dati/foto-supabase.test.ts` prova tutto questo con un client Supabase finto (tetto di 1000 righe compreso).
 - **Cache**: i file su Storage (e la route di sviluppo) hanno `cacheControl` di 1 giorno (`CACHE_FOTO_SECONDI` in `lib/foto.ts`), così una foto eliminata sparisce in fretta.
 - **Tasto Indietro del telefono**: con la foto a schermo intero Indietro la chiude e resta nella pagina; con X o Esc non restano voci in più nella cronologia.
+- **Animazioni**: nelle griglie (home, archivio, serata) le foto entrano dal basso con `Rivela`; solo con un mouse si avvicinano un poco
+  (`.mm-zoom` in `app/globals.css`). La vista a schermo intero si apre "volando" dalla miniatura e ci torna alla chiusura (300/260 ms), usando la
+  miniatura già scaricata e solo `transform`/`opacity`; la foto grande si scarica dopo l'atterraggio. Nello scorrimento la foto segue il dito
+  (calcoli puri e test in `lib/volo.ts`). Con `prefers-reduced-motion` niente di tutto questo.
 - **Spazio**: circa 600 KB a foto (grande ~500 KB + miniatura ~60 KB): 60 foto ≈ 36 MB, 100 foto ≈ 60 MB. Nel piano gratuito di Supabase (1 GB di
   Storage) entrano circa 16–27 serate. Il pubblico scarica quasi solo miniature.
 - **Eliminazione**: "Elimina" toglie file e dati di una foto; "Elimina tutte le foto della serata" (`eliminaFotoSerata`) le toglie tutte e azzera il

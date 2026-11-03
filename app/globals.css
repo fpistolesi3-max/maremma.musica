@@ -382,8 +382,19 @@ html[data-intro] .mm-caricamento { display: none; }
 .mm-rivela { transition: clip-path .7s cubic-bezier(.2,.7,.2,1) calc(var(--i, 0) * 90ms), transform .7s cubic-bezier(.2,.7,.2,1) calc(var(--i, 0) * 90ms), opacity .5s calc(var(--i, 0) * 90ms); }
 .mm-rivela--prima { clip-path: inset(100% 0 0 0); transform: translateY(32px); opacity: 0; }
 
+/* Foto delle serate: solo con un mouse, la foto si avvicina un poco dentro la sua cornice e l'etichetta si accende.
+   Sul telefono niente (nessun "tocco doppio" per aprire). */
+.mm-zoom img { transition: transform 400ms cubic-bezier(.2,.7,.2,1); }
+.mm-zoom__etichetta { transition: background-color var(--durata-cambio), color var(--durata-cambio); }
+@media (hover: hover) {
+  .mm-zoom:hover img, .mm-zoom:focus-visible img { transform: scale(1.04); }
+  .mm-zoom:hover .mm-zoom__etichetta, .mm-zoom:focus-visible .mm-zoom__etichetta { background: var(--arancio); color: var(--su-arancio); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mm-rivela { transition: none; }
+  .mm-zoom img, .mm-zoom__etichetta { transition: none; }
+  .mm-zoom:hover img, .mm-zoom:focus-visible img { transform: none; }
   .mm-nastro__binario { animation: none; }
   .mm-nastro { overflow-x: auto; }
   .mm-riga-data img, .mm-riga-data .mm-freccia { transition: none; }
