@@ -182,6 +182,8 @@ test('Supabase: oltre 1000 righe niente sparisce (lettura a pagine, per serata, 
   assert.equal(pubbliche.length, 9);
   assert.ok(pubbliche.every((s) => s.foto.length === 150), 'ogni serata ha tutte le sue foto');
   assert.equal((await m.foto.serateConFoto(serate, { max: 4 })).length, 4, 'la home ne vuole solo 4');
+  const senza = await m.foto.serateSenzaFoto(admin, [...serate.map((s) => s.id), 'serata-vuota']);
+  assert.deepEqual(senza, { ids: ['serata-vuota'], nonLette: false }, 'il promemoria conta anche oltre 1000 righe');
 
   // Una foto in fondo alla tabella (oltre la millesima) si trova e si cambia per id.
   const ultima = f.tabelle.foto_serate[1349];
@@ -253,6 +255,7 @@ test('Supabase: senza le tabelle delle foto le pagine pubbliche e la pagina Modi
   assert.deepEqual(await m.foto.serateConFoto([passata], { max: 4 }), []);
   assert.equal(await m.foto.fotoSerataPubblica(passata), null, 'scheda serata: nessuna foto, nessun errore');
   assert.deepEqual(await m.foto.riepilogoFoto(admin, passata.id), { totale: 0, inEvidenza: 0, nascoste: 0, anteprime: [], nonLette: true }, 'la pagina Modifica si apre lo stesso');
-  assert.equal(log.mock.callCount(), 4, 'l’errore resta nei log');
+  assert.deepEqual(await m.foto.serateSenzaFoto(admin, [passata.id]), { ids: [], nonLette: true }, 'elenco serate: nessun falso allarme "senza foto"');
+  assert.equal(log.mock.callCount(), 5, 'l’errore resta nei log');
   await assert.rejects(m.foto.fotoAdmin(admin, passata.id), /Foto: lettura non riuscito/);
 });

@@ -8,11 +8,12 @@ import { FotoSerata } from '@/components/admin/foto-serata';
 
 export const metadata = { title: 'Foto della serata' };
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ aggiungi?: string }> };
 
 /** Foto della serata: carica, sceglie quelle in evidenza, ordina, nasconde, elimina. */
-export default async function PaginaFoto({ params }: Props) {
+export default async function PaginaFoto({ params, searchParams }: Props) {
   const { id } = await params;
+  const { aggiungi } = await searchParams;
   const s = await richiedi(['admin'], `/admin/eventi/${id}/foto`);
   let errore: string | null = null;
   const f = await fotoAdmin(s, id).catch((e: unknown) => {
@@ -41,7 +42,7 @@ export default async function PaginaFoto({ params }: Props) {
         azioni={<Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}/modifica#foto`}>← Torna alla modifica</Link>}
       />
       <div className="px-4 py-6 md:px-12">
-        <FotoSerata eventoId={e.id} foto={f.foto} credito={f.credito} byteSerata={f.byteSerata} byteTotali={f.byteTotali} />
+        <FotoSerata eventoId={e.id} apriSubito={aggiungi === '1'} foto={f.foto} credito={f.credito} byteSerata={f.byteSerata} byteTotali={f.byteTotali} />
         <p className="mb-0 mt-8 max-w-[640px] font-mono text-[12px] leading-4 text-osso-3">
           Sul sito le foto si vedono solo quando la serata è pubblicata e finita. Una foto nascosta sparisce dal sito, ma chi ha già il suo link può ancora aprirla: per una richiesta di rimozione usa Elimina.
         </p>

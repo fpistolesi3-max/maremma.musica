@@ -83,10 +83,13 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
               ))}
             </div>
           )}
-          <div className="flex flex-wrap gap-2">
-            <Link className="mm-btn mm-btn--primario" href={`/admin/eventi/${e.id}/foto`}>Aggiungi foto</Link>
-            <Link className="mm-btn mm-btn--linea" href={`/admin/eventi/${e.id}/foto`}>Galleria</Link>
-          </div>
+          {!foto.nonLette && (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              {/* ?aggiungi=1: la pagina Foto apre da sola la scelta dei file */}
+              <Link className="mm-btn mm-btn--primario" href={`/admin/eventi/${e.id}/foto?aggiungi=1`}>Aggiungi foto</Link>
+              {foto.totale > 0 && <Link className="link-sottolineato py-2" href={`/admin/eventi/${e.id}/foto`}>Gestisci {foto.totale === 1 ? 'la foto' : `le ${foto.totale} foto`} →</Link>}
+            </div>
+          )}
         </Sezione>
       } tavoli={
         <Sezione id="tavoli" n="04" titolo="Tavoli" forza={Boolean(richiesta)} nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (

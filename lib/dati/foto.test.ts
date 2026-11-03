@@ -93,6 +93,18 @@ test('in evidenza: al massimo 4, una nascosta non può esserlo, nascondere la to
   await m.foto.eliminaFotoSerata(admin, passata);
 });
 
+test('promemoria: una serata senza foto pronte è "senza foto", solo l’admin lo chiede', async () => {
+  for (const s of [staff, pr]) await assert.rejects(m.foto.serateSenzaFoto(s, [passata]), /non_autorizzato/);
+  assert.deepEqual(await m.foto.serateSenzaFoto(admin, []), { ids: [], nonLette: false });
+  assert.deepEqual((await m.foto.serateSenzaFoto(admin, [passata, futura])).ids, [passata, futura]);
+  const id = await caricaFoto(passata);
+  assert.deepEqual((await m.foto.serateSenzaFoto(admin, [passata, futura])).ids, [futura]);
+  await m.foto.impostaFoto(admin, id, { nascosta: true });
+  assert.deepEqual((await m.foto.serateSenzaFoto(admin, [passata])).ids, [], 'una foto nascosta è comunque una foto');
+  await m.foto.eliminaFotoSerata(admin, passata);
+  assert.deepEqual((await m.foto.serateSenzaFoto(admin, [passata])).ids, [passata]);
+});
+
 test('ordine: sposta prima e dopo', async () => {
   const [a, b, c] = [await caricaFoto(passata), await caricaFoto(passata), await caricaFoto(passata)];
   await m.foto.spostaFotoAdmin(admin, c, 'prima');
