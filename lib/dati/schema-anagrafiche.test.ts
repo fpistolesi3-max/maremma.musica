@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import type { PGlite } from '@electric-sql/pglite';
-import { creaDb, scriviRiga } from './prova-db';
+import { creaDb, scriviRiga, MIGRAZIONI_ANAGRAFICHE } from './prova-db';
 import { datiIniziali } from './seed';
 import type { Archivio } from './tipi';
 
@@ -28,7 +28,7 @@ function archivioDiProva(): Archivio {
 }
 
 async function conRiga<T>(dati: unknown, prova: (db: PGlite) => Promise<T>, versione = 273): Promise<T> {
-  const db = await creaDb();
+  const db = await creaDb(MIGRAZIONI_ANAGRAFICHE);
   try {
     await scriviRiga(db, dati, versione);
     return await prova(db);
@@ -47,7 +47,7 @@ const istante = (v: unknown) => (v == null ? null : new Date(v as string).getTim
 const numero = (v: unknown) => (v == null ? null : Number(v));
 
 test('la migrazione si applica e le tabelle sono chiuse a chiunque non sia il server', async () => {
-  const db = await creaDb();
+  const db = await creaDb(MIGRAZIONI_ANAGRAFICHE);
   try {
     const tabelle = ['eventi', 'lotti', 'pr', 'utenti', 'impostazioni', 'porte', 'posta_inviata'];
     for (const t of tabelle) {
@@ -227,7 +227,7 @@ test('dopo il passaggio alle tabelle la copia non gira più', async () => {
 });
 
 test('senza riga o senza segreto non copia niente', async () => {
-  const db = await creaDb();
+  const db = await creaDb(MIGRAZIONI_ANAGRAFICHE);
   try {
     await assert.rejects(importa(db), /archivio_mvp_vuoto/);
     await scriviRiga(db, { ...archivioDiProva(), segreto: '' });

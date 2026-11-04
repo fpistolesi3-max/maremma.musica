@@ -8,8 +8,9 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test:gara": "tsx --conditions=react-server --test lib/dati/schema-vendite.gara.test.ts",
     "dati:reset": "node -e \"require('fs').rmSync('.data',{recursive:true,force:true})\"",
-    "test": "tsx --conditions=react-server --test lib/regole.test.ts lib/dati/permessi.test.ts lib/dati/rimborsi.test.ts lib/inviti.test.ts lib/link-serata.test.ts lib/avviso-email.test.ts lib/posta.test.ts lib/link-pr.test.ts lib/accesso-negato.test.ts lib/percorsi-area.test.ts lib/dati/archivio-remoto.test.ts lib/foto.test.ts lib/dati/foto.test.ts lib/dati/foto-supabase.test.ts lib/dati/schema-anagrafiche.test.ts lib/mappa.test.ts lib/etichetta.test.ts lib/intro/regole.test.ts lib/intro/pennello.test.ts lib/wallet.test.ts lib/wallet-apple.test.ts lib/volo.test.ts"
+    "test": "tsx --conditions=react-server --test lib/regole.test.ts lib/dati/permessi.test.ts lib/dati/rimborsi.test.ts lib/inviti.test.ts lib/link-serata.test.ts lib/avviso-email.test.ts lib/posta.test.ts lib/link-pr.test.ts lib/accesso-negato.test.ts lib/percorsi-area.test.ts lib/dati/archivio-remoto.test.ts lib/foto.test.ts lib/dati/foto.test.ts lib/dati/foto-supabase.test.ts lib/dati/schema-anagrafiche.test.ts lib/dati/schema-vendite.test.ts lib/dati/schema-vendite.gara.test.ts lib/mappa.test.ts lib/etichetta.test.ts lib/intro/regole.test.ts lib/intro/pennello.test.ts lib/wallet.test.ts lib/wallet-apple.test.ts lib/volo.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
@@ -30,11 +31,13 @@
     "@electric-sql/pglite": "^0.5.15",
     "@types/node": "^22",
     "@types/nodemailer": "^6.4.17",
+    "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.21",
     "dotenv": "^17.2.3",
+    "pg": "^8.23.1",
     "postcss": "^8.5.28",
     "tailwindcss": "3.4.19",
     "tsx": "^4.20.6",
