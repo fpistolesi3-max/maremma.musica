@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (140 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta), `npm run typecheck`,
+Altri comandi: `npm test` (155 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta, e le migrazioni del nuovo schema provate su un Postgres vero in memoria con PGlite), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -398,3 +398,7 @@ su Storage e il modulo le riduce prima dell'invio (limite 4 MB, quello di Vercel
 
 ### Area admin da telefono
 Da telefono le tabelle dell'admin (serate, iscrizioni, PR, staff) diventano schede (`.mm-schede` in `app/globals.css`, le etichette vengono da `data-et`). I filtri delle iscrizioni e i moduli "Aggiungi PR" / "Dai accesso" sono richiudibili (`Filtri`, `Apribile` in `components/admin/ui.tsx`): chiusi mostrano i filtri attivi e "Azzera". Le azioni secondarie di una serata stanno nel menu "Altro". Il modulo serata ha le sezioni Dati, Prevendite, Porta (orario limite della prevendita, senza telefono), Copertina e locandina, PR, Tipi di prevendita, Tavoli, Avanzate; la barra Salva (un solo Salva per tutta la pagina) resta sopra la navigazione. La briciola mostra MM/NNN e non ripete il titolo. Gli stati hanno sempre lo stesso colore (`ChipSerata`, `ChipIscrizione`): in attesa/da rimborsare ambra, pagato bianco, entrato verde, rimborsato grigio tratteggiato, annullato/scaduta rosso barrato. La porta (`/door`) non è toccata.
+
+## Passaggio allo schema a tabelle (in corso)
+
+Il piano è in `docs/PIANO-SCHEMA.md`. Oggi il sito usa ancora la riga unica `archivio_mvp`: le migrazioni `20261104000000_schema_anagrafiche.sql` e successive creano le tabelle nuove ma **nessun codice dell'app le usa** e non vanno applicate online senza il via dell'utente. Le prove sono in `lib/dati/schema-anagrafiche.test.ts` (aiuto in `lib/dati/prova-db.ts`): PGlite è un Postgres vero ma con una sola connessione, quindi prova regole, indici ed esiti delle funzioni, non l'attesa reciproca di due connessioni.
