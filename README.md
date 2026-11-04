@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (187 test, 11 dei quali di gara e saltati senza database di prova: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta, e le migrazioni del nuovo schema provate su un Postgres vero in memoria con PGlite), `npm run typecheck`,
+Altri comandi: `npm test` (188 test, 11 dei quali di gara e saltati senza database di prova: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta, e le migrazioni del nuovo schema provate su un Postgres vero in memoria con PGlite), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -405,5 +405,11 @@ Il piano è in `docs/PIANO-SCHEMA.md`. Oggi il sito usa ancora la riga unica `ar
 
 ### Test di gara (richieste davvero simultanee)
 
-Servono un database Postgres di **prova** (mai quello del sito vero): copia `.env.test.local.example` in `.env.test.local` (git lo ignora), scrivi dentro `MM_TEST_PG_URL=postgresql://…` e lancia `npm run test:gara`. Senza quella variabile i test si saltano con un messaggio; con l'indirizzo del sito vero (`iowbljhcjfppjjwbumsm`) si rifiutano di partire.
-Lavorano in uno schema `prova_gara_…` creato e cancellato a ogni giro, mai in `public`. Un giro con PGlite dietro un server (`npx pglite-server --port=5433 --max-connections=60`) serve solo a controllare che gli script girino: le richieste lì si mettono in fila, quindi solo un Postgres vero prova le attese reciproche.
+Servono un database Postgres di **prova** (mai quello del sito vero). Copia `.env.test.local.example` in `.env.test.local` (git lo ignora), scrivi dentro `MM_TEST_PG_URL=postgresql://…` e lancia `npm run test:gara`. Senza quella variabile i test si saltano con un messaggio; con l'indirizzo del sito vero (`iowbljhcjfppjjwbumsm`) si rifiutano di partire. Lavorano in uno schema `prova_gara_…` creato e cancellato a ogni giro (compresi gli avanzi di giri interrotti), mai in `public`.
+
+Su Supabase (progetto di prova `maremma-musica-prova`):
+- usa il **Transaction pooler**, porta **6543**: il Session pooler (porta 5432) accetta al massimo 15 client e i test ne aprono fino a 40, quindi fallisce con `EMAXCONNSESSION` (il test lo dice chiaro);
+- l'host è del tipo `aws-1-<regione>.pooler.supabase.com` (non `aws-0`) e l'utente è `<ruolo>.<progetto>`;
+- meglio un ruolo dedicato (non `postgres`) con `CREATE` sul database e membro di `anon`, `authenticated` e `service_role`: le migrazioni di prova fanno i `grant` a quei ruoli.
+
+Un giro con PGlite dietro un server (`npx pglite-server --port=5433 --max-connections=60`, indirizzo `postgresql://postgres@127.0.0.1:5433/postgres`) serve solo a controllare che gli script girino: le richieste lì si mettono in fila, quindi solo un Postgres vero prova le attese reciproche.

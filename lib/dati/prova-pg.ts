@@ -47,6 +47,21 @@ export interface Ambiente extends Db {
   chiudi(): Promise<void>;
 }
 
+/**
+ * Se Supabase rifiuta le connessioni perché sono troppe, dice cosa cambiare: il "Session pooler" (porta 5432) ne permette al massimo 15
+ * e i test di gara ne aprono fino a 40; il "Transaction pooler" (porta 6543) regge.
+ */
+export function spiegaErrore(e: unknown): unknown {
+  const testo = `${(e as { code?: string })?.code ?? ''} ${(e as Error)?.message ?? ''}`;
+  if (/EMAXCONNSESSION|max clients reached|too many clients|remaining connection slots/i.test(testo)) {
+    return new Error(
+      'Troppe connessioni: il "Session pooler" di Supabase (porta 5432) ne accetta al massimo 15, i test di gara ne aprono fino a 40. '
+      + 'In MM_TEST_PG_URL usa il "Transaction pooler" (porta 6543, host del tipo aws-1-…pooler.supabase.com, utente <ruolo>.<progetto>). Vedi il README, sezione "Test di gara".',
+    );
+  }
+  return e;
+}
+
 /** Dentro le migrazioni e nei test le tabelle si chiamano `public.x`: nello schema di prova diventano `<schema>.x`. */
 export const nelloSchema = (sql: string, schema: string) => sql.replace(/\bpublic\./g, `${schema}.`);
 
@@ -65,7 +80,7 @@ export async function creaAmbiente(url: string, connessioni = 40): Promise<Ambie
   const db: Ambiente = {
     schema,
     pool,
-    query: (sql, params) => pool.query(nelloSchema(sql, schema), params as unknown[]) as never,
+    query: (sql, params) => (pool.query(nelloSchema(sql, schema), params as unknown[]) as Promise<never>).catch((e) => { throw spiegaErrore(e); }),
     async chiudi() {
       try { await pool.query(`drop schema if exists ${schema} cascade`); } finally { await pool.end(); }
     },
@@ -86,6 +101,6 @@ export async function creaAmbiente(url: string, connessioni = 40): Promise<Ambie
     return db;
   } catch (e) {
     await db.chiudi().catch(() => undefined);
-    throw e;
+    throw spiegaErrore(e);
   }
 }

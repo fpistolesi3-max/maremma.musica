@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { controllaUrlProva, creaAmbiente, leggiUrlProva, nelloSchema, PROGETTO_VERO, type Ambiente } from './prova-pg';
+import { controllaUrlProva, creaAmbiente, leggiUrlProva, nelloSchema, PROGETTO_VERO, spiegaErrore, type Ambiente } from './prova-pg';
 import {
   ADESSO, avviaRimborso, concludiRimborso, conferma, crea, nuovaSerata, pagamenti, segnaIngresso, stato, tra, uno, usaCodice, usaToken, type Json,
 } from './prova-vendite';
@@ -58,6 +58,14 @@ test("gara, protezioni: l'indirizzo si legge dall'ambiente o da .env.test.local"
   } finally {
     rmSync(cartella, { recursive: true, force: true });
   }
+});
+
+test('gara, protezioni: troppe connessioni sul Session pooler dicono di usare il Transaction pooler', () => {
+  for (const e of [Object.assign(new Error('max clients reached in session mode'), { code: 'EMAXCONNSESSION' }), new Error('sorry, too many clients already')]) {
+    assert.match(String(spiegaErrore(e)), /Transaction pooler.*6543/);
+  }
+  const altro = new Error('altro');
+  assert.equal(spiegaErrore(altro), altro);
 });
 
 test('gara: lo schema di prova non è mai public e le tabelle si traducono', () => {
