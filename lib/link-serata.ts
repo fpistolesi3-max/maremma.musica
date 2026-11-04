@@ -41,8 +41,15 @@ export const testoPerClienti = (evento: Pick<Evento, 'nome' | 'data'>, link: str
 export const testoLinkPerPr = (nomePr: string, evento: Pick<Evento, 'nome' | 'data'>, link: string) =>
   `Ciao ${nomePr.trim().split(/\s+/)[0] ?? ''}! Ecco il tuo link per ${evento.nome} (${quandoSerata(evento)}): ${link}`;
 
-/** "Inviato il 2.11 alle 18:04 a 8 PR" (con quante email non sono partite, se ce ne sono). */
-export function testoUltimoInvio(i: { at: string; inviate: number; nonPartite: number }) {
+/**
+ * "Inviato il 2.11 alle 18:04 a 8 PR" (con quante email non sono partite, se ce ne sono). Se le email vere non sono attive
+ * (`inArchivio`) non dice "inviato": "Provato il 2.11 alle 18:04: 8 email sono rimaste nell'archivio di prova, non inviate".
+ */
+export function testoUltimoInvio(i: { at: string; inviate: number; nonPartite: number; inArchivio?: number }) {
   const p = parti(i.at);
-  return `Inviato il ${p.giorno}.${p.mese} alle ${ora(i.at)} a ${i.inviate} PR${i.nonPartite ? ` (${i.nonPartite} non partite)` : ''}`;
+  const quando = `il ${p.giorno}.${p.mese} alle ${ora(i.at)}`;
+  const archivio = i.inArchivio ?? 0;
+  if (archivio > 0 && i.inviate === 0) return `Provato ${quando}: ${archivio} ${archivio === 1 ? 'email è rimasta' : 'email sono rimaste'} nell’archivio di prova, non inviate`;
+  const base = `Inviato ${quando} a ${i.inviate} PR${i.nonPartite ? ` (${i.nonPartite} non partite)` : ''}`;
+  return archivio > 0 ? `${base}; ${archivio} rimaste nell’archivio di prova` : base;
 }

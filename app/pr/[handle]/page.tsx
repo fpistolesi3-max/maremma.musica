@@ -10,6 +10,7 @@ import { serateDelPr, totaliPr } from '@/lib/dati/area-pr';
 import { tavoliDelPr } from '@/lib/dati/tavoli';
 import { modoPagamentoOnline } from '@/lib/pagamenti';
 import { linkPagamento, quandoScade } from '@/lib/tavolo-email';
+import { emailVereAttive } from '@/lib/posta';
 import { AzioniPrenotazione } from '@/components/tavoli-azioni';
 import { chipLista, isAttiva, testoNonPagati, testoPosizione, testoPrezzoTipi } from '@/lib/regole';
 import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, orari, quandoRelativo } from '@/lib/formato';
@@ -191,7 +192,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
               </div>
               {appena && (
                 <p role="status" className="m-0 border border-ok px-4 py-3 text-[14px] leading-5 text-ok">
-                  ✓ Richiesta inserita: tavolo {appena.tavolo.nome} per {appena.prenotazione.nome} {appena.prenotazione.cognome}, fermo fino a {quandoScade(appena.prenotazione.scade)}. Al cliente arriva l&apos;email con il link.
+                  ✓ Richiesta inserita: tavolo {appena.tavolo.nome} per {appena.prenotazione.nome} {appena.prenotazione.cognome}, fermo fino a {quandoScade(appena.prenotazione.scade)}. {emailVereAttive() ? 'Al cliente arriva l’email con il link.' : 'L’email al cliente non è partita (le email vere non sono ancora attive): mandagli tu il link per pagare da qui sotto, su WhatsApp.'}
                 </p>
               )}
               {tavoli.aperte && tavoliOnline && tavoli.liberi > 0 && <Link href={`/tavoli/${serata.evento.slug}`} className="mm-btn mm-btn--clip mm-btn--linea self-start">Prenota per un cliente</Link>}
@@ -220,7 +221,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
                         <MandaLinkPagamento link={linkPagamento('', p.id, p.email)} telefono={p.telefono}
                           testo={`Ciao ${p.nome}, ti ho fermato il tavolo ${v.tavolo.nome} per ${serata.evento.nome}: paga qui ${euro(p.spesaMinima)} entro ${quandoScade(p.scade)} e ti arriva il QR.`} />
                       )}
-                      {p.stato === 'in_attesa' && <AzioniPrenotazione id={p.id} nome={`${p.nome} ${p.cognome}`} />}
+                      {p.stato === 'in_attesa' && <AzioniPrenotazione id={p.id} nome={`${p.nome} ${p.cognome}`} emailVere={emailVereAttive()} />}
                     </div>
                   );
                 })}

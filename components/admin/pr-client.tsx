@@ -4,6 +4,7 @@ import { useActionState, useRef, useState, useSyncExternalStore, useTransition }
 import { creaPrAzione, inviaLinkSerataAzione, modificaPrAzione, type EsitoLinkSerata, type EsitoModificaPr, type EsitoNuovoPr } from '@/app/azioni/admin';
 import { copiaTesto } from '@/components/client';
 import { linkWhatsApp } from '@/lib/inviti';
+import { domandaInvioLink, titoloEsitoInvioLink } from '@/lib/avviso-email';
 import { Mini } from './azioni-client';
 
 /** Pulsante che apre WhatsApp con l'invito già scritto. */
@@ -17,7 +18,7 @@ export function InvitoWhatsApp({ testo, etichetta = 'Manda invito su WhatsApp', 
 
 /**
  * "Aggiungi PR": un pulsante che apre il modulo (nome ed email). Dopo l'aggiunta il modulo si chiude e resta l'esito
- * con l'invito su WhatsApp; l'email di benvenuto parte da sola.
+ * con l'invito su WhatsApp; l'email di benvenuto parte da sola se le email vere sono attive, altrimenti l'esito lo dice.
  */
 export function NuovoPr() {
   const [s, invia, inCorso] = useActionState(creaPrAzione, {} as EsitoNuovoPr);
@@ -127,8 +128,10 @@ export function LinkPr({ url, testoWhatsApp, nomePr }: { url: string; testoWhats
  * "Manda a tutti il link della serata": un'email a ogni PR attivo e abilitato col suo link. Chiede conferma con il numero
  * (più esplicita se un invio c'è già stato) e dopo mostra quante email sono partite e chi non è stato raggiunto.
  */
-export function InvioLinkSerata({ eventoId, nomeSerata, destinatari, senzaEmail, ultimo, bloccato }: {
+export function InvioLinkSerata({ eventoId, nomeSerata, destinatari, senzaEmail, ultimo, bloccato, emailVere }: {
   eventoId: string; nomeSerata: string; destinatari: number; senzaEmail: number; ultimo: string | null; bloccato: string | null;
+  /** false = le email vere non sono attive: le email restano nell'archivio di prova e il testo non dice che arrivano. */
+  emailVere: boolean;
 }) {
   const [inCorso, avvia] = useTransition();
   const [esito, setEsito] = useState<EsitoLinkSerata | null>(null);
@@ -137,12 +140,7 @@ export function InvioLinkSerata({ eventoId, nomeSerata, destinatari, senzaEmail,
   const ultimoVisto = esito?.ultimo ?? ultimo;
   const manda = () => {
     if (inviando.current) return;
-    const domanda = ultimoVisto
-      ? `Il link di ${nomeSerata} è già stato mandato. ${ultimoVisto}.
-
-Vuoi mandarlo di nuovo a ${destinatari} PR? Riceveranno un'altra email.`
-      : `Mando il link di ${nomeSerata} a ${destinatari} PR?`;
-    if (!window.confirm(domanda)) return;
+    if (!window.confirm(domandaInvioLink(nomeSerata, destinatari, ultimoVisto, emailVere))) return;
     inviando.current = true;
     avvia(async () => {
       try { setEsito(await inviaLinkSerataAzione(eventoId)); } finally { inviando.current = false; }
@@ -164,7 +162,9 @@ Vuoi mandarlo di nuovo a ${destinatari} PR? Riceveranno un'altra email.`
       </div>
       <span className="text-[14px] leading-5 text-osso-2">
         Manda a ogni PR attivo il suo link personale per <b className="text-osso">{nomeSerata}</b>, con un testo pronto da girare ai clienti.
-        {!bloccato && ` L'email arriverebbe a ${destinatari} PR${senzaEmail ? `; ${senzaEmail} non hanno un'email` : ''}.`}
+        {!bloccato && (emailVere
+          ? ` L'email arriverebbe a ${destinatari} PR${senzaEmail ? `; ${senzaEmail} non hanno un'email` : ''}.`
+          : ' Le email vere non sono ancora attive: le email resterebbero nell’archivio di prova e i PR non riceverebbero niente. Per ora mandagli il link su WhatsApp dalla riga di ognuno.')}
       </span>
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" className="mm-btn mm-btn--primario" style={{ minHeight: 44 }} disabled={disabilitato} onClick={manda}>
@@ -176,8 +176,16 @@ Vuoi mandarlo di nuovo a ${destinatari} PR? Riceveranno un'altra email.`
       {!bloccato && destinatari === 0 && <span className="text-[14px] leading-5 text-attesa">Nessun PR attivo con un&apos;email per questa serata.</span>}
       {esito?.errore && <span role="alert" className="text-[14px] leading-5 text-stop-testo">{esito.errore}</span>}
       {esito && !esito.errore && (
-        <div role="status" className="flex flex-col gap-2 border border-ok p-3 text-[14px] leading-5">
-          <b className="text-ok">Inviate {esito.inviate} email · {esito.nonPartite} non partite</b>
+        <div role="status" className={`flex flex-col gap-2 border p-3 text-[14px] leading-5 ${esito.inArchivio && !esito.inviate ? 'border-attesa' : 'border-ok'}`}>
+          {(() => {
+            const { titolo, nota } = titoloEsitoInvioLink({ inviate: esito.inviate ?? 0, nonPartite: esito.nonPartite ?? 0, inArchivio: esito.inArchivio });
+            return (
+              <>
+                <b className={nota ? 'text-attesa' : 'text-ok'}>{titolo}</b>
+                {nota && <span className="text-osso-2">{nota}</span>}
+              </>
+            );
+          })()}
           {(esito.nonRaggiunti?.length ?? 0) > 0 && (
             <>
               <span className="text-osso-2">Non raggiunti:</span>

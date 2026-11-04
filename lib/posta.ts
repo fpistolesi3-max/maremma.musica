@@ -2,6 +2,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { MAX_POSTA, modifica } from './dati/archivio';
 import { escapeHtmlBase } from './html';
+import type { ViaEmail } from './avviso-email';
 
 // Email transazionali. Finché il servizio vero non è configurato (TODO: cliente — es. Resend, Postmark,
 // Brevo) le email restano in archivio e si leggono su /dev/posta. Se in .env.local ci sono SMTP_HOST,
@@ -17,8 +18,12 @@ export interface Messaggio {
 
 const MITTENTE = process.env.EMAIL_MITTENTE || 'Maremma Musica <noreply@maremmamusica.it>'; // TODO: cliente
 
-export async function inviaEmail(m: Messaggio) {
-  const viaSmtp = Boolean(process.env.SMTP_HOST);
+/** Le email vere partono solo con SMTP_HOST; senza, restano nell'archivio di prova (e l'admin non deve credere che siano arrivate). */
+export const emailVereAttive = () => Boolean(process.env.SMTP_HOST);
+
+/** Dice com'è andata: `smtp` = partita davvero, `archivio` = rimasta solo nell'archivio di prova. */
+export async function inviaEmail(m: Messaggio): Promise<ViaEmail> {
+  const viaSmtp = emailVereAttive();
   // Nell'archivio le immagini restano come data URL, così /dev/posta le mostra.
   let htmlArchivio = m.html;
   for (const img of m.immagini ?? []) htmlArchivio = htmlArchivio.replaceAll(`cid:${img.cid}`, img.dataUrl);
@@ -30,7 +35,7 @@ export async function inviaEmail(m: Messaggio) {
 
   if (!viaSmtp) {
     console.info(`[posta] → ${m.a} · ${m.oggetto} (leggila su /dev/posta)`);
-    return;
+    return 'archivio';
   }
   const nodemailer = await import('nodemailer');
   const t = nodemailer.createTransport({
@@ -43,6 +48,7 @@ export async function inviaEmail(m: Messaggio) {
     from: MITTENTE, to: m.a, subject: m.oggetto, html: m.html,
     attachments: (m.immagini ?? []).map((img) => ({ cid: img.cid, path: img.dataUrl, filename: `${img.cid}.png` })),
   });
+  return 'smtp';
 }
 
 export const escapeHtml = escapeHtmlBase;

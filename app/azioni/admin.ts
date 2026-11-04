@@ -13,6 +13,7 @@ import { inviaBenvenutoPr } from '@/lib/benvenuto-pr';
 import { testoInvitoPr } from '@/lib/inviti';
 import { inviaLinkSerataAiPr, type EsitoInvioLink } from '@/lib/invio-link-serata';
 import { testoUltimoInvio } from '@/lib/link-serata';
+import { esitoBenvenutoPr, type ViaEmail } from '@/lib/avviso-email';
 import { rimborsaPagamento } from '@/lib/rimborso';
 import { isoRoma, slugDa } from '@/lib/formato';
 import { componiData, istanteDopoApertura, LIMITE_PREVENDITA_DEFAULT, pubblicatoDopoSalvataggio } from '@/lib/regole';
@@ -304,7 +305,7 @@ export async function duplicaSerataAzione(_p: EsitoAzione, f: FormData): Promise
   redirect(`/admin/eventi/${nuovoId}/modifica?copia=1`);
 }
 
-/** Dopo "Aggiungi PR": il testo pronto per l'invito su WhatsApp e, se l'email di benvenuto non è partita, un avviso. */
+/** Dopo "Aggiungi PR": il testo pronto per l'invito su WhatsApp e, se l'email di benvenuto non è partita (o è rimasta nell'archivio di prova), un avviso. */
 export interface EsitoNuovoPr extends EsitoAzione { invito?: { nome: string; email: string; testo: string }; avviso?: string; valori?: { nome: string; email: string } }
 
 export async function creaPrAzione(_p: EsitoNuovoPr, f: FormData): Promise<EsitoNuovoPr> {
@@ -315,16 +316,18 @@ export async function creaPrAzione(_p: EsitoNuovoPr, f: FormData): Promise<Esito
   } catch (e) { return { errore: (e as Error).message, valori: { nome: t(f, 'nome'), email: t(f, 'email') } }; } // i campi restano com'erano
   const origine = await origineRichiesta();
   // L'email di benvenuto è in più: se non parte, il PR è comunque aggiunto e l'admin può mandare l'invito su WhatsApp.
-  let avviso: string | undefined;
+  // Senza SMTP l'email resta solo nell'archivio di prova: non si dice che è partita.
+  let via: ViaEmail | 'errore';
   try {
-    await inviaBenvenutoPr(nuovo, origine);
+    via = await inviaBenvenutoPr(nuovo, origine);
   } catch (e) {
     console.error('[pr] email di benvenuto non inviata', e);
-    avviso = `L’email di benvenuto a ${nuovo.email} non è partita. Il PR è stato aggiunto lo stesso: mandagli l’invito su WhatsApp.`;
+    via = 'errore';
   }
   revalidatePath('/admin/pr');
+  const { ok, avviso } = esitoBenvenutoPr(nuovo.nome, nuovo.email, via);
   return {
-    ok: avviso ? `${nuovo.nome} è dentro.` : `${nuovo.nome} è dentro. Gli è partita l’email di benvenuto.`,
+    ok,
     avviso,
     invito: { nome: nuovo.nome, email: nuovo.email, testo: testoInvitoPr(nuovo.nome, nuovo.email, origine) },
   };
@@ -338,7 +341,7 @@ export async function inviaLinkSerataAzione(eventoId: string): Promise<EsitoLink
   try {
     const esito = await inviaLinkSerataAiPr(s, eventoId, await origineRichiesta());
     revalidatePath('/admin/pr');
-    return { ...esito, ultimo: testoUltimoInvio({ at: new Date().toISOString(), inviate: esito.inviate, nonPartite: esito.nonPartite }) };
+    return { ...esito, ultimo: testoUltimoInvio({ at: new Date().toISOString(), inviate: esito.inviate, nonPartite: esito.nonPartite, inArchivio: esito.inArchivio }) };
   } catch (e) { return { errore: (e as Error).message }; }
 }
 

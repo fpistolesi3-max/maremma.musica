@@ -7,6 +7,7 @@ import { prenotazioniAdmin } from '@/lib/dati/tavoli';
 import { riepilogoFoto } from '@/lib/dati/foto';
 import { cosaManca, limitePrevendita, prenotazioneAttiva, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi } from '@/lib/regole';
 import { linkPagamento, quandoScade } from '@/lib/tavolo-email';
+import { emailVereAttive } from '@/lib/posta';
 import { dataIso, euro, numeroEvento, ora } from '@/lib/formato';
 import { TestataAdmin } from '@/components/admin/ui';
 import { FormSerata } from '@/components/admin/form-serata';
@@ -95,13 +96,13 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         <Sezione id="tavoli" n="04" titolo="Tavoli" forza={Boolean(richiesta)} nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
           <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} PRENOTATI{inAttesa > 0 && <span className="text-attesa"> · {inAttesa} IN ATTESA DI PAGAMENTO</span>}</>
         )}>
-          <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata online con Stripe: tutti i pagamenti passano dal sito. Il cliente paga sul sito, o dal link che riceve se la richiesta la inserisce il PR o la crew, e la prenotazione si conferma da sola. Se non paga in tempo il tavolo torna libero. Per un tavolo venduto a voce usa &quot;Prenota per un cliente&quot;: al cliente arriva il link per pagare.</span>
+          <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata online con Stripe: tutti i pagamenti passano dal sito. Il cliente paga sul sito, o dal link che riceve se la richiesta la inserisce il PR o la crew, e la prenotazione si conferma da sola. Se non paga in tempo il tavolo torna libero. Per un tavolo venduto a voce usa &quot;Prenota per un cliente&quot;: {emailVereAttive() ? 'al cliente arriva il link per pagare' : 'il link per pagare lo mandi tu al cliente (le email vere non sono ancora attive)'}.</span>
           {(() => {
-            // Di ritorno da "Prenota per un cliente": conferma che al cliente è partito il link per pagare.
+            // Di ritorno da "Prenota per un cliente": conferma la richiesta; dice che al cliente è partito il link solo se le email vere sono attive.
             const nuova = richiesta ? prenotazioni.find((q) => q.prenotazione.id === richiesta && q.prenotazione.stato === 'in_attesa') : undefined;
             return nuova ? (
               <p role="status" className="m-0 border border-ok px-4 py-3 text-[14px] leading-5 text-ok">
-                ✓ Richiesta inserita: tavolo {nuova.tavolo.nome} per {nuova.prenotazione.nome} {nuova.prenotazione.cognome}, fermo fino a {quandoScade(nuova.prenotazione.scade)}. Al cliente arriva il link per pagare: puoi rimandarlo anche da qui sotto.
+                ✓ Richiesta inserita: tavolo {nuova.tavolo.nome} per {nuova.prenotazione.nome} {nuova.prenotazione.cognome}, fermo fino a {quandoScade(nuova.prenotazione.scade)}. {emailVereAttive() ? 'Al cliente arriva il link per pagare: puoi rimandarlo anche da qui sotto.' : 'L’email al cliente non è partita (le email vere non sono ancora attive): mandagli tu il link per pagare da qui sotto, su WhatsApp.'}
               </p>
             ) : null;
           })()}
@@ -112,7 +113,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
           <MappaTavoli eventoId={e.id} piantinaUrl={e.piantinaUrl} tavoli={x.tavoli.map((t) => ({
             id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato, x: t.x, y: t.y,
           }))} />
-          <Tavoli eventoId={e.id} pr={x.pr.filter((p) => p.stato === 'attivo').map((p) => ({ id: p.id, nome: p.nomeDisplay }))} tavoli={x.tavoli.map((t) => {
+          <Tavoli eventoId={e.id} emailVere={emailVereAttive()} pr={x.pr.filter((p) => p.stato === 'attivo').map((p) => ({ id: p.id, nome: p.nomeDisplay }))} tavoli={x.tavoli.map((t) => {
             const v = prenotazioni.find((q) => q.prenotazione.tavoloId === t.id);
             return {
               id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato,

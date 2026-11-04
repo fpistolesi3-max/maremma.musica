@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (155 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta, e le migrazioni del nuovo schema provate su un Postgres vero in memoria con PGlite), `npm run typecheck`,
+Altri comandi: `npm test` (152 test: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta, e le migrazioni del nuovo schema provate su un Postgres vero in memoria con PGlite), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -221,7 +221,7 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   (alla sincronizzazione risultano "non in lista").
 - Pagina PR: `/admin/pr` — solo admin (lo staff vede solo la porta, i PR non entrano). In cima "Aggiungi PR" (nome, email): subito dopo
   compare "Manda invito su WhatsApp" (`wa.me` con testo pronto: indirizzo completo di `/accedi` e l'email) e parte da sola un'email di
-  benvenuto (`lib/benvenuto-pr.ts`, posta di `lib/posta.ts`); se l'email non parte il PR è aggiunto lo stesso e si vede un avviso. Non si
+  benvenuto (`lib/benvenuto-pr.ts`, posta di `lib/posta.ts`); se l'email non parte il PR è aggiunto lo stesso e si vede un avviso. Senza `SMTP_HOST` l'email resta solo nell'archivio di prova: `inviaEmail` restituisce `'smtp'` o `'archivio'` e, con `'archivio'`, l'admin non legge "Gli è partita l'email" ma che le email vere non sono ancora attive e di usare WhatsApp (testi in `lib/avviso-email.ts`, lo stesso vale per il link della serata, le conferme di annullamento dei tavoli e "Prenota per un cliente"). Non si
   salva nessuna data d'invito (niente migrazioni). L'handle si ricava dal nome (se è preso si aggiunge -2, -3…; "canali" è riservato).
   Per ogni PR: stato, in lista, pagati, entrati della serata scelta (il menu si applica subito), il link da dare ai clienti con "Copia",
   "Rimanda invito su WhatsApp", Sospendi/Riattiva e il dettaglio (`/admin/pr/[handle]`: iscritti al giorno, serate, lista, cronologia).
