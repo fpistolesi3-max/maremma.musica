@@ -1,10 +1,11 @@
 import 'server-only';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
+import type { ViaEmail } from './avviso-email';
 import { indirizzoAccesso } from './inviti';
 
 /** Email di benvenuto per un PR appena aggiunto: dove entrare e con quale email. Usa lo stesso invio delle altre email. */
-export async function inviaBenvenutoPr(pr: { nome: string; email: string }, origine: string) {
-  await inviaEmail({
+export async function inviaBenvenutoPr(pr: { nome: string; email: string }, origine: string): Promise<ViaEmail> {
+  return inviaEmail({
     a: pr.email,
     oggetto: 'Benvenuto tra i PR di Maremma Musica',
     html: guscioEmail('Benvenuto', `

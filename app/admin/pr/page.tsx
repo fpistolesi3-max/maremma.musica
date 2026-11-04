@@ -9,6 +9,7 @@ import { TestataAdmin } from '@/components/admin/ui';
 import { InvioLinkSerata, LinkPr, NuovoPr } from '@/components/admin/pr-client';
 import { abilitatoPerSerata, destinatariLinkSerata, motivoNoInvioLink, testoLinkPerPr, testoUltimoInvio } from '@/lib/link-serata';
 import { leggi } from '@/lib/dati/archivio';
+import { emailVereAttive } from '@/lib/posta';
 
 export const metadata = { title: 'PR' };
 
@@ -45,7 +46,7 @@ export default async function PaginaPr({ searchParams }: Props) {
           {p.evento && (
             <InvioLinkSerata eventoId={p.evento.id} nomeSerata={`${p.evento.nome} (${dataPunti(p.evento.data)})`}
               destinatari={destinatari.filter((x) => x.email).length} senzaEmail={destinatari.filter((x) => !x.email).length}
-              ultimo={p.evento.invioLinkPr ? testoUltimoInvio(p.evento.invioLinkPr) : null} bloccato={motivoNoInvioLink(p.evento)} />
+              ultimo={p.evento.invioLinkPr ? testoUltimoInvio(p.evento.invioLinkPr) : null} bloccato={motivoNoInvioLink(p.evento)} emailVere={emailVereAttive()} />
           )}
         </div>
 

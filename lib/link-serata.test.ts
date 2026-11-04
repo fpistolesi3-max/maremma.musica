@@ -31,4 +31,7 @@ test('link serata: riga dell’ultimo invio', () => {
   const t = testoUltimoInvio({ at: '2026-11-02T17:04:00Z', inviate: 8, nonPartite: 0 });
   assert.match(t, /^Inviato il 2\.11 alle 18:04 a 8 PR$/);
   assert.match(testoUltimoInvio({ at: '2026-11-02T17:04:00Z', inviate: 7, nonPartite: 1 }), /\(1 non partite\)/);
+  // Con le email vere spente non si dice "inviato".
+  assert.equal(testoUltimoInvio({ at: '2026-11-02T17:04:00Z', inviate: 0, nonPartite: 0, inArchivio: 8 }), 'Provato il 2.11 alle 18:04: 8 email sono rimaste nell’archivio di prova, non inviate');
+  assert.ok(!/Inviato/.test(testoUltimoInvio({ at: '2026-11-02T17:04:00Z', inviate: 0, nonPartite: 0, inArchivio: 1 })));
 });

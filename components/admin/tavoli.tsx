@@ -31,7 +31,7 @@ const STATI: [StatoTavolo, string][] = [
 const STATI_A_MANO = STATI.filter(([v]) => v === 'libero' || v === 'non_in_vendita');
 
 /** Tavoli della serata: nome, zona, posti, spesa minima, stato, a quali PR sono affidati e chi li ha chiesti. */
-export function Tavoli({ eventoId, tavoli, pr }: { eventoId: string; tavoli: RigaTavolo[]; pr: { id: string; nome: string }[] }) {
+export function Tavoli({ eventoId, tavoli, pr, emailVere }: { eventoId: string; tavoli: RigaTavolo[]; pr: { id: string; nome: string }[]; emailVere: boolean }) {
   const [msg, setMsg] = useState<EsitoAzione>({});
   const [inCorso, avvia] = useTransition();
   const zone = [...new Set(tavoli.map((t) => t.zona).filter(Boolean))];
@@ -42,7 +42,7 @@ export function Tavoli({ eventoId, tavoli, pr }: { eventoId: string; tavoli: Rig
       <datalist id="tavoli-zone">{zone.map((z) => <option key={z} value={z} />)}</datalist>
       {tavoli.map((t) => (
         <div key={t.id} className="flex flex-col gap-3 border border-linea bg-notte-2 p-4">
-          {t.prenotazione && <Prenotazione p={t.prenotazione} />}
+          {t.prenotazione && <Prenotazione p={t.prenotazione} emailVere={emailVere} />}
           <FormTavolo eventoId={eventoId} t={t} pr={pr} />
           <div className="flex justify-end">
             <button type="button" className="mm-btn mm-btn--muto" disabled={inCorso || Boolean(t.prenotazione)} style={{ minHeight: 44 }}
@@ -69,7 +69,7 @@ export function Tavoli({ eventoId, tavoli, pr }: { eventoId: string; tavoli: Rig
   );
 }
 
-function Prenotazione({ p }: { p: PrenotazioneRiga }) {
+function Prenotazione({ p, emailVere }: { p: PrenotazioneRiga; emailVere: boolean }) {
   const attesa = p.stato === 'in_attesa';
   return (
     <div className={`flex flex-col gap-3 border-l-2 bg-notte px-4 py-3 ${attesa ? 'border-attesa' : 'border-ok'}`}>
@@ -84,7 +84,7 @@ function Prenotazione({ p }: { p: PrenotazioneRiga }) {
         {p.pagamento && <><br />PAGATO: {p.pagamento.toUpperCase()}</>}
       </span>
       {attesa && p.online && p.inseritaDa !== 'cliente' && <MandaLinkPagamento link={p.linkPagamento} telefono={p.telefono} testo={p.testoLink} />}
-      <AzioniPrenotazione id={p.id} nome={p.nome} pagata={!attesa} />
+      <AzioniPrenotazione id={p.id} nome={p.nome} pagata={!attesa} emailVere={emailVere} />
     </div>
   );
 }

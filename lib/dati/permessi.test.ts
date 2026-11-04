@@ -22,6 +22,7 @@ type Mod = {
   admin: typeof import('./admin');
   prevendita: typeof import('./prevendita');
   invio: typeof import('../invio-link-serata');
+  linkSerata: typeof import('../link-serata');
 };
 let m: Mod;
 
@@ -35,6 +36,7 @@ before(async () => {
     admin: await import('./admin'),
     prevendita: await import('./prevendita'),
     invio: await import('../invio-link-serata'),
+    linkSerata: await import('../link-serata'),
   };
 });
 after(() => rmSync(cartella, { recursive: true, force: true }));
@@ -211,6 +213,15 @@ test('link della serata ai PR: solo attivi e abilitati, ognuno col suo link, nie
   assert.equal(e3.nonPartite, 1);
   assert.equal(e3.inviate, e2.inviate - 1);
   assert.ok(e3.nonRaggiunti.some((n) => n.nome === pr('test-pr').nomeDisplay && /non è partita/.test(n.motivo)));
+
+  // Senza email vere (SMTP) le email restano nell'archivio di prova: non contano come inviate e l'ultimo invio non dice "inviato".
+  spedite.length = 0;
+  const e4 = await m.invio.inviaLinkSerataAiPr(admin, evento.id, origine, async (msg) => { spedite.push(msg); return 'archivio'; });
+  assert.deepEqual([e4.inviate, e4.nonPartite], [0, 0]);
+  assert.equal(e4.inArchivio, e2.inviate, 'tutte rimaste nell’archivio di prova');
+  const dopo4 = (await m.archivio.leggi()).eventi.find((e) => e.id === evento.id)!.invioLinkPr!;
+  assert.deepEqual([dopo4.inviate, dopo4.inArchivio], [0, e2.inviate]);
+  assert.match(m.linkSerata.testoUltimoInvio(dopo4), /^Provato il .*nell’archivio di prova, non inviate$/);
 
   // Serata in bozza o passata: niente invio.
   const passata = prima.eventi.find((e) => e.slug !== 'halloween-party' && new Date(e.data) < new Date())!;
