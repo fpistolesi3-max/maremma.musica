@@ -184,3 +184,15 @@ Le tappe 1-3 si possono sviluppare in parallelo solo se non toccano gli stessi f
 - Le 20 email di prova non si copiano; in futuro il registro delle email dura 30 giorni.
 - La riga `archivio_mvp` resta 14 giorni, poi si ripulisce dai dati personali e si elimina.
 - Le 22 iscrizioni di prova si copiano (servono a verificare la copia); la pulizia dei dati di prova prima del lancio è un lavoro a parte.
+
+---
+
+## Appendice: com'è andata la tappa 2 (4-5.11.2026)
+
+Scelte fatte scrivendo la migrazione `20261105000000_schema_vendite.sql`, dove si è scostata dal piano:
+- **La chiave "stessa persona" la calcola il database** (`chiave_cognome()`), non la passa il codice: così righe copiate e righe nuove usano la stessa funzione. Un test la confronta con `chiaveCognome()` di `lib/regole.ts` su 24 cognomi (accenti, apostrofi, `ß`, `ø`, `İ`…).
+- **Il check-in è una funzione** (`segna_ingresso`) che contiene l'`UPDATE` condizionato, invece di un `UPDATE` scritto dal codice: stesso effetto, ma si prova una volta sola.
+- **`concludi_rimborso` mette `da_rimborsare = false`** per ogni pagamento rimborsato (principale o "in più"), e dice con `chiusa_ordine` se ha chiuso l'ordine per la prima volta (l'email al cliente parte solo allora).
+- **Persona che paga due volte insieme**: `conferma_pagamento_iscrizione` prende lo stesso blocco sulla persona di `crea_iscrizione`, così due richieste della stessa persona che pagano insieme non arrivano mai a scontrarsi con l'indice "un QR a persona": una conferma, l'altra va restituita con motivo `doppione`.
+- **La copia si ferma** (con un errore chiaro, senza copiare niente) davanti a ingressi in cassa, consegne, tavoli e prenotazioni: le prime due cose le tabelle non le portano, le altre arrivano con la tappa 3. Gli accessi di utenti che non esistono più non si portano. Una prevendita "in attesa" senza termine (oggi non ce ne sono) vale come già scaduta.
+- **Test di gara**: pronti (`npm run test:gara`), da far girare sul database di prova. Con PGlite dietro un server si è solo verificato che gli script girino.

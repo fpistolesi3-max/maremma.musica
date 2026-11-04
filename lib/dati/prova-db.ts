@@ -11,10 +11,16 @@ import { PGlite } from '@electric-sql/pglite';
 
 const CARTELLA = path.join(process.cwd(), 'supabase', 'migrations');
 
-/** Le migrazioni dello schema nuovo, nell'ordine in cui si applicano online (la riga unica prima, perché le funzioni la leggono). */
-export const MIGRAZIONI_SCHEMA = [
+/** Fino alla tappa 1 (anagrafiche), nell'ordine in cui si applicano online (la riga unica prima, perché le funzioni la leggono). */
+export const MIGRAZIONI_ANAGRAFICHE = [
   '20261005000000_archivio_mvp.sql',
   '20261104000000_schema_anagrafiche.sql',
+];
+
+/** Fino alla tappa 2 (vendite). Si allunga a ogni tappa. */
+export const MIGRAZIONI_SCHEMA = [
+  ...MIGRAZIONI_ANAGRAFICHE,
+  '20261105000000_schema_vendite.sql',
 ];
 
 /** Un database vuoto con i ruoli di Supabase e le migrazioni indicate applicate. */
