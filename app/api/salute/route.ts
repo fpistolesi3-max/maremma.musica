@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { modalitaProva } from '@/lib/prova';
+import { modalitaArchivio } from '@/lib/dati/tabelle';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,9 @@ export async function GET() {
     MM_SEGRETO: process.env.MM_SEGRETO ? 'ok' : 'MANCA',
     SITO_URL: process.env.SITO_URL ? 'ok' : 'manca (i link nelle email useranno l\'indirizzo della richiesta)',
     MM_MODALITA_PROVA: process.env.MM_MODALITA_PROVA ?? '(non impostata)',
+    MM_ARCHIVIO: !process.env.MM_ARCHIVIO ? '(non impostata: il sito usa la riga unica)'
+      : modalitaArchivio() === 'tabelle' ? 'tabelle (ATTENZIONE: la scrittura sulle tabelle non è ancora pronta, il sito non può salvare niente)'
+      : `valore non riconosciuto "${process.env.MM_ARCHIVIO}": il sito usa la riga unica`,
   };
 
   let supabase: Record<string, unknown> = { stato: 'non provato (mancano URL o chiave)' };
@@ -33,6 +37,13 @@ export async function GET() {
           : { ok: true, riga: t.data ? `presente (versione ${t.data.versione})` : 'non ancora creata (si crea alla prima visita)' },
         bucket_locandine: b.error ? { errore: b.error.message } : { ok: true, pubblico: b.data.public },
       };
+      // Con l'interruttore acceso si controlla anche che le tabelle rispondano (migrazioni applicate e dati copiati).
+      if (modalitaArchivio() === 'tabelle') {
+        const l = await sb.rpc('leggi_tutto');
+        supabase.tabelle_nuovo_schema = l.error
+          ? { errore: l.error.message, codice: l.error.code, suggerimento: 'le migrazioni 20261104… – 20261107… sono applicate?' }
+          : { ok: true, serate: (l.data as { eventi?: unknown[] } | null)?.eventi?.length ?? 0 };
+      }
     } catch (e) {
       supabase = { errore: (e as Error).message };
     }

@@ -23,10 +23,16 @@ export const MIGRAZIONI_VENDITE = [
   '20261105000000_schema_vendite.sql',
 ];
 
-/** Fino alla tappa 3 (tavoli): tutto lo schema. Si allunga a ogni tappa. */
-export const MIGRAZIONI_SCHEMA = [
+/** Fino alla tappa 3 (tavoli). */
+export const MIGRAZIONI_TAVOLI = [
   ...MIGRAZIONI_VENDITE,
   '20261106000000_schema_tavoli.sql',
+];
+
+/** Tutto lo schema (fino a leggi_tutto, tappa 4). Si allunga a ogni tappa. */
+export const MIGRAZIONI_SCHEMA = [
+  ...MIGRAZIONI_TAVOLI,
+  '20261107000000_leggi_tutto.sql',
 ];
 
 /** Un database vuoto con i ruoli di Supabase e le migrazioni indicate applicate. */
