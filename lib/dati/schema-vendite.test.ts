@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { PGlite } from '@electric-sql/pglite';
-import { creaDb, scriviRiga } from './prova-db';
+import { creaDb, scriviRiga, MIGRAZIONI_VENDITE } from './prova-db';
 import { datiIniziali } from './seed';
 import { chiaveCognome } from '../regole';
 import {
@@ -20,7 +20,7 @@ function archivio(): Archivio {
 }
 
 async function conDb<T>(prova: (db: PGlite, d: Archivio) => Promise<T>, preparazione?: (d: Archivio) => void): Promise<T> {
-  const db = await creaDb();
+  const db = await creaDb(MIGRAZIONI_VENDITE);
   try {
     const d = archivio();
     preparazione?.(d);
@@ -42,7 +42,7 @@ async function serata(db: PGlite, d: Archivio, posti: number | null) {
 }
 
 test('le tabelle e le funzioni nuove sono chiuse a chiunque non sia il server', async () => {
-  const db = await creaDb();
+  const db = await creaDb(MIGRAZIONI_VENDITE);
   try {
     for (const t of ['iscrizioni', 'pagamenti', 'accessi']) {
       const r = await uno(db, `select c.relrowsecurity as rls, has_table_privilege('anon', c.oid, 'select') as anon, has_table_privilege('authenticated', c.oid, 'select') as auth,
@@ -69,7 +69,7 @@ test('le tabelle e le funzioni nuove sono chiuse a chiunque non sia il server', 
 });
 
 test('la chiave "stessa persona" del database è uguale a quella del codice', async () => {
-  const db = await creaDb();
+  const db = await creaDb(MIGRAZIONI_VENDITE);
   try {
     const nomi = ["D'Àngelo ", 'd’angelo', 'Müller', 'MULLER', 'Nuñez', 'Núñez', 'De Rossi', 'derossi', 'Pucci-Bianchi', 'Çelik', 'Łukasz', 'Øverli', 'Straße', 'O\'Brien', '', '   ', '123', 'Niccolò',
       'Ñandú', 'Ångström', 'ÉMILE', 'İstanbul', 'ǅ', 'Dž'];
