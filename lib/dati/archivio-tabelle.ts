@@ -21,6 +21,8 @@ export interface StoreTabelle {
   verificaSql(): Promise<unknown>;
   /** Applica in una transazione le righe nuove, cambiate e tolte delle anagrafiche (funzione SQL `applica_anagrafiche()`). */
   applica(modifiche: Modifiche): Promise<EsitoApplica>;
+  /** Cambia SOLO il segreto dei QR (`impostazioni.segreto`), senza passare dalle anagrafiche. Lo usa solo `allineaSegreto()`. Si ferma se la riga del segreto non c'è. */
+  scriviSegreto(valore: string): Promise<void>;
 }
 
 export function storeSupabaseTabelle(url: string, chiave: string): StoreTabelle {
@@ -45,6 +47,12 @@ export function storeSupabaseTabelle(url: string, chiave: string): StoreTabelle 
       if (!error) return { ok: true };
       if (/conflitto_scrittura/.test(error.message)) return { conflitto: true };
       throw new Error(`Archivio: scrittura sulle tabelle non riuscita (${error.message})`);
+    },
+    async scriviSegreto(valore) {
+      // Messaggi senza il testo dell'errore del database: il valore non deve poter finire in un messaggio o in un log.
+      const { data, error } = await sb.from('impostazioni').update({ valore, updated_at: new Date().toISOString() }).eq('chiave', 'segreto').select('chiave');
+      if (error) throw new Error('Archivio: scrittura del segreto non riuscita.');
+      if (!data?.length) throw new Error('Archivio: il segreto non è nelle tabelle (impostazioni): niente da aggiornare.');
     },
   };
 }

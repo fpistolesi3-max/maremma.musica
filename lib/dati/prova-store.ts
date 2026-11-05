@@ -17,6 +17,10 @@ export function storeDaDb(db: Db): StoreTabelle {
         throw e;
       }
     },
+    async scriviSegreto(valore) {
+      const r = await db.query("update public.impostazioni set valore = $1, updated_at = now() where chiave = 'segreto' returning chiave", [valore]);
+      if (r.rows.length === 0) throw new Error('Archivio: il segreto non è nelle tabelle (impostazioni): niente da aggiornare.');
+    },
   };
 }
 

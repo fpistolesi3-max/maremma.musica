@@ -36,6 +36,12 @@ Lettura più probabile: il valore di `MM_SEGRETO` su Vercel è **diverso** da qu
 1. Per il passaggio: nessuna. `MM_SEGRETO` non va toccata né tolta.
 2. Rischio latente, non causato dal passaggio: se un giorno `MM_SEGRETO` viene tolta o cambiata, i 4 QR validi recenti smettono di valere. Prima delle serate vere conviene scegliere un segreto definitivo, tenerlo sempre su Vercel e allineare `impostazioni.segreto` (gli ultimi QR sono quasi certamente di prova).
 
+### Allineare il segreto dal sito (nessun accesso a Vercel)
+`POST /api/admin/allinea-segreto` (solo admin; pulsante «Allinea la chiave dei QR» in **Admin → Staff → Chiave segreta dei QR**) copia il valore di `MM_SEGRETO` nel segreto del database attivo (`impostazioni.segreto` sulle tabelle, il campo della riga unica altrimenti). Senza variabile, o con il database già uguale, non scrive niente. Risponde solo `{ ok, allineato, motivo }`: il valore non compare mai, né nella risposta né nei log.
+- Dopo l'allineamento `/api/admin/verifica-archivio` e `verifica_importo()` **non vanno in errore**, ma segnalano `segreto` diverso dalla riga vecchia (`ok: false`, `differenze: ["segreto"]`, `segreto_ok: false`). **È atteso**: la riga `archivio_mvp` è ferma e conserva il segreto vecchio. Non va corretto.
+- Per lo stesso motivo il ritorno indietro (`ripristina-riga`) riscrive la riga con il segreto nuovo, che è quello giusto.
+- Se qualcuno rilancia `importa_archivio()` (solo con l'interruttore a `jsonb`) il segreto delle tabelle torna a essere quello della riga: in quel caso rilanciare l'allineamento.
+
 ## 2. Cosa gira da solo (e quando è tranquillo)
 
 | Cosa | Quando | Cosa fa |
@@ -153,7 +159,7 @@ Se non c'è più nessun admin entrato e il login non funziona: si fa B + C diret
 
 ## 6. Cose da sapere / da decidere
 - **`CRON_SECRET` mancante** (sezione 2): da chiedere all'amico prima delle serate vere.
-- **`MM_SEGRETO` ≠ segreto del database** (probabile, sezione 1): non tocca il passaggio, ma va deciso prima delle serate vere.
+- **`MM_SEGRETO` ≠ segreto del database** (probabile, sezione 1): non tocca il passaggio, ma va allineato prima delle serate vere: un clic da Admin → Staff → «Chiave segreta dei QR» (sezione 1).
 - **Registro delle email di prova:** le 20 email che stanno nella riga non si portano nelle tabelle (scelta del piano). Dopo il passaggio il registro riparte vuoto.
 - **Dopo il passaggio la riga `archivio_mvp` è ferma** ma intatta: resta come copia di sicurezza per almeno 14 giorni (piano 3.5). Poi: ripulirla dai dati personali, poi eliminarla, solo col sì dell'utente (tappa 9).
 - **Anteprime di Vercel (Preview) e sviluppo locale restano sulla riga unica** (il predefinito `tabelle` vale solo con `VERCEL_ENV=production`).
