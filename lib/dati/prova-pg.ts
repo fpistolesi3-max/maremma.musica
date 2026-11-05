@@ -17,7 +17,7 @@ export const PROGETTO_VERO = 'iowbljhcjfppjjwbumsm';
 
 const CARTELLA_MIGRAZIONI = path.join(process.cwd(), 'supabase', 'migrations');
 /** Quali migrazioni si applicano nello schema di prova (la riga unica `archivio_mvp` si crea a mano, senza toccare lo Storage). */
-export const MIGRAZIONI_GARA = ['20261104000000_schema_anagrafiche.sql', '20261105000000_schema_vendite.sql'];
+export const MIGRAZIONI_GARA = ['20261104000000_schema_anagrafiche.sql', '20261105000000_schema_vendite.sql', '20261106000000_schema_tavoli.sql'];
 
 /** Legge MM_TEST_PG_URL dall'ambiente o da `.env.test.local` (una riga `MM_TEST_PG_URL=…`). Mai stampare il valore: ha la password. */
 export function leggiUrlProva(env: Record<string, string | undefined> = process.env, cartella = process.cwd()): string | null {
@@ -66,7 +66,7 @@ export function spiegaErrore(e: unknown): unknown {
 export const nelloSchema = (sql: string, schema: string) => sql.replace(/\bpublic\./g, `${schema}.`);
 
 /** Crea lo schema di prova, ci applica le migrazioni e restituisce un Db che lavora solo lì. */
-export async function creaAmbiente(url: string, connessioni = 40): Promise<Ambiente> {
+export async function creaAmbiente(url: string, connessioni = 30): Promise<Ambiente> {
   controllaUrlProva(url);
   const locale = /@(localhost|127\.0\.0\.1|\[::1\])[:/]/i.test(url);
   // Supabase vuole SSL; il certificato non è nei CA di Node, e qui non passa nessun dato vero: si accetta.
@@ -76,7 +76,8 @@ export async function creaAmbiente(url: string, connessioni = 40): Promise<Ambie
     max: connessioni,
     connectionTimeoutMillis: 20_000,
   });
-  const schema = `prova_gara_${randomBytes(4).toString('hex')}`;
+  // Il nome porta l'ora di creazione: gli avanzi si riconoscono dall'età, e due file di prova insieme non si cancellano a vicenda.
+  const schema = `prova_gara_${Math.floor(Date.now() / 1000)}_${randomBytes(4).toString('hex')}`;
   const db: Ambiente = {
     schema,
     pool,
@@ -86,9 +87,13 @@ export async function creaAmbiente(url: string, connessioni = 40): Promise<Ambie
     },
   };
   try {
-    // Gli avanzi di giri interrotti (stesso prefisso, mai usato per altro) si tolgono prima di cominciare.
-    const { rows } = await pool.query<{ nspname: string }>("select nspname from pg_namespace where nspname like 'prova\\_gara\\_%'");
-    for (const r of rows) await pool.query(`drop schema if exists ${r.nspname} cascade`);
+    // Gli avanzi di giri interrotti (stesso prefisso, mai usato per altro, più vecchi di mezz'ora) si tolgono prima di cominciare.
+    const { rows } = await pool.query<{ nspname: string }>("select nspname from pg_namespace where nspname ~ '^prova_gara_[0-9]+_[0-9a-f]{8}$'");
+    const vecchio = Math.floor(Date.now() / 1000) - 30 * 60;
+    for (const r of rows) {
+      const quando = Number(/^prova_gara_(\d+)_/.exec(r.nspname)?.[1]);
+      if (Number.isFinite(quando) && quando < vecchio) await pool.query(`drop schema if exists ${r.nspname} cascade`);
+    }
     // Su Supabase questi ruoli ci sono già; su un Postgres semplice servono i segnaposto.
     await pool.query(`do $$ begin
       if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
