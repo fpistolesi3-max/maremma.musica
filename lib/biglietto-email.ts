@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import type { Biglietto } from './dati/pubblico';
 import type { PrenotazioneVista } from './dati/tavoli';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
-import { dataPunti, euro, giornoSett, nascita, numeroEvento, orari } from './formato';
+import { dataPunti, euro, giornoSett, numeroEvento, orari } from './formato';
 import { TESTO_MOTIVO_RIMBORSO, testoLimite } from './regole';
 import type { MotivoRimborso } from './dati/tipi';
 import { mostraCodice } from './qr-token';
@@ -26,12 +26,13 @@ export function qrPng(token: string, larghezza = 480) {
 export async function inviaBiglietto(b: Biglietto, origine: string) {
   const { iscrizione: i, evento: e } = b;
   const link = linkBiglietto(origine, i.id, i.email);
-  const alPorta = i.importo > 0 ? `${euro(i.importo)} pagati online` : 'Ingresso libero';
+  // L'importo compare una volta sola, come sulla pagina del biglietto.
+  const alPorta = i.importo > 0 ? `Pagato · ${euro(i.importo)}` : 'Ingresso libero';
   const limite = testoLimite(e);
   const senzaTel = e.senzaTelefono;
   const corpo = `
 <p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">${senzaTel
-    ? `Ci vediamo sotto cassa, ${escapeHtml(i.nome)}. Questa è una serata senza telefono: alla porta porta un documento, lo staff controlla che nome, cognome e data di nascita corrispondano.`
+    ? `Ci vediamo sotto cassa, ${escapeHtml(i.nome)}. Questa è una serata senza telefono: alla porta porta un documento, lo staff controlla che nome e cognome corrispondano.`
     : `Ci vediamo sotto cassa, ${escapeHtml(i.nome)}. Alla porta mostra questo QR con un documento.`}</p>
 <div style="background:#050505;border:1px solid #2a303b;border-radius:2px;padding:24px;margin:0 0 24px;">
   <p style="font:400 11px/14px 'Courier New',monospace;color:#a39e95;margin:0 0 8px;">${numeroEvento(e.numero)} · LISTA</p>
@@ -41,9 +42,8 @@ export async function inviaBiglietto(b: Biglietto, origine: string) {
   <p style="font:500 22px/26px 'Courier New',monospace;letter-spacing:.1em;text-align:center;margin:0 0 20px;color:#e1d7c9;">${mostraCodice(i.codice)}</p>`}
   <p style="font:400 14px/22px Arial,sans-serif;margin:0;color:#e1d7c9;">
     <span style="color:#a39e95;">Titolare</span> ${escapeHtml(`${i.nome} ${i.cognome}`)}<br>
-    <span style="color:#a39e95;">Nato/a il</span> ${nascita(i.dataNascita)}<br>
-    <span style="color:#a39e95;">Lista</span> ${escapeHtml(b.lista)}<br>
-    <span style="color:#d55b23;">${alPorta}</span>${limite ? `<br>
+    ${b.prHandle ? `<span style="color:#a39e95;">Lista</span> ${escapeHtml(b.lista)}<br>
+    ` : ''}    <span style="color:#d55b23;">${alPorta}</span>${limite ? `<br>
     <span style="color:#e1d7c9;">${escapeHtml(limite)}</span>` : ''}
   </p>
 </div>
@@ -53,7 +53,7 @@ ${limite && !senzaTel ? `<p style="font:400 14px/20px Arial,sans-serif;color:#a3
   await inviaEmail({
     a: i.email,
     oggetto: `${i.importo > 0 ? 'Prevendita pagata' : 'Sei in lista'} · ${e.nome} ${dataPunti(e.data)}`,
-    html: guscioEmail('Sei in lista.', corpo),
+    html: guscioEmail(i.importo > 0 ? 'Ci sei.' : 'Sei in lista.', corpo),
     immagini: senzaTel ? [] : [{ cid: 'qr', dataUrl: await qrPng(i.tokenQr) }],
   });
 }
