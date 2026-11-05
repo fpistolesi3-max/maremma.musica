@@ -1,7 +1,7 @@
 import 'server-only';
 import { avvisoLinkPr, valutaLinkPr } from '../link-pr';
 import { randomUUID } from 'node:crypto';
-import { leggi, modifica, segreto } from './archivio';
+import { leggi, modifica, operazioni, segreto, usaTabelle } from './archivio';
 import type { Archivio, Evento, Iscrizione, Lotto, Pr } from './tipi';
 import { creaCodice, creaTokenQr } from '../qr-token';
 import { ora } from '../formato';
@@ -64,9 +64,15 @@ export type EsitoIscrizione =
   | { ok: true; iscrizione: Iscrizione }
   | { ok: false; campo?: string; errore: string; esistente?: string };
 
-export async function creaIscrizione(input: {
+const ERRORE_DOPPIO = 'Risulti già in lista per questa serata: un solo QR a persona.';
+const ERRORE_ALTRA_EMAIL = 'C’è già una prevendita in attesa di pagamento per te con un’altra email: completala da lì o riprova tra mezz’ora.';
+const ERRORE_LISTA_PIENA = 'Lista piena: i posti sono finiti.';
+
+interface DatiIscrizione {
   slug: string; handlePr: string | null; nome: string; cognome: string; dataNascita: string; email: string; marketing: boolean; canale?: string | null; confermaCategoria?: boolean;
-}): Promise<EsitoIscrizione> {
+}
+
+export async function creaIscrizione(input: DatiIscrizione): Promise<EsitoIscrizione> {
   const d0 = await leggi();
   const evento = d0.eventi.find((x) => x.slug === input.slug && x.pubblicato);
   if (!evento) return { ok: false, errore: 'Questa serata non esiste più.' };
@@ -80,52 +86,87 @@ export async function creaIscrizione(input: {
   const pr = link.tipo === 'valido' ? link.pr : null;
   const chiave = await segreto();
 
+  if (usaTabelle()) return creaIscrizioneSuTabelle(input, evento, pr, chiave);
+
   // Controlli e scrittura nello stesso passaggio: due invii simultanei non superano i posti del lotto.
   return modifica((d): EsitoIscrizione => {
-    const doppio = giaIscritto(d.iscrizioni, evento.id, input.cognome, input.dataNascita);
-    if (doppio) {
-      return { ok: false, campo: 'cognome', errore: 'Risulti già in lista per questa serata: un solo QR a persona.', esistente: doppio.email };
-    }
-    const adesso = new Date();
-    // Dall'orario limite non si vende più, nemmeno riprendendo una richiesta ancora aperta: il QR non entrerebbe.
-    const chiusaAlle = prevenditeChiuseDa(evento, adesso);
-    if (chiusaAlle) return { ok: false, errore: `Le prevendite sono chiuse dalle ${ora(chiusaAlle)}: dopo quell’ora il QR non vale più per entrare.` };
-    // Ci ha già provato e non ha ancora pagato: riprende la stessa iscrizione (e lo stesso posto) invece di farne un'altra.
-    const k = chiaveCognome(input.cognome);
-    const sospesa = d.iscrizioni.find((i) => i.eventoId === evento.id && i.stato === 'in_attesa' && !iscrizioneScaduta(i, adesso)
-      && i.dataNascita === input.dataNascita && chiaveCognome(i.cognome) === k);
-    if (sospesa) {
-      if (sospesa.email === input.email.trim().toLowerCase()) return { ok: true, iscrizione: sospesa };
-      return { ok: false, campo: 'email', errore: 'C’è già una prevendita in attesa di pagamento per te con un’altra email: completala da lì o riprova tra mezz’ora.' };
-    }
-    const lotti = d.lotti.filter((l) => l.eventoId === evento.id);
-    const stato = statoLista(evento, lotti, usatiPerLotto(d, evento.id), { daPr: Boolean(pr), prId: pr?.id });
-    if (stato.tipo === 'piena') return { ok: false, errore: 'Lista piena: i posti sono finiti.' };
-    if (stato.tipo === 'dal') return { ok: false, errore: 'La lista non è ancora aperta.' };
-    if (stato.tipo !== 'aperta' && stato.tipo !== 'libero') return { ok: false, errore: 'La lista per questa serata è chiusa.' };
-    if (stato.lotto?.categoria && stato.lotto.confermaCategoria && !input.confermaCategoria) {
-      return { ok: false, campo: 'categoria', errore: `Questa prevendita è riservata: ${stato.lotto.categoria}. Conferma di rientrare nella categoria.` };
-    }
-    const daPagare = stato.prezzo > 0;
-    if (daPagare && !prevenditaOnlineAttiva()) return { ok: false, errore: 'La prevendita online apre a breve: riprova nei prossimi giorni.' };
-
-    const id = randomUUID();
-    const iscrizione: Iscrizione = {
-      id, eventoId: evento.id, lottoId: stato.lotto?.id ?? null, categoria: stato.lotto?.categoria ?? null, prId: pr?.id ?? null,
-      nome: input.nome.trim(), cognome: input.cognome.trim(), dataNascita: input.dataNascita,
-      email: input.email.trim().toLowerCase(),
-      tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),
-      // A pagamento: il posto è tenuto finché il cliente paga online; gratis: vale subito.
-      stato: daPagare ? 'in_attesa' : 'in_lista', metodoPagamento: null, importo: stato.prezzo, pagatoAt: null,
-      scade: daPagare ? scadenzaPrevendita(adesso, evento) : null,
-      pagamentoOnline: daPagare ? { sessione: null, pagamento: null, daRimborsare: false } : null,
-      oraCheckIn: null, porta: null, consensoPrivacyAt: adesso.toISOString(), consensoMarketing: input.marketing,
-      annullatoAt: null, createdAt: adesso.toISOString(),
-      canale: input.canale || 'diretto', consegnaId: null, origine: 'lista',
-    };
-    d.iscrizioni.push(iscrizione);
-    return { ok: true, iscrizione };
+    const v = valutaIscrizione(d, input, evento, pr, chiave);
+    if (!('nuova' in v)) return v;
+    d.iscrizioni.push(v.nuova);
+    return { ok: true, iscrizione: v.nuova };
   });
+}
+
+/**
+ * La decisione: controlli sui dati di quel momento e, se tutto va bene, l'iscrizione da creare (senza scriverla). Le regole sono le stesse
+ * con la riga unica e con le tabelle; con le tabelle il database ripete da solo i controlli che dipendono dalle gare (posti, doppioni).
+ */
+function valutaIscrizione(d: Readonly<Archivio>, input: DatiIscrizione, evento: Evento, pr: Pr | null, chiave: string): EsitoIscrizione | { nuova: Iscrizione } {
+  const doppio = giaIscritto(d.iscrizioni, evento.id, input.cognome, input.dataNascita);
+  if (doppio) {
+    return { ok: false, campo: 'cognome', errore: ERRORE_DOPPIO, esistente: doppio.email };
+  }
+  const adesso = new Date();
+  // Dall'orario limite non si vende più, nemmeno riprendendo una richiesta ancora aperta: il QR non entrerebbe.
+  const chiusaAlle = prevenditeChiuseDa(evento, adesso);
+  if (chiusaAlle) return { ok: false, errore: `Le prevendite sono chiuse dalle ${ora(chiusaAlle)}: dopo quell’ora il QR non vale più per entrare.` };
+  // Ci ha già provato e non ha ancora pagato: riprende la stessa iscrizione (e lo stesso posto) invece di farne un'altra.
+  const k = chiaveCognome(input.cognome);
+  const sospesa = d.iscrizioni.find((i) => i.eventoId === evento.id && i.stato === 'in_attesa' && !iscrizioneScaduta(i, adesso)
+    && i.dataNascita === input.dataNascita && chiaveCognome(i.cognome) === k);
+  if (sospesa) {
+    if (sospesa.email === input.email.trim().toLowerCase()) return { ok: true, iscrizione: sospesa };
+    return { ok: false, campo: 'email', errore: ERRORE_ALTRA_EMAIL };
+  }
+  const lotti = d.lotti.filter((l) => l.eventoId === evento.id);
+  const stato = statoLista(evento, lotti, usatiPerLotto(d, evento.id), { daPr: Boolean(pr), prId: pr?.id });
+  if (stato.tipo === 'piena') return { ok: false, errore: ERRORE_LISTA_PIENA };
+  if (stato.tipo === 'dal') return { ok: false, errore: 'La lista non è ancora aperta.' };
+  if (stato.tipo !== 'aperta' && stato.tipo !== 'libero') return { ok: false, errore: 'La lista per questa serata è chiusa.' };
+  if (stato.lotto?.categoria && stato.lotto.confermaCategoria && !input.confermaCategoria) {
+    return { ok: false, campo: 'categoria', errore: `Questa prevendita è riservata: ${stato.lotto.categoria}. Conferma di rientrare nella categoria.` };
+  }
+  const daPagare = stato.prezzo > 0;
+  if (daPagare && !prevenditaOnlineAttiva()) return { ok: false, errore: 'La prevendita online apre a breve: riprova nei prossimi giorni.' };
+
+  const id = randomUUID();
+  const iscrizione: Iscrizione = {
+    id, eventoId: evento.id, lottoId: stato.lotto?.id ?? null, categoria: stato.lotto?.categoria ?? null, prId: pr?.id ?? null,
+    nome: input.nome.trim(), cognome: input.cognome.trim(), dataNascita: input.dataNascita,
+    email: input.email.trim().toLowerCase(),
+    tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),
+    // A pagamento: il posto è tenuto finché il cliente paga online; gratis: vale subito.
+    stato: daPagare ? 'in_attesa' : 'in_lista', metodoPagamento: null, importo: stato.prezzo, pagatoAt: null,
+    scade: daPagare ? scadenzaPrevendita(adesso, evento) : null,
+    pagamentoOnline: daPagare ? { sessione: null, pagamento: null, daRimborsare: false } : null,
+    oraCheckIn: null, porta: null, consensoPrivacyAt: adesso.toISOString(), consensoMarketing: input.marketing,
+    annullatoAt: null, createdAt: adesso.toISOString(),
+    canale: input.canale || 'diretto', consegnaId: null, origine: 'lista',
+  };
+  return { nuova: iscrizione };
+}
+
+/** Con le tabelle: stessa decisione, poi la funzione del database fa il controllo che regge le gare (ultimo posto, stessa persona insieme). */
+async function creaIscrizioneSuTabelle(input: DatiIscrizione, evento: Evento, pr: Pr | null, chiave: string): Promise<EsitoIscrizione> {
+  const v = valutaIscrizione(await leggi(), input, evento, pr, chiave);
+  if (!('nuova' in v)) return v;
+  const i = v.nuova;
+  const esito = await operazioni().creaIscrizione({
+    id: i.id, eventoId: i.eventoId, lottoId: i.lottoId, prId: i.prId, nome: i.nome, cognome: i.cognome, dataNascita: i.dataNascita, email: i.email,
+    tokenQr: i.tokenQr, codice: i.codice, stato: i.stato as 'in_attesa' | 'in_lista', importo: i.importo, categoria: i.categoria, canale: i.canale,
+    consensoMarketing: i.consensoMarketing, scade: i.scade, pagamentoOnline: Boolean(i.pagamentoOnline), adesso: i.createdAt,
+  });
+  switch (esito.esito) {
+    case 'creata': return { ok: true, iscrizione: i };
+    case 'ripresa': {
+      // Una richiesta uguale è passata un istante prima: si riprende quella.
+      const gia = (await leggi()).iscrizioni.find((x) => x.id === esito.id);
+      return gia ? { ok: true, iscrizione: gia } : { ok: false, errore: 'Riprova tra un attimo.' };
+    }
+    case 'sospesa_altra_email': return { ok: false, campo: 'email', errore: ERRORE_ALTRA_EMAIL };
+    case 'doppione': return { ok: false, campo: 'cognome', errore: ERRORE_DOPPIO, esistente: esito.email ?? undefined };
+    case 'lotto_pieno': return { ok: false, errore: ERRORE_LISTA_PIENA };
+  }
 }
 
 export interface Biglietto {

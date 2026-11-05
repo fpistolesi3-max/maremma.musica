@@ -1,4 +1,5 @@
 import type { StoreTabelle } from './archivio-tabelle';
+import type { Rpc } from './operazioni';
 import type { LeggiTutto } from './tabelle';
 import { uno, type Db } from './prova-vendite';
 
@@ -16,5 +17,15 @@ export function storeDaDb(db: Db): StoreTabelle {
         throw e;
       }
     },
+  };
+}
+
+/** Il "telefono" verso le funzioni SQL (lib/dati/operazioni.ts) sopra un database di prova: argomenti con nome, oggetti e liste come JSON. */
+export function rpcDaDb(db: Db): Rpc {
+  return async (nome, args) => {
+    const chiavi = Object.keys(args);
+    const sql = `select public.${nome}(${chiavi.map((k, i) => `${k} => $${i + 1}`).join(', ')}) as r`;
+    const valori = chiavi.map((k) => (args[k] !== null && typeof args[k] === 'object' ? JSON.stringify(args[k]) : args[k]));
+    return (await uno(db, sql, valori)).r;
   };
 }

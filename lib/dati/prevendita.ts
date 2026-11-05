@@ -1,9 +1,9 @@
 import 'server-only';
-import { leggi, modifica } from './archivio';
+import { leggi, modifica, operazioni, usaTabelle } from './archivio';
 import type { Archivio, MotivoRimborso } from './tipi';
 import { bigliettoDi, type Biglietto } from './pubblico';
 import { anniCompiuti, dataIso } from '../formato';
-import { eventoPassato, giaIscritto, importoCorretto, inCentesimi, iscrizioneScaduta, motivoPagamentoIscrizioneNonValido, tienePosto, type PagamentoRicevuto } from '../regole';
+import { eventoPassato, giaIscritto, importoCorretto, inCentesimi, iscrizioneScaduta, limiteIngresso, motivoPagamentoIscrizioneNonValido, prevenditeChiuseDa, tienePosto, type PagamentoRicevuto } from '../regole';
 
 // Pagamento online della prevendita in lista: stesso giro dei tavoli (lib/dati/tavoli.ts).
 // L'iscrizione nasce "in attesa" con il posto tenuto per pochi minuti; vale (e il QR si vede) solo a pagamento ricevuto.
@@ -15,7 +15,9 @@ function faiScadere(d: Archivio, adesso = new Date()) {
 /** Le iscrizioni non pagate in tempo lasciano il posto (il conto dei lotti lo fa già da solo, qui si segna lo stato). */
 export async function applicaScadenzeIscrizioni() {
   const d = await leggi();
-  if (d.iscrizioni.some((i) => iscrizioneScaduta(i))) await modifica((a) => { faiScadere(a); });
+  if (!d.iscrizioni.some((i) => iscrizioneScaduta(i))) return;
+  if (usaTabelle()) { await operazioni().scadenzeIscrizioni(new Date().toISOString()); return; }
+  await modifica((a) => { faiScadere(a); });
 }
 
 /** Giorni dopo la serata oltre i quali i dati personali di ogni iscrizione si cancellano. */
@@ -34,6 +36,15 @@ export async function anonimizzaIscrizioniVecchie(adesso = new Date()): Promise<
     return d.iscrizioni.filter((i) => !i.anonimizzata && scadute.has(i.eventoId));
   };
   if (!da(await leggi()).length) return 0;
+  if (usaTabelle()) {
+    // L'età alla serata si calcola prima di cancellare la data di nascita; il database cancella e segna una volta sola.
+    const d = await leggi();
+    const dati = da(d).map((i) => {
+      const e = d.eventi.find((x) => x.id === i.eventoId)!;
+      return { id: i.id, eta: i.dataNascita ? anniCompiuti(i.dataNascita, dataIso(e.data)) : null };
+    });
+    return operazioni().anonimizzaIscrizioni(dati, adesso.toISOString());
+  }
   return modifica((d) => {
     const lista = da(d);
     for (const i of lista) {
@@ -58,6 +69,7 @@ export async function iscrizioneDaPagare(id: string, email: string | null | unde
 
 /** Ricorda l'ultima pagina di pagamento aperta: al ritorno del cliente si controlla quella. */
 export async function salvaSessioneIscrizione(id: string, sessione: string) {
+  if (usaTabelle()) { await operazioni().salvaSessioneIscrizione(id, sessione); return; }
   await modifica((d) => {
     const i = d.iscrizioni.find((x) => x.id === id);
     if (i?.pagamentoOnline && i.stato === 'in_attesa') i.pagamentoOnline.sessione = sessione;
@@ -78,6 +90,7 @@ export type EsitoPagamentoIscrizione =
  * Un pagamento in più su un ordine che ne ha già uno non sovrascrive quello vero: si registra a parte, da rimborsare.
  */
 export async function confermaPagamentoIscrizione(id: string, pagamento: string, adesso = new Date(), ricevuto?: PagamentoRicevuto | null): Promise<EsitoPagamentoIscrizione> {
+  if (usaTabelle()) return confermaPagamentoSuTabelle(id, pagamento, adesso, ricevuto);
   return modifica((d): EsitoPagamentoIscrizione => {
     const i = d.iscrizioni.find((x) => x.id === id);
     if (!i) return { esito: 'sconosciuta' };
@@ -112,6 +125,29 @@ export async function confermaPagamentoIscrizione(id: string, pagamento: string,
   });
 }
 
+/**
+ * Con le tabelle: il codice decide quello che dipende dall'orario e dall'importo (serata chiusa, importo giusto), poi la funzione del database
+ * registra il pagamento una volta sola e decide le ragioni che dipendono dalle gare (ordine chiuso, tipo pieno, persona già in lista).
+ */
+async function confermaPagamentoSuTabelle(id: string, pagamento: string, adesso: Date, ricevuto?: PagamentoRicevuto | null): Promise<EsitoPagamentoIscrizione> {
+  const d = await leggi();
+  const i = d.iscrizioni.find((x) => x.id === id);
+  const evento = i && d.eventi.find((e) => e.id === i.eventoId);
+  if (!i || !evento) return { esito: 'sconosciuta' };
+  // Con l'orario limite la prevendita vale fino al limite (anche a serata iniziata); senza limite (ingresso libero) fino all'apertura.
+  const serataChiusa = limiteIngresso(evento) ? Boolean(prevenditeChiuseDa(evento, adesso)) : new Date(evento.data).getTime() <= adesso.getTime();
+  const r = await operazioni().confermaPagamentoIscrizione({
+    id, pagamento, centesimi: ricevuto?.centesimi ?? inCentesimi(i.importo), valuta: ricevuto?.valuta ?? 'eur',
+    importoOk: importoCorretto(i.importo, ricevuto), serataChiusa, adesso: adesso.toISOString(),
+  });
+  if (r.esito === 'sconosciuta' || r.esito === 'gia') return { esito: r.esito };
+  // Il biglietto si ricompone dopo la scrittura, dai dati veri.
+  const dopo = await leggi();
+  const biglietto = bigliettoDi(dopo, dopo.iscrizioni.find((x) => x.id === id)!)!;
+  if (r.esito === 'confermata') return { esito: 'confermata', biglietto };
+  return { esito: 'da_rimborsare', biglietto, motivo: r.motivo, importo: r.principale ? i.importo : r.centesimi / 100 };
+}
+
 /** Pagine di pagamento aperte senza un pagamento registrato, degli ultimi `giorni`: il cron chiede a Stripe se sono state pagate. */
 export async function iscrizioniDaVerificare(giorni = 3, adesso = new Date()): Promise<{ id: string; sessione: string }[]> {
   const da = adesso.getTime() - giorni * 86_400_000;
@@ -123,6 +159,7 @@ export async function iscrizioniDaVerificare(giorni = 3, adesso = new Date()): P
 
 /** Il cliente lascia il posto prima di pagare (dalla pagina del biglietto): torna subito libero per gli altri. */
 export async function lasciaPosto(id: string, email: string): Promise<boolean> {
+  if (usaTabelle()) return operazioni().lasciaPosto(id, email, new Date().toISOString());
   return modifica((d) => {
     const i = d.iscrizioni.find((x) => x.id === id);
     if (!i || i.email !== email.trim().toLowerCase() || i.stato !== 'in_attesa') return false;
