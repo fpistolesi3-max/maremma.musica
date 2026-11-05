@@ -97,7 +97,7 @@ Questo controllo va fatto **adesso, prima di qualsiasi cosa che scriva**: dopo i
 ### 4.4 L'interruttore: unire la PR (regia, col sì dell'utente)
 1. Rifare (4.2-d): `uguali` deve essere ancora `true`. Se no, rifare la copia.
 2. Unire la PR in `main`. Vercel costruisce e pubblica la produzione da solo (2-3 minuti).
-3. Aspettare il deploy: ripetere ogni 15 secondi `curl -s https://maremma-musica.vercel.app/api/salute` finché `MM_ARCHIVIO` dice `tabelle (predefinito della produzione…)`. Finché dice ancora "non impostata" il sito è ancora sulla riga.
+3. Aspettare il deploy: ripetere ogni 15 secondi `curl -s https://maremma-musica.vercel.app/api/salute` finché `MM_ARCHIVIO` dice `tabelle (predefinito della produzione…)`. Finché dice ancora "non impostata" il sito è ancora sulla riga. Se dopo 5 minuti dice ancora "predefinito fuori dalla produzione", il deploy è pronto ma Vercel non espone `VERCEL_ENV` al sito (impostazione del progetto "Automatically expose System Environment Variables"): il sito è rimasto sulla riga, senza danni; si accende allora impostando `MM_ARCHIVIO=tabelle` su Vercel (lo fa l'amico) e rifacendo il deploy.
 
 ### 4.5 Subito dopo che il deploy è online (SQL, regia)
 ```sql
@@ -141,7 +141,7 @@ Atteso `{ ok: true, versione: N, serate: 4 }`: la riga unica è stata riscritta 
 
 **B. Tornare alla riga unica** (la A va fatta *prima*, mentre il sito è ancora sulle tabelle):
 1. **Più veloce, se l'amico è raggiungibile:** su Vercel, Deployments → il deployment di produzione **precedente** al passaggio → **Instant Rollback**. Il vecchio deployment ha il vecchio codice (riga unica). Poi va comunque annullata la PR (punto 2), altrimenti il prossimo deploy riporta le tabelle.
-2. **Da codice, senza Vercel:** la regia apre una PR di annullamento (`git revert` del commit di unione della PR di passaggio) e la unisce col sì dell'utente; il deploy dura 2-3 minuti. In alternativa all'annullamento, l'amico può impostare `MM_ARCHIVIO=riga` su Vercel e fare Redeploy (la variabile vince sul predefinito).
+2. **Da codice, senza Vercel:** la regia apre una PR di annullamento (`git revert` del commit di unione della PR di passaggio) e la unisce col sì dell'utente; il deploy dura 2-3 minuti. In alternativa all'annullamento, l'amico può impostare `MM_ARCHIVIO=riga` su Vercel e fare Redeploy (la variabile vince sul predefinito; il valore deve essere scritto `riga`: una variabile lasciata vuota conta come non impostata e in produzione resterebbero le tabelle).
 
 **C. Rimettere il flag** (altrimenti la prossima copia viene rifiutata):
 ```sql
