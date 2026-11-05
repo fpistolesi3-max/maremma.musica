@@ -4,7 +4,7 @@ import type { MotivoRimborso } from './tipi';
 
 // Le operazioni sulle vendite che il database garantisce da solo (supabase/migrations/20261105…, 20261106…, 20261109…): posti del tipo,
 // persona già in lista, pagamento registrato una volta sola, rimborso in due fasi, annulla / ripristina, cambio di nominativo.
-// Il codice dell'app le usa SOLO con MM_ARCHIVIO=tabelle (spento di default): vedi lib/dati/archivio.ts e PIANO-SCHEMA.md.
+// Il codice dell'app le usa SOLO quando l'archivio sta nelle tabelle (produzione, o MM_ARCHIVIO=tabelle): vedi lib/dati/archivio.ts e PIANO-SCHEMA.md.
 // Qui sta solo il "telefono" verso le funzioni SQL: le regole di orario, età e permessi restano in TypeScript (lib/regole.ts, lib/dati/*).
 
 /** Chiama una funzione SQL con argomenti con nome (`p_id`, `p_adesso`…) e restituisce il suo risultato. I test ne danno una su PGlite. */

@@ -71,6 +71,6 @@ export async function ripristinaRiga(s: Sessione) {
   soloAdmin(s);
   if (!stores.riga || !stores.tabelle) throw new Error('Il ripristino serve solo online, con Supabase configurato.');
   // Con l'interruttore spento il sito usa già la riga: riscriverla con le tabelle (ferme) cancellerebbe le scritture più recenti.
-  if (modalitaCorrente() !== 'tabelle') throw new Error('Il ripristino ha senso solo con MM_ARCHIVIO=tabelle: ora il sito usa la riga unica.');
+  if (modalitaCorrente() !== 'tabelle') throw new Error('Il ripristino ha senso solo quando il sito usa le tabelle: ora usa la riga unica.');
   return ripristinaRigaCon(stores.riga, stores.tabelle, normalizzaArchivio);
 }
