@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { bigliettoPubblico } from '@/lib/dati/pubblico';
 import { qrMostrabile } from '@/lib/regole';
 import { qrPng } from '@/lib/biglietto-email';
-import { euro, giornoSett, dataPunti, nascita, numeroEvento, orari, parti } from '@/lib/formato';
+import { euro, giornoSett, dataPunti, numeroEvento, orari, parti } from '@/lib/formato';
 import { mostraCodice } from '@/lib/qr-token';
 import { luogoTesto } from '@/lib/luogo';
 
@@ -64,19 +64,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const cod = mostraCodice(i.codice);
   p.drawText(cod, { x: (W - mono.widthOfTextAtSize(cod, 14)) / 2, y, size: 14, font: mono, color: OSSO });
 
-  y -= 26;
+  y -= 11;
+  const nota = 'CODICE SE IL QR NON SI LEGGE';
+  p.drawText(nota, { x: (W - mono.widthOfTextAtSize(nota, 6)) / 2, y, size: 6, font: mono, color: OSSO2 });
+
+  // Solo il nome del titolare: la data di nascita sul biglietto non c'è. "Lista" solo per chi arriva da un PR.
+  y -= 22;
   p.drawText('TITOLARE', { x: 30, y, size: 6.5, font: bold, color: OSSO2 });
+  if (b.prHandle) p.drawText('LISTA', { x: 170, y, size: 6.5, font: bold, color: OSSO2 });
   y -= 12;
-  p.drawText(pulito(`${i.nome} ${i.cognome}`).slice(0, 40), { x: 30, y, size: 11, font: reg, color: OSSO });
-  y -= 18;
-  p.drawText('NASCITA', { x: 30, y, size: 6.5, font: bold, color: OSSO2 });
-  p.drawText('LISTA', { x: 150, y, size: 6.5, font: bold, color: OSSO2 });
-  y -= 12;
-  p.drawText(nascita(i.dataNascita), { x: 30, y, size: 10, font: reg, color: OSSO });
-  p.drawText(pulito(b.lista).slice(0, 22), { x: 150, y, size: 10, font: reg, color: OSSO });
+  p.drawText(pulito(`${i.nome} ${i.cognome}`).slice(0, b.prHandle ? 24 : 40), { x: 30, y, size: 11, font: reg, color: OSSO });
+  if (b.prHandle) p.drawText(pulito(b.lista).slice(0, 16), { x: 170, y, size: 11, font: reg, color: OSSO });
 
   const piede = i.stato === 'annullato' || i.stato === 'rimborsato' ? 'NON VALIDO'
-    : i.importo > 0 ? `${euro(i.importo)} PAGATI ONLINE` : 'INGRESSO LIBERO';
+    : i.importo > 0 ? `PAGATO · ${euro(i.importo)}` : 'INGRESSO LIBERO';
   p.drawLine({ start: { x: 16, y: 58 }, end: { x: W - 16, y: 58 }, thickness: 0.8, color: LINEA });
   p.drawText(pulito(piede), { x: 30, y: 32, size: 14, font: bold, color: ARANCIO });
 
