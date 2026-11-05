@@ -1,5 +1,5 @@
 import 'server-only';
-import { leggi, modifica, segreto } from './archivio';
+import { leggi, modifica, operazioni, segreto, usaTabelle } from './archivio';
 import type { Archivio, Iscrizione, PrenotazioneTavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { leggiTokenQr, verificaTokenQr } from '../qr-token';
@@ -113,6 +113,7 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
   }
   // L'orario di un ingresso registrato offline resta quello vero, ma mai nel futuro.
   const ora = new Date(Math.min(new Date(o.ora).getTime() || Date.now(), Date.now())).toISOString();
+  if (usaTabelle()) return checkInSuTabelle(eventoId, chiave, o, rif, ora);
   return modifica((d) => {
     const elenco = d.iscrizioni.filter((i) => i.eventoId === eventoId);
     const v = trovaVoce(vociEvento(d, eventoId), chiave);
@@ -147,6 +148,7 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
 export async function rifiutaIngresso(s: Sessione, eventoId: string, chiave: string, o: { porta: string; ora: string }): Promise<EsitoPorta> {
   soloStaff(s);
   const ora = new Date(Math.min(new Date(o.ora).getTime() || Date.now(), Date.now())).toISOString();
+  if (usaTabelle()) return rifiutaSuTabelle(s, eventoId, chiave, o, ora);
   return modifica((d): EsitoPorta => {
     const v = trovaVoce(vociEvento(d, eventoId), chiave);
     const i = v && !v.tavolo ? d.iscrizioni.find((x) => x.id === v.id && x.eventoId === eventoId) : undefined;
@@ -167,4 +169,50 @@ export async function segnaPorta(nome: string, eventoId: string) {
     if (p) Object.assign(p, { ultimoSync, ingressi });
     else d.porte.push({ nome, eventoId, ultimoSync, ingressi });
   });
+}
+
+// ------------------------------------------------------------------ con le tabelle (MM_ARCHIVIO=tabelle)
+
+type Azione = { tipo: 'tavolo'; id: string; rif: string } | { tipo: 'iscrizione'; id: string } | null;
+
+/** La decisione sui dati di quel momento (stesse regole della riga unica) e, se la persona entra, cosa scrivere. */
+function decidi(d: Readonly<Archivio>, eventoId: string, chiave: string, o: OpzioniIngresso, rif: string | undefined, ora: string): { esito: EsitoPorta; azione: Azione } {
+  const v = trovaVoce(vociEvento(d, eventoId), chiave);
+  if (!v) return { esito: { esito: 'non_valido', motivo: 'Non è in lista per questa serata' }, azione: null };
+  if (v.tavolo) {
+    const p = d.prenotazioni.find((x) => x.id === v.id)!;
+    // Sincronizzazione ripetuta dello stesso passaggio: è già contato, non entra un'altra persona.
+    const gia = rif ? p.ingressi.find((x) => x.rif === rif) : undefined;
+    if (gia) return { esito: { esito: 'entrato', voce: v, incassato: 0, ora: gia.ora, primaPagato: true }, azione: null };
+    const r = decidiIngresso(v, { ...o, ora });
+    return { esito: r.esito, azione: r.aggiornata ? { tipo: 'tavolo', id: p.id, rif: rif ?? randomUUID() } : null };
+  }
+  // Serata senza telefono e orario limite: li decide il server, il telefono non può saltare il controllo del documento né il limite.
+  const evento = d.eventi.find((e) => e.id === eventoId);
+  const { esito, aggiornata } = decidiIngresso(v, { ...o, ora, documento: evento?.senzaTelefono === true, limite: evento ? limiteIngresso(evento) : null });
+  return { esito, azione: aggiornata ? { tipo: 'iscrizione', id: v.id } : null };
+}
+
+/** La decisione resta qui; "una volta sola" lo garantisce il database. Se qualcuno è arrivato prima si ridecide sui dati nuovi (già entrato, tavolo completo…). */
+async function checkInSuTabelle(eventoId: string, chiave: string, o: OpzioniIngresso, rif: string | undefined, ora: string): Promise<EsitoPorta> {
+  const x = decidi(await leggi(), eventoId, chiave, o, rif, ora);
+  if (!x.azione) return x.esito;
+  const ok = x.azione.tipo === 'tavolo'
+    ? (await operazioni().ingressoTavolo({ id: x.azione.id, rif: x.azione.rif, ora, porta: o.porta, adesso: new Date().toISOString() })).esito === 'entrato'
+    : (await operazioni().segnaIngresso({ id: x.azione.id, eventoId, ora, porta: o.porta })).esito === 'entrato';
+  if (ok) return x.esito;
+  return decidi(await leggi(), eventoId, chiave, o, rif, ora).esito;
+}
+
+async function rifiutaSuTabelle(s: Sessione, eventoId: string, chiave: string, o: { porta: string; ora: string }, ora: string): Promise<EsitoPorta> {
+  const d = await leggi();
+  const v = trovaVoce(vociEvento(d, eventoId), chiave);
+  const i = v && !v.tavolo ? d.iscrizioni.find((x) => x.id === v.id && x.eventoId === eventoId) : undefined;
+  if (!v || !i) return { esito: 'non_valido', motivo: 'Non è in lista per questa serata' };
+  if (i.stato === 'entrato') return { esito: 'gia_entrato', voce: voce(d, i) };
+  const r = await operazioni().rifiutaIngresso({ id: i.id, eventoId, ora, porta: o.porta, da: s.utente.email });
+  const dopo = await leggi();
+  const i2 = dopo.iscrizioni.find((x) => x.id === i.id);
+  if (r === 'non_trovata' || !i2) return { esito: 'non_valido', motivo: 'Non è in lista per questa serata' };
+  return r === 'rifiutato' ? { esito: 'rifiutato', voce: voce(dopo, i2) } : { esito: 'gia_entrato', voce: voce(dopo, i2) };
 }

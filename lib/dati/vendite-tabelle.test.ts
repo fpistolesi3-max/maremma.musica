@@ -20,11 +20,16 @@ type Mod = {
   prevendita: typeof import('./prevendita');
   rimborsi: typeof import('./rimborsi');
   admin: typeof import('./admin');
+  tavoli: typeof import('./tavoli');
+  porta: typeof import('./porta');
+  posta: typeof import('../posta');
   prove: typeof import('./prova-db');
   store: typeof import('./prova-store');
   tabelle: typeof import('./tabelle');
 };
 let m: Mod;
+/** I dati di partenza (quelli del seed), per far ripartire da capo la riga unica fra una storia e l'altra. */
+let inizio0: import('./tipi').Archivio;
 
 before(async () => {
   m = {
@@ -33,10 +38,14 @@ before(async () => {
     prevendita: await import('./prevendita'),
     rimborsi: await import('./rimborsi'),
     admin: await import('./admin'),
+    tavoli: await import('./tavoli'),
+    porta: await import('./porta'),
+    posta: await import('../posta'),
     prove: await import('./prova-db'),
     store: await import('./prova-store'),
     tabelle: await import('./tabelle'),
   };
+  inizio0 = structuredClone(await m.archivio.leggi()) as import('./tipi').Archivio;
 });
 after(() => { m.archivio.usaTabelleDiProva(null); rmSync(cartella, { recursive: true, force: true }); });
 
@@ -204,7 +213,7 @@ async function storia(): Promise<Esito> {
 
 test('le vendite sulle tabelle fanno quello che fanno sulla riga unica: stessi esiti, stessi errori, stessi dati', async () => {
   // Stessi dati di partenza per tutte e due: quelli che il file ha creato.
-  const inizio = structuredClone(await m.archivio.leggi()) as import('./tipi').Archivio;
+  const inizio = structuredClone(inizio0);
   const sulla = await storia();
 
   const db = await m.prove.creaDb();
@@ -250,6 +259,206 @@ test('le vendite sulle tabelle fanno quello che fanno sulla riga unica: stessi e
     // Le tabelle sono coerenti dopo tutta la storia: nessun posto occupato in più, un pagamento principale per ordine al massimo.
     const r = await db.query<{ n: string }>("select count(*)::text as n from (select iscrizione_id from public.pagamenti where ruolo = 'principale' and iscrizione_id is not null group by 1 having count(*) > 1) x");
     assert.equal(r.rows[0].n, '0');
+  } finally {
+    m.archivio.usaTabelleDiProva(null);
+    await db.close();
+  }
+});
+
+// ------------------------------------------------------------------ tavoli, porta, accessi, email
+
+async function storiaTavoliPorta(): Promise<Esito> {
+  const { tavoli: tav, porta, admin, archivio, posta, prevendita: pre, rimborsi: rim } = m;
+  const out: Esito = {};
+  const lettura = () => archivio.leggi();
+  const d0 = await lettura();
+  const sess = (email: string) => { const utente = d0.utenti.find((u) => u.email === email)!; return { utente, pr: utente.prId ? d0.pr.find((p) => p.id === utente.prId)! : null }; };
+  const sAdmin = sess('admin@maremmamusica.test'); const sStaff = sess('porta@maremmamusica.test'); const sPr = sess('test-pr@maremmamusica.test'); const sPr2 = sess('zarro@maremmamusica.test');
+  const ev = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const pren = async (id: string) => (await lettura()).prenotazioni.find((p) => p.id === id)!;
+  const vistaDi = (v: Awaited<ReturnType<typeof tav.annullaPrenotazione>>) => v && ({ stato: v.prenotazione.stato, tavolo: v.tavolo.nome, persone: v.prenotazione.persone, chiusaDa: v.prenotazione.chiusaDa, avviso: v.prenotazione.avvisoChiusuraAt !== null });
+  const esitoPren = (r: Awaited<ReturnType<typeof tav.prenotaTavolo>>) => ('ok' in r && r.ok ? { ok: true, stato: r.prenotazione.stato, persone: r.prenotazione.persone, spesa: r.prenotazione.spesaMinima, inseritaDa: r.prenotazione.inseritaDa, pr: r.prenotazione.prId !== null } : { ok: false, campo: (r as { campo?: string }).campo ?? null, errore: (r as { errore: string }).errore });
+  const idDi = (r: Awaited<ReturnType<typeof tav.prenotaTavolo>>) => ('ok' in r && r.ok ? r.prenotazione.id : '');
+
+  // ---- le anagrafiche che servono (tavoli) salvate dall'admin
+  const base = { eventoId: ev.id, zona: 'Pista', posti: 4 as number | null, spesaMinima: 150, stato: 'libero' as const, nota: null, visibileDaPr: true, prAbilitati: null, ordine: 0 };
+  for (const [nome, extra] of [['T1', {}], ['T2', { posti: 6, spesaMinima: 200, ordine: 1 }], ['T3', { posti: 2, spesaMinima: 90, visibileDaPr: false, ordine: 2 }], ['T4', { posti: 8, spesaMinima: 400, ordine: 3 }], ['T5', { stato: 'non_in_vendita' as never, ordine: 4 }],
+    ['T6', { posti: 2, spesaMinima: 90, visibileDaPr: false, ordine: 5 }], ['T7', { posti: 4, ordine: 6 }], ['T8', { posti: 8, spesaMinima: 300, ordine: 7 }], ['T9', { posti: 4, ordine: 8 }]] as const) {
+    out[`salva${nome}`] = await prova(() => admin.salvaTavolo(sAdmin, { ...base, nome, ...extra }));
+  }
+  const tavoli = (await lettura()).tavoli.filter((t) => t.eventoId === ev.id);
+  const T = (nome: string) => tavoli.find((t) => t.nome === nome)!.id;
+  out.elencoPubblico = await prova(async () => (await tav.tavoliPubblici('halloween-party'))!.tavoli.map((t) => `${t.nome}:${t.libero}`).sort());
+
+  // ---- richieste
+  const cl = (n: number, o: Record<string, unknown> = {}) => ({ tavoloId: T('T1'), nome: `Cli${n}`, cognome: `Tavolo${n}`, email: `cli${n}@esempio.it`, telefono: `+39 333 10000${n}0`, persone: 4, ...o });
+  const r1 = await prova(() => tav.prenotaTavolo(cl(1), null));
+  out.richiesta1 = 'errore' in r1 ? r1 : esitoPren(r1.v);
+  const id1 = 'v' in r1 ? idDi(r1.v) : '';
+  // Il primo cliente paga subito: da qui in poi la sua email e il suo telefono tengono un tavolo vero.
+  const ok = async (id: string, pagamento: string, ricevuto?: { centesimi: number; valuta: string }) => {
+    const r = await prova(() => tav.confermaPagamentoOnline(id, pagamento, new Date(), ricevuto));
+    return 'errore' in r ? r : { esito: r.v.esito, stato: 'vista' in r.v ? r.v.vista.prenotazione.stato : null, motivo: 'motivo' in r.v ? r.v.motivo : null, importo: 'importo' in r.v ? r.v.importo : null };
+  };
+  out.paga1 = await ok(id1, 'pi_t1');
+  out.paga1Ripetuto = await ok(id1, 'pi_t1');
+  out.paga1Secondo = await ok(id1, 'pi_t1b');
+  const errori = async (nome: string, dati: ReturnType<typeof cl>, handle: string | null = null) => { const r = await prova(() => tav.prenotaTavolo(dati, handle)); out[nome] = 'errore' in r ? r : esitoPren(r.v); };
+  await errori('stessoTavolo', cl(2));
+  await errori('troppiPerIlTavolo', cl(3, { tavoloId: T('T2'), persone: 9 }));
+  await errori('stessaEmail', cl(1, { tavoloId: T('T2'), telefono: '+39 340 5550000', nome: 'Altro' }));
+  await errori('stessoTelefono', cl(4, { tavoloId: T('T2'), telefono: '333-10000 10' }));
+  await errori('nonInVendita', cl(5, { tavoloId: T('T5') }));
+  await errori('tavoloSconosciuto', cl(6, { tavoloId: '00000000-0000-4000-8000-000000000000' }));
+  await errori('personeNonValide', cl(7, { tavoloId: T('T2'), persone: 0 }));
+  await errori('emailBrutta', cl(8, { tavoloId: T('T2'), email: 'brutta' }));
+  await errori('conLinkDelPr', cl(9, { tavoloId: T('T4') }), 'test-pr');
+  const prDi4 = await prova(async () => (await pren(idDi((await tav.prenotaTavolo(cl(10, { tavoloId: T('T4') }), null)) as never))).prId);
+  // un cliente che cambia idea: la richiesta lasciata a metà si chiude e si riparte (stessa email, altro tavolo)
+  const rr = await prova(() => tav.prenotaTavolo(cl(11, { tavoloId: T('T2') }), null));
+  const idR = 'v' in rr ? idDi(rr.v) : '';
+  const rr2 = await prova(() => tav.prenotaTavolo(cl(11, { tavoloId: T('T3'), persone: 2 }), null));
+  out.cambiaIdea = { seconda: 'errore' in rr2 ? rr2 : esitoPren(rr2.v), vecchia: (await pren(idR)).stato, avviso: (await pren(idR)).avvisoChiusuraAt !== null };
+  out.richiestaDelPr = await prova(async () => esitoPren(await tav.prPrenotaTavolo(sPr, cl(12, { tavoloId: T('T2') }))));
+  out.prSuTavoloNonSuo = await prova(async () => esitoPren(await tav.prPrenotaTavolo(sPr, cl(13, { tavoloId: T('T3') }))));
+  out.prDiUnAltro = await prova(() => tav.prPrenotaTavolo(sPr2, { ...cl(14, { tavoloId: T('T2') }) }).then(esitoPren));
+  out.richiestaDellaCrew = await prova(async () => esitoPren(await tav.adminPrenotaTavolo(sAdmin, cl(15, { tavoloId: T('T6'), persone: 2 }))));
+  out.prenotaDaStaff = await prova(() => tav.adminPrenotaTavolo(sStaff, cl(16)));
+  const idPr = (await lettura()).prenotazioni.find((p) => p.email === 'cli12@esempio.it')?.id ?? '';
+  const idCrew = (await lettura()).prenotazioni.find((p) => p.email === 'cli15@esempio.it')?.id ?? '';
+  out.stati1 = (await lettura()).prenotazioni.map((p) => `${p.cognome}:${p.stato}:${p.inseritaDa}`).sort();
+
+  // ---- pagamenti
+  out.pagaImportoSbagliato = await ok(idPr, 'pi_pr1', { centesimi: 100, valuta: 'eur' });
+  out.pagaImportoGiusto = await ok(idPr, 'pi_pr2', { centesimi: 20000, valuta: 'EUR' });
+  out.pagaSconosciuta = await ok('00000000-0000-4000-8000-000000000000', 'pi_x');
+  out.dopoIPagamenti = (await lettura()).tavoli.filter((t) => t.eventoId === ev.id).map((t) => `${t.nome}:${t.stato}`).sort();
+
+  // ---- annullare e lasciare
+  out.annullaDellaCrew = await prova(async () => vistaDi(await tav.annullaPrenotazione(sAdmin, idCrew)));
+  out.annullaDiNuovo = await prova(async () => vistaDi(await tav.annullaPrenotazione(sAdmin, idCrew)));
+  out.annullaUnaPagata = await prova(() => tav.annullaPrenotazione(sAdmin, id1));
+  out.annullaSconosciuta = await prova(() => tav.annullaPrenotazione(sAdmin, '00000000-0000-4000-8000-000000000000'));
+  out.annullaDaStaff = await prova(() => tav.annullaPrenotazione(sStaff, id1));
+  const rl = await prova(() => tav.prenotaTavolo(cl(17, { tavoloId: T('T7'), persone: 2 }), null));
+  const idL = 'v' in rl ? idDi(rl.v) : '';
+  out.lasciaEmailSbagliata = await prova(async () => vistaDi(await tav.lasciaTavolo(idL, 'sbagliata@esempio.it')));
+  out.lascia = await prova(async () => vistaDi(await tav.lasciaTavolo(idL, ' CLI17@esempio.it ')));
+  out.lasciaDiNuovo = await prova(async () => vistaDi(await tav.lasciaTavolo(idL, 'cli17@esempio.it')));
+  out.annullaDelPrSuQuellaDiUnAltro = await prova(() => tav.annullaPrenotazione(sPr2, idPr));
+  const sessioneT = await prova(async () => { await tav.salvaSessionePagamento(idR, 'cs_nuova'); return (await pren(idR)).pagamentoOnline?.sessione; });
+  out.sessioneSuChiusa = sessioneT;
+
+  // ---- rimborso di un tavolo
+  const bers = (id: string, pagamento?: string) => ({ tipo: 'tavolo' as const, id, pagamento: pagamento ?? null });
+  const av = await prova(() => rim.avviaRimborso(sAdmin, bers(id1)));
+  out.rimborsoAvvia = 'errore' in av ? av : { esito: av.v.esito, importo: 'importo' in av.v ? av.v.importo : null };
+  const co = await prova(() => rim.concludiRimborso(sAdmin, bers(id1)));
+  out.rimborsoConcludi = 'errore' in co ? co : co.v === null ? null : { tipo: co.v.tipo, stato: co.v.tipo === 'tavolo' ? co.v.vista.prenotazione.stato : null };
+  out.rimborsoConcludiDiNuovo = await prova(() => rim.concludiRimborso(sAdmin, bers(id1)));
+  out.tavoloLiberoDopoIlRimborso = await prova(async () => (await lettura()).tavoli.find((t) => t.id === T('T1'))!.stato);
+
+  // ---- scadenze, avvisi, promemoria (il tempo passa)
+  const rp = await prova(() => tav.prPrenotaTavolo(sPr, cl(18, { tavoloId: T('T8'), persone: 8 })));
+  out.richiestaDelPr2 = 'errore' in rp ? rp : esitoPren(rp.v);
+  const rc = await prova(() => tav.prenotaTavolo(cl(19, { tavoloId: T('T9') }), null));
+  mock.timers.setTime(new Date(ADESSO_TEST.getTime() + 4 * 3_600_000).getTime()); // quattro ore dopo: il cliente è scaduto, la richiesta del PR (24 ore) no
+  out.scadenze = await prova(async () => { await tav.applicaScadenze(); return (await lettura()).prenotazioni.filter((p) => p.stato === 'scaduta').map((p) => p.cognome).sort(); });
+  const avv = await prova(() => tav.chiuseDaAvvisare());
+  out.avvisiDiChiusura = 'errore' in avv ? avv : avv.v.map((v) => v.prenotazione.cognome).sort();
+  out.avvisiDiChiusuraDiNuovo = await prova(async () => (await tav.chiuseDaAvvisare()).length);
+  const pm = await prova(() => tav.promemoriaRichiestePr());
+  out.promemoria = 'errore' in pm ? pm : pm.v.map((x) => `${x.vista.prenotazione.cognome}|${x.emailPr}`).sort();
+  out.promemoriaDiNuovo = await prova(async () => (await tav.promemoriaRichiestePr()).length);
+  out.richiestaDopoLaScadenza = 'v' in rc ? true : false;
+  mock.timers.setTime(ADESSO_TEST.getTime());
+
+  // ---- porta
+  const o = (rif?: string) => ({ porta: 'P1', ora: '2026-10-19T20:00:00.000Z', rif });
+  const tokenT = (await pren(id1)).tokenQr; // rimborsata: non entra
+  out.portaTavoloRimborsato = await prova(async () => (await porta.checkIn(sStaff, ev.id, tokenT, o(), 'r0')).esito);
+  const idPag = idPr; const tokenPag = (await pren(idPag)).tokenQr;       // pagata, 6 persone
+  const passaggi: string[] = [];
+  for (let k = 1; k <= 7; k++) passaggi.push((await prova(async () => (await porta.checkIn(sStaff, ev.id, tokenPag, { porta: k % 2 ? 'P1' : 'P2', ora: `2026-10-19T20:0${k}:00.000Z` }, `rif-${k}`)).esito)) as never as string);
+  out.portaTavolo = passaggi.map((x) => JSON.stringify(x));
+  out.portaTavoloRifRipetuto = await prova(async () => { const r = await porta.checkIn(sStaff, ev.id, tokenPag, o(), 'rif-2'); return r.esito === 'entrato' ? r.ora : r.esito; });
+  out.portaTavoloIngressi = (await pren(idPag)).ingressi.map((i) => `${i.rif}|${i.porta}`).sort();
+  const dtutte = await lettura();
+  const pagata = dtutte.iscrizioni.find((i) => i.stato === 'pagato' && i.eventoId === ev.id)!;
+  const inAttesa = await prova(() => m.pubblico.creaIscrizione({ slug: 'halloween-party', nome: 'Porta', cognome: 'Attesa', dataNascita: '1999-09-09', email: 'pa@esempio.it', marketing: false, handlePr: null }));
+  const idAttesa = 'v' in inAttesa && inAttesa.v.ok ? inAttesa.v.iscrizione.id : '';
+  out.portaIscrizione = await prova(async () => [(await porta.checkIn(sStaff, ev.id, pagata.tokenQr, o())).esito, (await porta.checkIn(sStaff, ev.id, pagata.tokenQr, o())).esito, (await porta.checkIn(sStaff, ev.id, (await pren(idPag)).codice, o())).esito]);
+  out.portaNonPagata = await prova(async () => (await porta.checkIn(sStaff, ev.id, (await lettura()).iscrizioni.find((i) => i.id === idAttesa)!.tokenQr, o())).esito);
+  out.portaQrFalso = await prova(async () => (await porta.checkIn(sStaff, ev.id, 'MM1.falso.1.firma', o())).esito);
+  out.portaDaUnPr = await prova(() => porta.checkIn(sPr, ev.id, pagata.tokenQr, o()));
+  const altra = dtutte.iscrizioni.find((i) => i.stato === 'pagato' && i.eventoId === ev.id && i.id !== pagata.id)!;
+  out.portaRifiuto = await prova(async () => { const r = await porta.rifiutaIngresso(sStaff, ev.id, altra.tokenQr, { porta: 'P2', ora: '2026-10-19T20:30:00.000Z' }); return [r.esito, (await lettura()).iscrizioni.find((i) => i.id === altra.id)!.rifiutoIngresso]; });
+  out.portaRifiutoDiNuovo = await prova(async () => (await porta.rifiutaIngresso(sStaff, ev.id, altra.tokenQr, { porta: 'P2', ora: '2026-10-19T20:30:00.000Z' })).esito);
+  out.portaRifiutoSuEntrato = await prova(async () => (await porta.rifiutaIngresso(sStaff, ev.id, pagata.tokenQr, { porta: 'P2', ora: '2026-10-19T20:30:00.000Z' })).esito);
+  out.portaRifiutoSuTavolo = await prova(async () => (await porta.rifiutaIngresso(sStaff, ev.id, tokenPag, { porta: 'P2', ora: '2026-10-19T20:30:00.000Z' })).esito);
+  await porta.segnaPorta('P1', ev.id);
+  await porta.segnaPorta('P2', ev.id);
+  out.porte = (await lettura()).porte.map((p) => `${p.nome}:${p.ingressi}`).sort();
+
+  // ---- email (il registro delle email di prova è una anagrafica: serate e PR si scrivono come prima)
+  out.invio = await prova(async () => {
+    // (Un secondo fra una e l'altra: nelle tabelle l'ordine del registro lo dà l'orario d'invio.)
+    mock.timers.setTime(ADESSO_TEST.getTime() + 1000);
+    const v1 = await posta.inviaEmail({ a: 'uno@esempio.it', oggetto: 'Primo', html: '<p>uno</p>' });
+    mock.timers.setTime(ADESSO_TEST.getTime() + 2000);
+    const v2 = await posta.inviaEmail({ a: 'due@esempio.it', oggetto: 'Secondo', html: '<p>due</p>' });
+    mock.timers.setTime(ADESSO_TEST.getTime() + 3000);
+    const v3 = await posta.inviaEmail({ a: 'tre@esempio.it', oggetto: 'Terzo', html: '<p>tre</p>' });
+    mock.timers.setTime(ADESSO_TEST.getTime());
+    return [v1, v2, v3];
+  });
+  out.posta = (await lettura()).posta.map((e) => `${e.a}|${e.oggetto}|${e.via}`);
+  void pre;
+  return out;
+}
+
+test('tavoli, porta ed email sulle tabelle fanno quello che fanno sulla riga unica: stessi esiti, stessi errori, stessi dati', async () => {
+  // La riga unica riparte dai dati di partenza.
+  mock.timers.setTime(ADESSO_TEST.getTime());
+  await m.archivio.modifica((d) => { Object.assign(d, structuredClone(inizio0)); });
+  const sulla = await storiaTavoliPorta();
+
+  const db = await m.prove.creaDb();
+  try {
+    await m.prove.scriviRiga(db, structuredClone(inizio0), 1);
+    const { importa } = await import('./prova-vendite');
+    await importa(db);
+    mock.timers.setTime(ADESSO_TEST.getTime());
+    m.archivio.usaTabelleDiProva({ store: m.store.storeDaDb(db), rpc: m.store.rpcDaDb(db) });
+    const sulleTabelle = await storiaTavoliPorta();
+    for (const k of Object.keys(sulla)) assert.deepEqual(sulleTabelle[k], sulla[k], `differenza in "${k}"`);
+    assert.deepEqual(Object.keys(sulleTabelle), Object.keys(sulla));
+
+    // La storia vuol dire qualcosa.
+    const c = sulleTabelle as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    assert.equal(c.richiesta1.ok, true);
+    assert.match(c.stessoTavolo.errore, /Qualcuno ha appena preso/);
+    assert.match(c.troppiPerIlTavolo.errore, /6 persone al massimo/);
+    assert.deepEqual([c.stessaEmail.campo, c.stessoTelefono.campo, c.nonInVendita.campo, c.personeNonValide.campo, c.emailBrutta.campo], ['email', 'telefono', 'tavolo', 'persone', 'email']);
+    assert.deepEqual([c.cambiaIdea.vecchia, c.cambiaIdea.avviso, c.cambiaIdea.seconda.ok], ['annullata', true, true]);
+    assert.equal(c.richiestaDelPr.v.pr, true);
+    assert.match(c.prSuTavoloNonSuo.v.errore, /affidati a te/);
+    assert.deepEqual([c.paga1.esito, c.paga1Ripetuto.esito, c.paga1Secondo.motivo, c.pagaImportoSbagliato.motivo, c.pagaImportoGiusto.esito], ['confermata', 'gia', 'secondo_pagamento', 'importo', 'confermata']);
+    assert.deepEqual([c.annullaDellaCrew.v.stato, c.annullaDiNuovo.v, c.lascia.v.stato, c.lasciaDiNuovo.v, c.lasciaEmailSbagliata.v], ['annullata', null, 'annullata', null, null]);
+    assert.match(c.annullaUnaPagata.errore, /usa Annulla e rimborsa/);
+    assert.match(c.annullaDaStaff.errore, /non_autorizzato/);
+    assert.deepEqual([c.rimborsoAvvia.esito, c.rimborsoConcludi.stato, c.rimborsoConcludiDiNuovo.v, c.tavoloLiberoDopoIlRimborso.v], ['avviato', 'rimborsata', null, 'libero']);
+    assert.ok(c.scadenze.v.length >= 1 && c.avvisiDiChiusura.length >= 0 && c.avvisiDiChiusuraDiNuovo.v === 0 && c.promemoriaDiNuovo.v === 0);
+    assert.ok(c.promemoria.length >= 1, 'il PR riceve un promemoria');
+    assert.equal(c.portaTavoloRimborsato.v, 'annullato');
+    assert.ok(c.portaIscrizione.v[0] === 'entrato' && c.portaIscrizione.v[1] === 'gia_entrato');
+    assert.equal(c.portaNonPagata.v, 'non_pagato');
+    assert.equal(c.portaQrFalso.v, 'non_valido');
+    assert.match(c.portaDaUnPr.errore, /non_autorizzato/);
+    assert.equal(c.portaRifiuto.v[0], 'rifiutato');
+    assert.deepEqual(c.invio.v, ['archivio', 'archivio', 'archivio']);
+    assert.equal(c.posta.length, 3);
+    assert.match(c.posta[0], /tre@esempio.it\|Terzo/, 'le più recenti per prime');
   } finally {
     m.archivio.usaTabelleDiProva(null);
     await db.close();

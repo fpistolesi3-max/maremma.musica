@@ -2,7 +2,7 @@ import 'server-only';
 import { createHash, createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { leggi, modifica, segreto } from './dati/archivio';
+import { leggi, modifica, operazioni, segreto, usaTabelle } from './dati/archivio';
 import type { Pr, Ruolo, Utente } from './dati/tipi';
 import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
 import { modalitaProva } from './prova';
@@ -87,13 +87,20 @@ export async function inviaAccesso(email: string, origine: string, dopo: string 
   }
   const token = randomBytes(24).toString('base64url');
   const codice = String(randomInt(0, 1_000_000)).padStart(6, '0');
-  await modifica((a) => {
-    a.accessi = a.accessi.filter((x) => new Date(x.scade) > new Date() && !x.usato && x.utenteId !== utente.id);
-    a.accessi.push({
+  if (usaTabelle()) {
+    await operazioni().creaAccesso({
       id: randomUUID(), utenteId: utente.id, tokenHash: hash(token), codiceHash: hash(`${utente.id}|${codice}`),
-      scade: new Date(Date.now() + DURATA_ACCESSO_MIN * 60_000).toISOString(), usato: false, tentativi: 0,
+      scade: new Date(Date.now() + DURATA_ACCESSO_MIN * 60_000).toISOString(), adesso: new Date().toISOString(),
     });
-  });
+  } else {
+    await modifica((a) => {
+      a.accessi = a.accessi.filter((x) => new Date(x.scade) > new Date() && !x.usato && x.utenteId !== utente.id);
+      a.accessi.push({
+        id: randomUUID(), utenteId: utente.id, tokenHash: hash(token), codiceHash: hash(`${utente.id}|${codice}`),
+        scade: new Date(Date.now() + DURATA_ACCESSO_MIN * 60_000).toISOString(), usato: false, tentativi: 0,
+      });
+    });
+  }
   const link = `${origine}/accedi/verifica?t=${token}${dopo ? `&dopo=${encodeURIComponent(dopo)}` : ''}`;
   await inviaEmail({
     a: utente.email,
@@ -111,12 +118,14 @@ ${bottoneEmail(link, 'Entra →')}
 
 export async function entraConToken(token: string): Promise<Sessione | null> {
   const h = hash(token);
-  const utenteId = await modifica((a) => {
-    const x = a.accessi.find((q) => q.tokenHash === h);
-    if (!x || x.usato || new Date(x.scade) < new Date()) return null;
-    x.usato = true;
-    return x.utenteId;
-  });
+  const utenteId = usaTabelle()
+    ? await operazioni().usaAccessoToken(h, new Date().toISOString())
+    : await modifica((a) => {
+      const x = a.accessi.find((q) => q.tokenHash === h);
+      if (!x || x.usato || new Date(x.scade) < new Date()) return null;
+      x.usato = true;
+      return x.utenteId;
+    });
   if (!utenteId) return null;
   await apriSessione(utenteId);
   return sessioneDaId(utenteId);
@@ -127,7 +136,7 @@ export async function entraConCodice(email: string, codice: string): Promise<Ses
   const utente = d.utenti.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
   if (!utente) return null;
   const h = hash(`${utente.id}|${codice.replace(/\D/g, '')}`);
-  const ok = await modifica((a) => {
+  const ok = usaTabelle() ? await operazioni().usaAccessoCodice(utente.id, h, new Date().toISOString()) : await modifica((a) => {
     const x = a.accessi.find((q) => q.utenteId === utente.id && !q.usato && new Date(q.scade) > new Date());
     if (!x) return false;
     x.tentativi += 1;
