@@ -9,7 +9,8 @@ import { creaDb, scriviRiga, MIGRAZIONI_VENDITE } from './prova-db';
 import { archivioRicco, SEGRETO_DI_PROVA, versioneVecchia } from './prova-archivio';
 import { datiIniziali } from './seed';
 import { componiArchivio, confrontaArchivi, modalitaArchivio, statoDelTavolo, type LeggiTutto } from './tabelle';
-import { archivioTabelle, ERRORE_SCRITTURA_TABELLE, type StoreTabelle } from './archivio-tabelle';
+import { archivioTabelle, erroreVenditeTabelle, type StoreTabelle } from './archivio-tabelle';
+import { storeDaDb } from './prova-store';
 import { ripristinaRigaCon, verificaCon } from './verifica-archivio';
 import { normalizza } from './archivio';
 import type { Riga, StoreRemoto } from './archivio-remoto';
@@ -44,10 +45,7 @@ function rigaFinta(dati: Archivio | null, versione = 41) {
   };
   return { store, riga: () => riga };
 }
-const tabelleFinte = (db: PGlite): StoreTabelle => ({
-  leggiTutto: () => leggiTutto(db),
-  verificaSql: async () => (await uno(db, 'select public.verifica_importo() as r')).r,
-});
+const tabelleFinte = (db: PGlite): StoreTabelle => storeDaDb(db);
 
 test('la migrazione di leggi_tutto si ferma se mancano le tappe precedenti e la funzione è chiusa a chi non è il server', async () => {
   const file = readFileSync(path.join(process.cwd(), 'supabase', 'migrations', '20261107000000_leggi_tutto.sql'), 'utf8');
@@ -172,14 +170,16 @@ test('MM_ARCHIVIO: spento di default, acceso solo con Supabase, valori strani = 
   assert.equal(modalitaArchivio({ MM_ARCHIVIO: 'tabelle' }), 'riga', 'in locale (senza Supabase) resta il file');
 });
 
-test("l'archivio sulle tabelle legge, e scrivere si ferma con un errore chiaro (la scrittura arriva con le tappe 5-7)", async () => {
+test("l'archivio sulle tabelle legge; le anagrafiche si scrivono, le vendite si fermano con un errore chiaro (arrivano con le tappe 6-7)", async () => {
   const d = archivioRicco();
   await conDb(d, async (db) => {
     const archivio = archivioTabelle(tabelleFinte(db), normalizza);
     const letto = await archivio.leggi();
     assert.equal(letto.eventi.length, d.eventi.length);
     assert.equal(letto.segreto, SEGRETO_DI_PROVA);
-    await assert.rejects(archivio.modifica(() => 1), (e: Error) => e.message === ERRORE_SCRITTURA_TABELLE && /riga/.test(e.message));
+    // Toccare le vendite: errore chiaro che dice cosa fare, e niente scritto.
+    await assert.rejects(archivio.modifica((a) => { a.iscrizioni[0].stato = 'annullato'; }), (e: Error) => e.message === erroreVenditeTabelle(['iscrizioni']) && /"riga"/.test(e.message));
+    assert.equal((await uno(db, 'select stato from public.iscrizioni where id = $1', [d.iscrizioni[0].id])).stato, d.iscrizioni[0].stato);
   });
 });
 

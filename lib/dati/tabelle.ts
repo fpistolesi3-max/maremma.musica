@@ -148,7 +148,9 @@ export function componiArchivio(raw: LeggiTutto, adesso: Date = new Date()): Arc
       + prenotazioni.filter((p) => p.eventoId === r.evento_id).reduce((n, p) => n + p.ingressi.filter((x) => x.porta === r.nome).length, 0),
   }));
 
-  const posta = raw.posta.map((r): EmailInviata => ({ id: r.id, a: r.a, oggetto: r.oggetto, html: r.html, inviataAt: isoObbligatorio(r.inviata_at), via: r.via }));
+  // Le più recenti per prime, come le tiene l'archivio (inviaEmail le mette in testa e taglia le vecchie).
+  const posta = raw.posta.map((r): EmailInviata => ({ id: r.id, a: r.a, oggetto: r.oggetto, html: r.html, inviataAt: isoObbligatorio(r.inviata_at), via: r.via }))
+    .sort((a, b) => b.inviataAt.localeCompare(a.inviataAt) || b.id.localeCompare(a.id));
 
   return { versione: 1, segreto, eventi, lotti, pr, iscrizioni, utenti, accessi, posta, porte, consegne: [], tavoli, prenotazioni };
 }
@@ -173,7 +175,7 @@ const GRUPPI = ['eventi', 'lotti', 'pr', 'utenti', 'accessi', 'porte', 'iscrizio
 const ISTANTE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
 /** Valore in forma confrontabile: null e assente uguali, istanti come numeri (la riga e le tabelle scrivono le date in modi diversi), valuta in minuscolo. */
-function canonico(v: unknown, campo = ''): unknown {
+export function canonico(v: unknown, campo = ''): unknown {
   if (v === undefined || v === null) return null;
   if (typeof v === 'string') return ISTANTE.test(v) && !Number.isNaN(Date.parse(v)) ? Date.parse(v) : campo === 'valuta' ? v.toLowerCase() : v;
   if (Array.isArray(v)) return v.map((x) => canonico(x, campo));

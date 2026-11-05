@@ -17,7 +17,7 @@ export const PROGETTO_VERO = 'iowbljhcjfppjjwbumsm';
 
 const CARTELLA_MIGRAZIONI = path.join(process.cwd(), 'supabase', 'migrations');
 /** Quali migrazioni si applicano nello schema di prova (la riga unica `archivio_mvp` si crea a mano, senza toccare lo Storage). */
-export const MIGRAZIONI_GARA = ['20261104000000_schema_anagrafiche.sql', '20261105000000_schema_vendite.sql', '20261106000000_schema_tavoli.sql'];
+export const MIGRAZIONI_GARA = ['20261104000000_schema_anagrafiche.sql', '20261105000000_schema_vendite.sql', '20261106000000_schema_tavoli.sql', '20261107000000_leggi_tutto.sql', '20261108000000_applica_anagrafiche.sql'];
 
 /** Legge MM_TEST_PG_URL dall'ambiente o da `.env.test.local` (una riga `MM_TEST_PG_URL=…`). Mai stampare il valore: ha la password. */
 export function leggiUrlProva(env: Record<string, string | undefined> = process.env, cartella = process.cwd()): string | null {
