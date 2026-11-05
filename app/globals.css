@@ -415,6 +415,11 @@ html[data-intro] .mm-caricamento { display: none; }
 
 @tailwind utilities;
 
+/* Etichetta di gruppo dentro una tabella admin ("In arrivo", "Passate"): una riga sola che attraversa tutte le colonne. */
+.mm-classifica .mm-gruppo th { font: 600 11px/14px var(--font-sans); padding: var(--space-6) 0 var(--space-2); border-bottom: 1px solid var(--linea); }
+.mm-elenco th.mm-num { font: 600 12px/16px var(--font-sans); padding-right: calc(var(--space-3) - .14em); } /* titoli dei numeri come gli altri titoli, e la loro fine sulla fine delle cifre */
+.mm-classifica thead + tbody .mm-gruppo th { padding-top: var(--space-3); }
+
 /* Tabelle admin: da telefono ogni riga diventa una scheda (l'etichetta della colonna viene da data-et). */
 @media (max-width: 767px) {
   .mm-schede thead { display: none; }
@@ -425,6 +430,8 @@ html[data-intro] .mm-caricamento { display: none; }
   .mm-schede td.mm-pieno { grid-column: 1 / -1; }
   .mm-schede .mm-num { text-align: left; }
   .mm-schede .mm-classifica__nome { white-space: normal; }
+  .mm-schede tr.mm-gruppo { display: block; padding: var(--space-4) 0 0; border-bottom: 0; }
+  .mm-schede tr.mm-gruppo th { display: block; padding: 0 0 var(--space-2); }
 }
 
 /* Mappa di "Come arrivare": l'etichetta segue la larghezza del riquadro (non quella dello schermo) e non è mai più larga del riquadro. */
