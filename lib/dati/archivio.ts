@@ -94,6 +94,9 @@ let operazioniTabelle: Operazioni | null = tabelle && process.env.SUPABASE_URL &
   ? operazioniDa(rpcSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY))
   : null;
 
+/** Lo store delle tabelle che sta davvero in uso (cambia solo nei test, con `usaTabelleDiProva`). */
+let storeTabelleInUso: StoreTabelle | null = tabelle ? storeDelleTabelle : null;
+
 /** Dove sta l'archivio in questo momento: la riga unica (o il file in locale) oppure le tabelle. */
 export const modalitaCorrente = (): 'riga' | 'tabelle' => (tabelle ? 'tabelle' : 'riga');
 
@@ -111,6 +114,7 @@ export function operazioni(): Operazioni {
  * `null` rimette le cose com'erano. Non la chiama nessun file dell'app.
  */
 export function usaTabelleDiProva(prova: { store: StoreTabelle; rpc: Rpc } | null) {
+  storeTabelleInUso = prova ? prova.store : storeDelleTabelle;
   tabelle = prova ? archivioTabelle(prova.store, normalizza, { attesa: async () => undefined }) : null;
   operazioniTabelle = prova ? operazioniDa(prova.rpc) : null;
 }
@@ -147,6 +151,21 @@ export function modifica<T>(fn: (dati: Archivio) => T | Promise<T>): Promise<T> 
 
 export async function segreto(): Promise<string> {
   return process.env.MM_SEGRETO || (await leggi()).segreto;
+}
+
+/**
+ * Il segreto salvato nel database attivo (`impostazioni.segreto` sulle tabelle, il campo della riga unica altrimenti), NON quello di
+ * `MM_SEGRETO`. Solo per `allineaSegreto()` (lib/dati/allinea-segreto.ts).
+ */
+export async function segretoSalvato(): Promise<string | null> {
+  if (storeTabelleInUso && tabelle) return (await storeTabelleInUso.leggiTutto()).impostazioni?.segreto ?? null;
+  return (await leggi()).segreto ?? null;
+}
+
+/** Cambia solo il segreto nel database attivo. Sulla riga unica passa da `modifica()`, quindi con la sua riprova se qualcun altro scrive nello stesso istante. */
+export async function scriviSegretoSalvato(nuovo: string): Promise<void> {
+  if (storeTabelleInUso && tabelle) return storeTabelleInUso.scriviSegreto(nuovo);
+  await modifica((d) => { d.segreto = nuovo; });
 }
 
 export const CARTELLA_MEDIA = path.join(CARTELLA, 'media');

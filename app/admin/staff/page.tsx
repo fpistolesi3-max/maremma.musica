@@ -2,6 +2,7 @@ import { richiedi } from '@/lib/sessione';
 import { utentiStaff } from '@/lib/dati/admin';
 import { Apribile, TestataAdmin } from '@/components/admin/ui';
 import { NuovoStaff, RimuoviStaff } from '@/components/admin/azioni-client';
+import { AllineaSegreto } from '@/components/admin/allinea-segreto';
 
 export const metadata = { title: 'Staff' };
 
@@ -28,6 +29,7 @@ export default async function AdminStaff() {
             </tbody>
           </table>
         </div>
+        <Apribile titolo="Chiave segreta dei QR"><AllineaSegreto /></Apribile>
       </div>
     </>
   );
