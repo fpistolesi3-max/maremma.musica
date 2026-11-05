@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { etichettaMappa, linkIndicazioni, linkNavigatori, sceltaMappa, usaAppleMaps, zoomZona } from './mappa';
-import { luogoVisibile } from './luogo';
+import { linkComeArrivare, luogoVisibile } from './luogo';
 import { ATTRIBUZIONI, stileMappa } from './stile-mappa';
 
 const scirea = { lat: 43.1512, lng: 10.7713, location: 'Campo G. Scirea', comune: 'Monteverdi M.mo' };
@@ -39,6 +39,15 @@ test('indicazioni: senza coordinate cerca per nome, senza niente non c\'è link'
   assert.equal(linkIndicazioni(senza), 'https://www.google.com/maps/dir/?api=1&destination=Campo%20G.%20Scirea%2C%20Monteverdi%20M.mo');
   assert.equal(linkIndicazioni(senza, true), 'https://maps.apple.com/?daddr=Campo%20G.%20Scirea%2C%20Monteverdi%20M.mo');
   assert.equal(linkIndicazioni({ lat: null, lng: null, location: null, comune: null }), null);
+});
+
+test('"Come arrivare" del biglietto: come la pagina serata, con la location segreta niente link né indirizzo', () => {
+  const prima = new Date('2026-11-10T12:00:00Z');
+  const serata = { ...scirea, data: '2026-11-20T21:00:00Z', locationSegreta: false };
+  assert.equal(linkComeArrivare(serata, prima), 'https://www.google.com/maps/dir/?api=1&destination=43.1512,10.7713');
+  assert.equal(linkComeArrivare({ ...serata, locationSegreta: true }, prima), null, 'segreta fino a 48 ore prima');
+  assert.ok(linkComeArrivare({ ...serata, locationSegreta: true }, new Date('2026-11-18T22:00:00Z')), 'svelata 48 ore prima');
+  assert.equal(linkComeArrivare({ ...serata, lat: null, lng: null, location: null, comune: null }, prima), null, 'niente da cercare');
 });
 
 test('etichetta per gli screen reader', () => {
