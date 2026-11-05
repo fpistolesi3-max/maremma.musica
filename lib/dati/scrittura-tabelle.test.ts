@@ -377,3 +377,17 @@ test('una modifica che cancella una serata con le sue cose (tipi, tavoli, porte)
     assert.ok(SEGRETO_DI_PROVA);
   });
 });
+
+test('modifica sulle tabelle: spostare la copertina da una serata all\'altra funziona in qualunque ordine delle serate', async () => {
+  for (const verso of [0, 1]) {
+    const d = archivioRicco();
+    d.eventi.forEach((e) => { e.inCopertina = false; });
+    const [da, a] = verso === 0 ? [d.eventi[0], d.eventi[1]] : [d.eventi[1], d.eventi[0]];
+    da.inCopertina = true;
+    await conDb(d, async (db) => {
+      const archivio = archivioTabelle(storeDaDb(db), normalizza, senzaPause);
+      await archivio.modifica((x) => { for (const e of x.eventi) e.inCopertina = e.id === a.id; });
+      assert.deepEqual((await archivio.leggi()).eventi.filter((e) => e.inCopertina).map((e) => e.id), [a.id], `verso ${verso}: una sola in copertina, quella nuova`);
+    });
+  }
+});

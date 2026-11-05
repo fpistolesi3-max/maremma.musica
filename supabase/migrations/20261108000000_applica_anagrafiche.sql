@@ -74,7 +74,9 @@ begin
     t := tabelle[i];
     kc := array(select jsonb_array_elements_text(chiavi->t));
     dove := (select string_agg(format('%I = (jsonb_populate_record(null::public.%I, $1)).%I', k, t, k), ' and ') from unnest(kc) k);
-    for el in select e from jsonb_array_elements(coalesce(p->t->'cambi', '[]'::jsonb)) e loop
+    -- Chi toglie la copertina passa prima di chi la mette: l'indice unico "una sola serata in copertina" non ammette due `true` nemmeno per un istante.
+    for el in select x.e from jsonb_array_elements(coalesce(p->t->'cambi', '[]'::jsonb)) with ordinality as x(e, n)
+               order by coalesce(x.e->'colonne'->'in_copertina' = 'true'::jsonb, false), x.n loop
       if jsonb_typeof(el->'colonne') is distinct from 'object' or (select count(*) from jsonb_object_keys(el->'colonne')) = 0 then continue; end if;
       for colonna in select jsonb_object_keys(el->'colonne') loop
         if colonna = any(kc) then raise exception 'chiave_non_modificabile: %', colonna using errcode = 'P0001'; end if;
