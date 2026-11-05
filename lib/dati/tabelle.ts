@@ -20,12 +20,25 @@ export interface LeggiTutto {
 
 export type ModalitaArchivio = 'riga' | 'tabelle';
 
+/** Da dove viene la scelta: la variabile `MM_ARCHIVIO`, il predefinito della produzione, il predefinito altrove o l'assenza di Supabase. */
+export type OrigineArchivio = 'variabile' | 'produzione' | 'predefinito' | 'senza_supabase';
+
 /**
- * Dove sta l'archivio. Di default (e per qualunque valore sconosciuto) nella riga unica, come sempre: il sito non va mai in errore per
- * una variabile scritta male. `tabelle` vale solo con Supabase configurato (in locale resta il file).
+ * L'unico punto in cui si decide dove sta l'archivio (nessun altro file legge `MM_ARCHIVIO` per conto suo).
+ * - Senza Supabase (sviluppo locale, test): sempre il file/la riga, qualunque cosa dica la variabile.
+ * - Se `MM_ARCHIVIO` è impostata vale lei: `tabelle` accende, qualunque altro valore (`riga`, o scritto male) spegne.
+ *   Il sito non va mai in errore per una variabile sbagliata, e `MM_ARCHIVIO=riga` resta il modo per tornare indietro.
+ * - Se NON è impostata: `tabelle` solo in produzione su Vercel (`VERCEL_ENV=production`); Preview, sviluppo e test restano sulla riga.
  */
+export function interruttoreArchivio(env: Record<string, string | undefined> = process.env): { modalita: ModalitaArchivio; origine: OrigineArchivio } {
+  if (!(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY)) return { modalita: 'riga', origine: 'senza_supabase' };
+  const valore = env.MM_ARCHIVIO?.trim().toLowerCase();
+  if (valore) return { modalita: valore === 'tabelle' ? 'tabelle' : 'riga', origine: 'variabile' };
+  return env.VERCEL_ENV === 'production' ? { modalita: 'tabelle', origine: 'produzione' } : { modalita: 'riga', origine: 'predefinito' };
+}
+
 export function modalitaArchivio(env: Record<string, string | undefined> = process.env): ModalitaArchivio {
-  return env.MM_ARCHIVIO?.trim().toLowerCase() === 'tabelle' && Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) ? 'tabelle' : 'riga';
+  return interruttoreArchivio(env).modalita;
 }
 
 const iso = (v: unknown): string | null => (v == null ? null : new Date(v as string).toISOString());

@@ -4,7 +4,7 @@ import type { Archivio } from './tipi';
 import { componiArchivio, type LeggiTutto } from './tabelle';
 import { calcolaModifiche, nessunaModifica, venditeToccate, type Modifiche } from './scrittura-tabelle';
 
-// Archivio sulle tabelle del nuovo schema (supabase/migrations/20261104…–20261108…). Si usa solo con MM_ARCHIVIO=tabelle (lib/dati/archivio.ts).
+// Archivio sulle tabelle del nuovo schema (supabase/migrations/20261104…–20261108…). Si usa quando l'archivio sta nelle tabelle: produzione, o MM_ARCHIVIO=tabelle (lib/dati/archivio.ts, lib/dati/tabelle.ts).
 // Lettura: `leggi_tutto()` in un viaggio. Scrittura delle ANAGRAFICHE (serate, tipi, PR, utenti, tavoli, porte, registro email): `modifica(fn)`
 // funziona come prima (si modifica una copia), ma poi si scrivono solo le righe cambiate, con controllo riga per riga: due persone che toccano
 // righe diverse non si disturbano. La scrittura delle VENDITE (iscrizioni, prenotazioni, accessi) arriva con le tappe 6-7: finché non c'è, una
@@ -53,7 +53,7 @@ export const TENTATIVI_TABELLE_MAX = 12;
 
 export const erroreVenditeTabelle = (toccate: string[]) =>
   `Archivio: questa operazione modifica ${toccate.join(', ')}, che sulle tabelle passano dalle operazioni dedicate (tappe 6-7 del passaggio allo schema, non ancora pronte). `
-  + 'Riporta MM_ARCHIVIO a "riga" su Vercel e rifai il deploy.';
+  + 'Per tornare alla riga unica imposta MM_ARCHIVIO a "riga" su Vercel e rifai il deploy.';
 
 interface Opzioni {
   tentativi?: number;

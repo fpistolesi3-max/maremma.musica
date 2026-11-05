@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { modalitaProva } from '@/lib/prova';
-import { modalitaArchivio } from '@/lib/dati/tabelle';
+import { interruttoreArchivio } from '@/lib/dati/tabelle';
 
 export const dynamic = 'force-dynamic';
+
+/** Dove sta l'archivio e perché (mai il valore di una variabile che non sia l'interruttore stesso). */
+function descriviInterruttore() {
+  const { modalita, origine } = interruttoreArchivio();
+  const dove = modalita === 'tabelle' ? 'tabelle' : 'riga unica';
+  if (origine === 'senza_supabase') return `${dove} (Supabase non configurato)`;
+  if (origine === 'produzione') return `${dove} (predefinito della produzione; MM_ARCHIVIO=riga lo spegne)`;
+  if (origine === 'predefinito') return `${dove} (predefinito fuori dalla produzione; MM_ARCHIVIO=tabelle lo accende)`;
+  const valore = process.env.MM_ARCHIVIO?.trim().toLowerCase();
+  return valore === 'tabelle' || valore === 'riga' ? `${dove} (impostato da MM_ARCHIVIO)` : `${dove} (MM_ARCHIVIO ha un valore non riconosciuto: "${process.env.MM_ARCHIVIO}")`;
+}
 
 /**
  * GET /api/salute — controllo dell'istanza online: quali variabili ci sono (mai i valori)
@@ -20,9 +31,7 @@ export async function GET() {
     MM_SEGRETO: process.env.MM_SEGRETO ? 'ok' : 'MANCA',
     SITO_URL: process.env.SITO_URL ? 'ok' : 'manca (i link nelle email useranno l\'indirizzo della richiesta)',
     MM_MODALITA_PROVA: process.env.MM_MODALITA_PROVA ?? '(non impostata)',
-    MM_ARCHIVIO: !process.env.MM_ARCHIVIO ? '(non impostata: il sito usa la riga unica)'
-      : modalitaArchivio() === 'tabelle' ? 'tabelle (ATTENZIONE: la scrittura sulle tabelle non è ancora pronta, il sito non può salvare niente)'
-      : `valore non riconosciuto "${process.env.MM_ARCHIVIO}": il sito usa la riga unica`,
+    MM_ARCHIVIO: descriviInterruttore(),
   };
 
   let supabase: Record<string, unknown> = { stato: 'non provato (mancano URL o chiave)' };
@@ -38,7 +47,7 @@ export async function GET() {
         bucket_locandine: b.error ? { errore: b.error.message } : { ok: true, pubblico: b.data.public },
       };
       // Con l'interruttore acceso si controlla anche che le tabelle rispondano (migrazioni applicate e dati copiati).
-      if (modalitaArchivio() === 'tabelle') {
+      if (interruttoreArchivio().modalita === 'tabelle') {
         const l = await sb.rpc('leggi_tutto');
         supabase.tabelle_nuovo_schema = l.error
           ? { errore: l.error.message, codice: l.error.code, suggerimento: 'le migrazioni 20261104… – 20261107… sono applicate?' }

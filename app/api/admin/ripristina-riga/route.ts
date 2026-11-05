@@ -7,8 +7,8 @@ const json = (stato: number, corpo: unknown) => Response.json(corpo, { status: s
 
 /**
  * POST /api/admin/ripristina-riga — solo admin, il ritorno indietro del passaggio alle tabelle. Riscrive la riga unica con quello che c'è
- * nelle tabelle; poi si riporta MM_ARCHIVIO a "riga" su Vercel. Serve il corpo `{"conferma":"ripristina"}` (un clic per sbaglio non basta)
- * e l'interruttore deve essere acceso.
+ * nelle tabelle; poi si torna alla riga unica (MM_ARCHIVIO=riga su Vercel, oppure si annulla la modifica che ha reso `tabelle` il predefinito
+ * della produzione). Serve il corpo `{"conferma":"ripristina"}` (un clic per sbaglio non basta) e il sito deve usare le tabelle.
  */
 export async function POST(req: Request) {
   const s = await sessioneCorrente();

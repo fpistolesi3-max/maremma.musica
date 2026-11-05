@@ -11,9 +11,10 @@ import { operazioniDa, rpcSupabase, type Operazioni, type Rpc } from './operazio
 
 // Unico punto che tocca il salvataggio. Due modi:
 // - locale (default): file .data/db.json, per lo sviluppo offline;
-// - Supabase: se ci sono SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (istanza online su Vercel). Lì l'archivio sta ancora nella riga unica
-//   `archivio_mvp`; con MM_ARCHIVIO=tabelle si legge dalle tabelle del nuovo schema (PIANO-SCHEMA.md). La scrittura sulle tabelle arriva
-//   con le tappe 5-7: finché non c'è, l'interruttore deve restare spento (di default lo è).
+// - Supabase: se ci sono SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (istanza online su Vercel). Lì l'archivio sta nelle tabelle del nuovo
+//   schema (PIANO-SCHEMA.md) in produzione (`VERCEL_ENV=production`), oppure nella riga unica `archivio_mvp` altrove (Preview) o con
+//   MM_ARCHIVIO=riga. La variabile, se c'è, vince sempre; la decisione sta in un solo punto: `interruttoreArchivio()` in ./tabelle.
+//   Tutte le scritture hanno la loro strada sulle tabelle (anagrafiche, prevendite, tavoli, porta, accessi: tappe 5-7).
 
 const CARTELLA = process.env.MM_CARTELLA_DATI || path.join(process.cwd(), '.data');
 const FILE = path.join(CARTELLA, 'db.json');
@@ -96,12 +97,12 @@ let operazioniTabelle: Operazioni | null = tabelle && process.env.SUPABASE_URL &
 /** Dove sta l'archivio in questo momento: la riga unica (o il file in locale) oppure le tabelle. */
 export const modalitaCorrente = (): 'riga' | 'tabelle' => (tabelle ? 'tabelle' : 'riga');
 
-/** Vero con MM_ARCHIVIO=tabelle: le funzioni delle vendite usano le operazioni del database invece di `modifica()`. */
+/** Vero quando l'archivio sta nelle tabelle: le funzioni delle vendite usano le operazioni del database invece di `modifica()`. */
 export const usaTabelle = () => tabelle !== null;
 
-/** Le operazioni sulle vendite (funzioni SQL). Solo con l'interruttore acceso: chi le chiama l'ha già controllato con `usaTabelle()`. */
+/** Le operazioni sulle vendite (funzioni SQL). Solo con l'archivio sulle tabelle: chi le chiama l'ha già controllato con `usaTabelle()`. */
 export function operazioni(): Operazioni {
-  if (!operazioniTabelle) throw new Error('Archivio: le operazioni sulle tabelle servono solo con MM_ARCHIVIO=tabelle.');
+  if (!operazioniTabelle) throw new Error('Archivio: le operazioni sulle tabelle servono solo quando l\'archivio sta nelle tabelle (produzione, o MM_ARCHIVIO=tabelle).');
   return operazioniTabelle;
 }
 

@@ -8,7 +8,7 @@ import type { PGlite } from '@electric-sql/pglite';
 import { creaDb, scriviRiga, MIGRAZIONI_VENDITE } from './prova-db';
 import { archivioRicco, SEGRETO_DI_PROVA, versioneVecchia } from './prova-archivio';
 import { datiIniziali } from './seed';
-import { componiArchivio, confrontaArchivi, modalitaArchivio, statoDelTavolo, type LeggiTutto } from './tabelle';
+import { componiArchivio, confrontaArchivi, interruttoreArchivio, modalitaArchivio, statoDelTavolo, type LeggiTutto } from './tabelle';
 import { archivioTabelle, erroreVenditeTabelle, type StoreTabelle } from './archivio-tabelle';
 import { storeDaDb } from './prova-store';
 import { ripristinaRigaCon, verificaCon } from './verifica-archivio';
@@ -158,16 +158,51 @@ test('lo stato di un tavolo si calcola come la vista del database', async () => 
   assert.equal(statoDelTavolo(true, [], adesso), 'libero');
 });
 
-test('MM_ARCHIVIO: spento di default, acceso solo con Supabase, valori strani = spento', () => {
+test('MM_ARCHIVIO: senza variabile, tabelle solo in produzione su Vercel; la variabile, se c\'è, vince; valori strani = riga', () => {
   const sb = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k' };
+  const prod = { ...sb, VERCEL_ENV: 'production' };
+  // Fuori dalla produzione e senza variabile: la riga unica (sviluppo, test, Preview).
   assert.equal(modalitaArchivio({}), 'riga');
   assert.equal(modalitaArchivio({ ...sb }), 'riga');
+  assert.equal(modalitaArchivio({ ...sb, VERCEL_ENV: 'preview' }), 'riga');
+  assert.equal(modalitaArchivio({ ...sb, VERCEL_ENV: 'development' }), 'riga');
+  // Produzione senza variabile: le tabelle.
+  assert.deepEqual(interruttoreArchivio(prod), { modalita: 'tabelle', origine: 'produzione' });
+  assert.equal(modalitaArchivio({ ...prod, MM_ARCHIVIO: '' }), 'tabelle', 'una variabile vuota è come non averla');
+  assert.equal(modalitaArchivio({ ...prod, MM_ARCHIVIO: '  ' }), 'tabelle');
+  // La variabile vince, in produzione e fuori.
+  assert.deepEqual(interruttoreArchivio({ ...prod, MM_ARCHIVIO: 'riga' }), { modalita: 'riga', origine: 'variabile' });
+  assert.equal(modalitaArchivio({ ...prod, MM_ARCHIVIO: ' RIGA ' }), 'riga');
+  assert.equal(modalitaArchivio({ ...prod, MM_ARCHIVIO: 'si' }), 'riga', 'valore strano = riga, anche in produzione');
+  assert.equal(modalitaArchivio({ ...prod, MM_ARCHIVIO: 'tabelle' }), 'tabelle');
+  assert.deepEqual(interruttoreArchivio({ ...sb, MM_ARCHIVIO: 'tabelle' }), { modalita: 'tabelle', origine: 'variabile' });
+  assert.equal(modalitaArchivio({ ...sb, VERCEL_ENV: 'preview', MM_ARCHIVIO: ' Tabelle ' }), 'tabelle');
   assert.equal(modalitaArchivio({ ...sb, MM_ARCHIVIO: 'riga' }), 'riga');
-  assert.equal(modalitaArchivio({ ...sb, MM_ARCHIVIO: 'tabelle' }), 'tabelle');
-  assert.equal(modalitaArchivio({ ...sb, MM_ARCHIVIO: ' Tabelle ' }), 'tabelle');
   assert.equal(modalitaArchivio({ ...sb, MM_ARCHIVIO: 'si' }), 'riga');
-  assert.equal(modalitaArchivio({ ...sb, MM_ARCHIVIO: '' }), 'riga');
+  // Senza Supabase resta il file, qualunque cosa dica l'ambiente.
+  assert.deepEqual(interruttoreArchivio({ VERCEL_ENV: 'production' }), { modalita: 'riga', origine: 'senza_supabase' });
   assert.equal(modalitaArchivio({ MM_ARCHIVIO: 'tabelle' }), 'riga', 'in locale (senza Supabase) resta il file');
+  assert.equal(modalitaArchivio({ MM_ARCHIVIO: 'tabelle', VERCEL_ENV: 'production' }), 'riga');
+});
+
+test('nessun file legge MM_ARCHIVIO o VERCEL_ENV per conto suo: la decisione sta in interruttoreArchivio()', async () => {
+  const { readdir, readFile } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const radice = process.cwd();
+  const trovati: string[] = [];
+  const visita = async (cartella: string) => {
+    for (const voce of await readdir(join(radice, cartella), { withFileTypes: true })) {
+      const percorso = `${cartella}/${voce.name}`;
+      if (voce.isDirectory()) { if (!['node_modules', '.next', '.data'].includes(voce.name)) await visita(percorso); continue; }
+      if (!/\.(ts|tsx|mjs)$/.test(voce.name) || /\.test\.ts$/.test(voce.name)) continue;
+      const testo = await readFile(join(radice, percorso), 'utf8');
+      // Solo le letture: `process.env.MM_ARCHIVIO`, `env.MM_ARCHIVIO` e `process.env.VERCEL_ENV` (i commenti e i messaggi non contano).
+      if (/\benv\.(MM_ARCHIVIO|VERCEL_ENV)\b/.test(testo)) trovati.push(percorso);
+    }
+  };
+  for (const c of ['lib', 'app', 'components']) await visita(c);
+  // `salute` rilegge solo il valore per mostrarlo (mai per decidere) ed è l'unica eccezione.
+  assert.deepEqual(trovati.sort(), ['app/api/salute/route.ts', 'lib/dati/tabelle.ts']);
 });
 
 test("l'archivio sulle tabelle legge; le anagrafiche si scrivono, le vendite si fermano con un errore chiaro (arrivano con le tappe 6-7)", async () => {
