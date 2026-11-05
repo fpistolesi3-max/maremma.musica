@@ -33,6 +33,10 @@ export const linkSerataPr = (origine: string, evento: Pick<Evento, 'slug'>, hand
 /** "Venerdì 13.11 alle 22:00" */
 export const quandoSerata = (evento: Pick<Evento, 'data'>) => `${giornoSettLungo(evento.data)} ${dataPunti(evento.data)} alle ${ora(evento.data)}`;
 
+/** WhatsApp "Manda su WhatsApp" del biglietto: chi ha comprato gira il link della serata (quello del suo PR, se c'è) agli amici. */
+export const linkWhatsAppAmici = (evento: Pick<Evento, 'nome' | 'data'>, link: string) =>
+  `https://wa.me/?text=${encodeURIComponent(`${evento.nome}, ${quandoSerata(evento)}: mettiti in lista da qui ${link}`)}`;
+
 /** Testo breve che il PR può girare ai suoi clienti. */
 export const testoPerClienti = (evento: Pick<Evento, 'nome' | 'data'>, link: string) =>
   `${evento.nome}, ${quandoSerata(evento)}: mettiti nella mia lista da qui ${link}`;

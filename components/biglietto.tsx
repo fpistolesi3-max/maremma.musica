@@ -1,8 +1,8 @@
 import type { Biglietto } from '@/lib/dati/pubblico';
-import { dataPunti, euro, giorno2, giornoSett, meseCorto, nascita, numeroEvento, ora, orari } from '@/lib/formato';
+import { dataPunti, euro, giorno2, giornoSett, meseCorto, numeroEvento, ora, orari } from '@/lib/formato';
 import { mostraCodice } from '@/lib/qr-token';
 import { luogoTesto } from '@/lib/luogo';
-import { ChipIscrizione } from './ui';
+import { Chip, ChipIscrizione } from './ui';
 import { QrBiglietto } from './client';
 
 /** Il biglietto (Ticket del DS): evento, strappo, QR, codice, titolare, piede con lo stato del pagamento. */
@@ -20,7 +20,7 @@ export function BigliettoQr({ b, appenaPagato = false }: { b: Biglietto; appenaP
       {e.senzaTelefono ? (
         <div className="px-6 py-8 text-center" style={annullato ? { opacity: 0.25 } : undefined}>
           <strong className="font-display text-[28px] font-black uppercase leading-none">Porta un documento</strong>
-          <p className="mx-0 mb-0 mt-3 text-[15px] leading-[22px]">Serata senza telefono: alla porta lo staff controlla che nome, cognome e data di nascita qui sotto corrispondano al documento.</p>
+          <p className="mx-0 mb-0 mt-3 text-[15px] leading-[22px]">Serata senza telefono: alla porta lo staff controlla che nome e cognome qui sotto corrispondano al documento.</p>
         </div>
       ) : (
         <>
@@ -28,19 +28,27 @@ export function BigliettoQr({ b, appenaPagato = false }: { b: Biglietto; appenaP
             <QrBiglietto valore={i.tokenQr} etichetta={`Codice QR di ${i.nome} ${i.cognome}`} stampa={appenaPagato} />
           </div>
           <div className="mm-biglietto__codice" aria-label={`Codice ${mostraCodice(i.codice).split('').join(' ')}`}>{mostraCodice(i.codice)}</div>
+          <div className="mm-biglietto__nota">Codice se il QR non si legge</div>
         </>
       )}
       <dl className="mm-biglietto__dati">
         <div className="mm-biglietto__largo"><dt>Titolare</dt><dd>{i.nome} {i.cognome}</dd></div>
-        <div><dt>Nascita</dt><dd>{nascita(i.dataNascita)}</dd></div>
-        <div><dt>Lista</dt><dd>{b.lista}</dd></div>
+        {/* "Lista" solo se l'iscrizione è arrivata da un PR; la data di nascita sul biglietto non c'è (la porta la vede nel suo elenco). */}
+        {b.prHandle && <div className="mm-biglietto__largo"><dt>Lista</dt><dd>{b.lista}</dd></div>}
         {i.categoria && <div className="mm-biglietto__largo"><dt>Prevendita riservata</dt><dd>{i.categoria} · documento alla porta</dd></div>}
       </dl>
       <div className="mm-biglietto__porta">
-        <ChipIscrizione stato={i.stato} testo={i.stato === 'entrato' && i.oraCheckIn ? `Entrato ${ora(i.oraCheckIn)}` : undefined} />
-        <span className="mm-biglietto__prezzo uppercase">
-          {annullato ? 'Non valido' : i.importo > 0 ? `${euro(i.importo)} pagati` : 'Ingresso libero'}
-        </span>
+        {i.stato === 'pagato' && i.importo > 0 ? (
+          // L'importo compare una volta sola, dentro la pillola; verde come "a posto" (stesso colore di "Entrato").
+          <Chip classe="mm-chip mm-chip--entrato">{`Pagato · ${euro(i.importo)}`}</Chip>
+        ) : (
+          <>
+            <ChipIscrizione stato={i.stato} testo={i.stato === 'entrato' && i.oraCheckIn ? `Entrato ${ora(i.oraCheckIn)}` : undefined} />
+            <span className="mm-biglietto__prezzo uppercase">
+              {annullato ? 'Non valido' : i.importo > 0 ? `${euro(i.importo)} pagati` : 'Ingresso libero'}
+            </span>
+          </>
+        )}
       </div>
     </article>
   );
