@@ -11,7 +11,7 @@ import {
  * `daRimborsare`: pagamento arrivato quando non valeva più; `maiPagata`: prevendita chiesta e mai pagata (niente da fare).
  */
 export function AzioniIscrizione({ id, stato, pagato, online, daRimborsare, maiPagata, nominativo }: {
-  nominativo?: { nome: string; cognome: string; nascita: string; email: string | null } | null; // nascita AAAA-MM-GG; // serate senza telefono: l'admin può cambiare chi entra
+  nominativo?: { nome: string; cognome: string; nascita: string; email: string | null } | null; // nascita AAAA-MM-GG; // in tutte le serate: l'admin corregge il nome o fa subentrare un altro
   id: string; stato: string; pagato: boolean; online: boolean; daRimborsare: boolean; maiPagata: boolean;
 }) {
   const [inCorso, avvia] = useTransition();
@@ -50,7 +50,7 @@ function CambiaNome({ id, nominativo, chiudi }: { id: string; nominativo: { nome
     <div role="dialog" aria-modal="true" aria-label="Cambia nome" className="fixed inset-0 z-50 grid place-items-end bg-black/70 md:place-items-center">
       <form action={invia} className="flex w-full max-w-[420px] flex-col gap-3 border border-linea-forte bg-notte-2 p-4 text-left">
         <strong className="font-display text-[22px] font-extrabold uppercase leading-none">Cambia nome</strong>
-        <span className="text-[13px] leading-[18px] text-osso-2">Chi subentra: il biglietto resta lo stesso, cambiano i dati da controllare col documento.</span>
+        <span className="text-[13px] leading-[18px] text-osso-2">Per correggere un errore o far subentrare un altro: il biglietto e il QR restano gli stessi, cambiano i dati da controllare col documento.</span>
         <div className="mm-campo"><label className="mm-campo__etichetta" htmlFor="cn-nome">Nome</label>
           <input className="mm-campo__input" id="cn-nome" name="nome" defaultValue={nominativo.nome} required autoComplete="off" /></div>
         <div className="mm-campo"><label className="mm-campo__etichetta" htmlFor="cn-cognome">Cognome</label>

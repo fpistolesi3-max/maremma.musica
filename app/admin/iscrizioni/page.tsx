@@ -80,7 +80,7 @@ export default async function AdminIscrizioni({ searchParams }: Props) {
                   </td>
                   <td data-et="Iscritto" className="whitespace-nowrap font-mono text-[11px] text-osso-2">{quandoRelativo(i.createdAt)}</td>
                   <td className="mm-pieno"><AzioniIscrizione id={i.id} stato={i.stato} pagato={Boolean(i.metodoPagamento)} online={i.metodoPagamento === 'online'}
-                    nominativo={evento.senzaTelefono && !i.anonimizzata ? { nome: i.nome, cognome: i.cognome, nascita: i.dataNascita, email: i.origine === 'cassa' ? null : i.email } : null}
+                    nominativo={!i.anonimizzata ? { nome: i.nome, cognome: i.cognome, nascita: i.dataNascita, email: i.origine === 'cassa' ? null : i.email } : null}
                     daRimborsare={Boolean(i.pagamentoOnline?.daRimborsare)} maiPagata={Boolean(i.pagamentoOnline && !i.metodoPagamento)} /></td>
                 </tr>
               ))}
