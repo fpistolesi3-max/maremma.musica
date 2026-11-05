@@ -7,6 +7,7 @@ import { datiIniziali } from './seed';
 import { archivioRemoto, storeSupabase, type StoreRemoto } from './archivio-remoto';
 import { archivioTabelle, storeSupabaseTabelle, type StoreTabelle } from './archivio-tabelle';
 import { modalitaArchivio } from './tabelle';
+import { operazioniDa, rpcSupabase, type Operazioni, type Rpc } from './operazioni';
 
 // Unico punto che tocca il salvataggio. Due modi:
 // - locale (default): file .data/db.json, per lo sviluppo offline;
@@ -87,16 +88,37 @@ const storeDelleTabelle: StoreTabelle | null = usaSupabase ? storeSupabaseTabell
 const remoto = storeRiga
   ? archivioRemoto(storeRiga, () => datiIniziali(randomBytes(32).toString('base64url')), normalizza)
   : null;
-const tabelle = modalitaArchivio() === 'tabelle' && storeDelleTabelle ? archivioTabelle(storeDelleTabelle, normalizza) : null;
+let tabelle = modalitaArchivio() === 'tabelle' && storeDelleTabelle ? archivioTabelle(storeDelleTabelle, normalizza) : null;
+let operazioniTabelle: Operazioni | null = tabelle && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+  ? operazioniDa(rpcSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY))
+  : null;
 
 /** Dove sta l'archivio in questo momento: la riga unica (o il file in locale) oppure le tabelle. */
-export const MODALITA_ARCHIVIO: 'riga' | 'tabelle' = tabelle ? 'tabelle' : 'riga';
+export const modalitaCorrente = (): 'riga' | 'tabelle' => (tabelle ? 'tabelle' : 'riga');
+
+/** Vero con MM_ARCHIVIO=tabelle: le funzioni delle vendite usano le operazioni del database invece di `modifica()`. */
+export const usaTabelle = () => tabelle !== null;
+
+/** Le operazioni sulle vendite (funzioni SQL). Solo con l'interruttore acceso: chi le chiama l'ha già controllato con `usaTabelle()`. */
+export function operazioni(): Operazioni {
+  if (!operazioniTabelle) throw new Error('Archivio: le operazioni sulle tabelle servono solo con MM_ARCHIVIO=tabelle.');
+  return operazioniTabelle;
+}
+
+/**
+ * SOLO PER I TEST: fa girare le funzioni dell'app sulle tabelle di un database di prova (PGlite) invece che sulla riga unica o sul file.
+ * `null` rimette le cose com'erano. Non la chiama nessun file dell'app.
+ */
+export function usaTabelleDiProva(prova: { store: StoreTabelle; rpc: Rpc } | null) {
+  tabelle = prova ? archivioTabelle(prova.store, normalizza, { attesa: async () => undefined }) : null;
+  operazioniTabelle = prova ? operazioniDa(prova.rpc) : null;
+}
 
 /** Solo per la verifica e il ripristino (lib/dati/verifica-archivio.ts): gli store con cui si parla a Supabase, o null in locale. */
 export const stores = { riga: storeRiga, tabelle: storeDelleTabelle };
 
 /** Quante email di prova tenere: nell'archivio remoto si rilegge tutto a ogni richiesta, meglio leggero. */
-export const MAX_POSTA = remoto || tabelle ? 20 : 200;
+export const MAX_POSTA = remoto ? 20 : 200;
 
 /** Lettura: restituisce l'archivio corrente (non modificarlo). */
 export async function leggi(): Promise<Readonly<Archivio>> {

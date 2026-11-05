@@ -1,6 +1,6 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import { leggi, modifica } from './archivio';
+import { leggi, modifica, operazioni, usaTabelle } from './archivio';
 import type { Archivio, Evento, Iscrizione, Lotto, StatoIscrizione, Tavolo } from './tipi';
 import { tipiDelModello, type NomeModello } from '../tipi-modelli';
 import type { Sessione } from '../sessione';
@@ -221,6 +221,14 @@ export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; 
 /** Annulla senza rimborso (solo ciò che non è stato pagato) o ripristina. Il rimborso di ciò che è pagato sta in lib/dati/rimborsi.ts. */
 export async function cambiaStatoIscrizione(s: Sessione, id: string, azione: 'annulla' | 'ripristina') {
   soloAdmin(s);
+  if (usaTabelle()) {
+    const esito = await operazioni().cambiaStatoIscrizione(id, azione, new Date().toISOString());
+    if (esito === 'non_trovata') throw new Error('Iscrizione non trovata');
+    if (esito === 'pagata') throw new Error('Questa prevendita è pagata: usa Annulla e rimborsa');
+    if (esito === 'mai_pagata') throw new Error('Questa prevendita non è mai stata pagata: non si può riattivare');
+    if (esito === 'doppio') throw new Error('Esiste già un QR attivo per questa persona');
+    return;
+  }
   await modifica((d) => {
     const i = d.iscrizioni.find((x) => x.id === id);
     if (!i) throw new Error('Iscrizione non trovata');
@@ -246,22 +254,40 @@ export async function cambiaStatoIscrizione(s: Sessione, id: string, azione: 'an
  */
 export async function cambiaNominativo(s: Sessione, id: string, dati: { nome: string; cognome: string; dataNascita: string; email?: string | null }) {
   soloAdmin(s);
+  if (usaTabelle()) {
+    const nuovo = controllaNominativo(await leggi(), id, dati);
+    const esito = await operazioni().cambiaNominativo({ id, nome: nuovo.nome, cognome: nuovo.cognome, dataNascita: dati.dataNascita, email: nuovo.email ?? null });
+    if (esito === 'non_trovata') throw new Error('Iscrizione non trovata');
+    if (esito === 'non_modificabile') throw new Error(ERRORE_NOMINATIVO_NON_MODIFICABILE);
+    if (esito === 'doppione') throw new Error(ERRORE_NOMINATIVO_DOPPIONE);
+    return;
+  }
   await modifica((d) => {
-    const i = d.iscrizioni.find((x) => x.id === id);
-    if (!i) throw new Error('Iscrizione non trovata');
-    if (!['in_lista', 'pagato'].includes(i.stato)) throw new Error('Si può cambiare il nome solo a chi ha una prevendita valida e non è ancora entrato');
-    const nome = dati.nome.trim().slice(0, 80);
-    const cognome = dati.cognome.trim().slice(0, 80);
-    if (!nome || !cognome || !/^\d{4}-\d{2}-\d{2}$/.test(dati.dataNascita)) throw new Error('Scrivi nome, cognome e data di nascita');
-    const evento = d.eventi.find((e) => e.id === i.eventoId);
-    if (evento && !etaSufficiente(dati.dataNascita, evento)) throw new Error(`Serata ${evento.etaMinima}+: con questa data non può entrare`);
-    if (giaIscritto(d.iscrizioni.filter((x) => x.id !== i.id), i.eventoId, cognome, dati.dataNascita)) throw new Error('C’è già una prevendita con questo nome e questa data di nascita');
-    // L'email è facoltativa: se c'è, il biglietto (link e recupero) passa a quella; vuota = resta com'era.
-    const email = dati.email?.trim().toLowerCase();
-    if (email && !EMAIL_RE.test(email)) throw new Error('L’email non sembra giusta');
-    i.nome = nome; i.cognome = cognome; i.dataNascita = dati.dataNascita;
-    if (email && i.origine !== 'cassa') i.email = email;
+    const nuovo = controllaNominativo(d, id, dati);
+    const i = d.iscrizioni.find((x) => x.id === id)!;
+    i.nome = nuovo.nome; i.cognome = nuovo.cognome; i.dataNascita = dati.dataNascita;
+    if (nuovo.email && i.origine !== 'cassa') i.email = nuovo.email;
   });
+}
+
+const ERRORE_NOMINATIVO_NON_MODIFICABILE = 'Si può cambiare il nome solo a chi ha una prevendita valida e non è ancora entrato';
+const ERRORE_NOMINATIVO_DOPPIONE = 'C’è già una prevendita con questo nome e questa data di nascita';
+
+/** I controlli del cambio di nominativo (esistenza, stato, nome, età, doppioni, email): uguali con la riga unica e con le tabelle. */
+function controllaNominativo(d: Readonly<Archivio>, id: string, dati: { nome: string; cognome: string; dataNascita: string; email?: string | null }) {
+  const i = d.iscrizioni.find((x) => x.id === id);
+  if (!i) throw new Error('Iscrizione non trovata');
+  if (!['in_lista', 'pagato'].includes(i.stato)) throw new Error(ERRORE_NOMINATIVO_NON_MODIFICABILE);
+  const nome = dati.nome.trim().slice(0, 80);
+  const cognome = dati.cognome.trim().slice(0, 80);
+  if (!nome || !cognome || !/^\d{4}-\d{2}-\d{2}$/.test(dati.dataNascita)) throw new Error('Scrivi nome, cognome e data di nascita');
+  const evento = d.eventi.find((e) => e.id === i.eventoId);
+  if (evento && !etaSufficiente(dati.dataNascita, evento)) throw new Error(`Serata ${evento.etaMinima}+: con questa data non può entrare`);
+  if (giaIscritto(d.iscrizioni.filter((x) => x.id !== i.id), i.eventoId, cognome, dati.dataNascita)) throw new Error(ERRORE_NOMINATIVO_DOPPIONE);
+  // L'email è facoltativa: se c'è, il biglietto (link e recupero) passa a quella; vuota = resta com'era.
+  const email = dati.email?.trim().toLowerCase();
+  if (email && !EMAIL_RE.test(email)) throw new Error('L’email non sembra giusta');
+  return { nome, cognome, email };
 }
 
 export type DatiEvento = Omit<Evento, 'id' | 'createdAt' | 'updatedAt' | 'numero' | 'piantinaUrl'> & { numero?: number | null };

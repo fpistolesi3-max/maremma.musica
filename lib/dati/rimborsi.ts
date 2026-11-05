@@ -1,6 +1,6 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import { leggi, modifica } from './archivio';
+import { leggi, modifica, operazioni, usaTabelle } from './archivio';
 import type { Archivio, Iscrizione, MotivoRimborso, PagamentoInPiu, PagamentoOnline, PrenotazioneTavolo, Rimborso } from './tipi';
 import type { Sessione } from '../sessione';
 import { bigliettoDi, type Biglietto } from './pubblico';
@@ -61,6 +61,7 @@ export type EsitoAvvio =
  */
 export async function avviaRimborso(s: Sessione, b: Bersaglio, adesso = new Date()): Promise<EsitoAvvio> {
   soloAdmin(s);
+  if (usaTabelle()) return avviaSuTabelle(s, b, adesso);
   return modifica((d): EsitoAvvio => {
     const t = trova(d, b);
     if (!t) throw new Error('Pagamento non trovato');
@@ -81,6 +82,11 @@ export async function avviaRimborso(s: Sessione, b: Bersaglio, adesso = new Date
 /** Stripe ha rifiutato (non è partito niente): si toglie lo stato "in corso", il prossimo tentativo avrà una chiave nuova. */
 export async function rimborsoRespinto(s: Sessione, b: Bersaglio): Promise<void> {
   soloAdmin(s);
+  if (usaTabelle()) {
+    const t = trova(structuredClone(await leggi()), b);
+    if (t?.pagamento) await operazioni().rimborsoRespinto(t.pagamento);
+    return;
+  }
   await modifica((d) => {
     const t = trova(d, b);
     if (t?.voce.rimborso?.stato === 'in_corso') t.voce.rimborso = null;
@@ -123,12 +129,52 @@ function segnaFatto(d: Archivio, t: Trovato, da: string, adesso: Date): Chiusura
  */
 export async function concludiRimborso(s: Sessione, b: Bersaglio, adesso = new Date()): Promise<Chiusura | null> {
   soloAdmin(s);
+  if (usaTabelle()) return concludiSuTabelle(b, s.utente.email, adesso);
   return modifica((d) => {
     const t = trova(d, b);
     if (!t) throw new Error('Pagamento non trovato');
     if (t.voce.rimborso?.stato === 'fatto') return null;
     return segnaFatto(d, t, s.utente.email, adesso);
   });
+}
+
+/** Con le tabelle. Stesse regole: l'ordine si legge dai dati, la restituzione si segna con la funzione del database (una volta sola, anche con due clic insieme). */
+async function avviaSuTabelle(s: Sessione, b: Bersaglio, adesso: Date): Promise<EsitoAvvio> {
+  const t = trova(structuredClone(await leggi()), b);
+  if (!t) throw new Error('Pagamento non trovato');
+  if (t.voce.rimborso?.stato === 'fatto') return { esito: 'gia' };
+  if (t.primario && !principaleRimborsabile(t)) {
+    if ('stato' in t.ordine && (t.ordine.stato === 'rimborsato' || t.ordine.stato === 'rimborsata')) return { esito: 'gia' };
+    throw new Error('Questo ordine non ha niente da rimborsare');
+  }
+  if (!t.pagamento) return { esito: 'manuale' };
+  const r = await operazioni().avviaRimborso({ pagamento: t.pagamento, chiave: `mm-rimborso-${randomUUID()}`, da: s.utente.email, adesso: adesso.toISOString() });
+  if (r.esito !== 'avviato') {
+    if (r.esito === 'sconosciuto') throw new Error('Pagamento non trovato');
+    if (r.esito === 'in_corso') throw new Error('Il rimborso è già in corso: aspetta qualche secondo e ricontrolla');
+    return { esito: 'gia' };
+  }
+  return { esito: 'avviato', chiave: r.chiave, pagamento: t.pagamento, importo: r.centesimi / 100, primario: r.principale };
+}
+
+async function concludiSuTabelle(b: Bersaglio, da: string, adesso: Date): Promise<Chiusura | null> {
+  const t = trova(structuredClone(await leggi()), b);
+  if (!t) throw new Error('Pagamento non trovato');
+  if (t.voce.rimborso?.stato === 'fatto') return null;
+  if (!t.pagamento) throw new Error('Questo ordine non ha un pagamento da restituire: non c\'è niente da chiudere sulle tabelle.');
+  const r = await operazioni().concludiRimborso({ pagamento: t.pagamento, da, adesso: adesso.toISOString() });
+  if (r.esito === 'sconosciuto') throw new Error('Pagamento non trovato');
+  return r.chiusaOrdine ? chiusuraDi(r.iscrizioneId, r.prenotazioneId) : null;
+}
+
+/** L'ordine appena chiuso, riletto dai dati (per l'email al cliente). */
+async function chiusuraDi(iscrizioneId: string | null | undefined, prenotazioneId: string | null | undefined): Promise<Chiusura | null> {
+  const d = await leggi();
+  const i = iscrizioneId ? d.iscrizioni.find((x) => x.id === iscrizioneId) : undefined;
+  if (i) return { tipo: 'prevendita', biglietto: bigliettoDi(d, i)! };
+  const p = prenotazioneId ? d.prenotazioni.find((x) => x.id === prenotazioneId) : undefined;
+  const v = p ? vista(d, p) : null;
+  return v ? { tipo: 'tavolo', vista: v } : null;
 }
 
 export type EsitoRimborsoEsterno = { esito: 'registrato'; chiusura: Chiusura | null } | { esito: 'gia' } | { esito: 'sconosciuto' };
@@ -138,6 +184,12 @@ export type EsitoRimborsoEsterno = { esito: 'registrato'; chiusura: Chiusura | n
  * Si registra una volta sola; se è il pagamento principale l'ordine si chiude. Non c'è una sessione admin: la firma del webhook garantisce Stripe.
  */
 export async function registraRimborsoEsterno(pagamento: string, adesso = new Date()): Promise<EsitoRimborsoEsterno> {
+  if (usaTabelle()) {
+    const r = await operazioni().concludiRimborso({ pagamento, da: 'Stripe', adesso: adesso.toISOString() });
+    if (r.esito === 'sconosciuto') return { esito: 'sconosciuto' };
+    if (r.esito === 'gia') return { esito: 'gia' };
+    return { esito: 'registrato', chiusura: r.chiusaOrdine ? await chiusuraDi(r.iscrizioneId, r.prenotazioneId) : null };
+  }
   return modifica((d): EsitoRimborsoEsterno => {
     for (const tipo of ['prevendita', 'tavolo'] as const) {
       for (const o of tipo === 'prevendita' ? d.iscrizioni : d.prenotazioni) {

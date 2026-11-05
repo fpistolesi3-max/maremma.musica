@@ -1,5 +1,5 @@
 import 'server-only';
-import { MODALITA_ARCHIVIO, normalizza as normalizzaArchivio, stores } from './archivio';
+import { modalitaCorrente, normalizza as normalizzaArchivio, stores } from './archivio';
 import type { StoreRemoto } from './archivio-remoto';
 import type { StoreTabelle } from './archivio-tabelle';
 import { componiArchivio, confrontaArchivi } from './tabelle';
@@ -71,6 +71,6 @@ export async function ripristinaRiga(s: Sessione) {
   soloAdmin(s);
   if (!stores.riga || !stores.tabelle) throw new Error('Il ripristino serve solo online, con Supabase configurato.');
   // Con l'interruttore spento il sito usa già la riga: riscriverla con le tabelle (ferme) cancellerebbe le scritture più recenti.
-  if (MODALITA_ARCHIVIO !== 'tabelle') throw new Error('Il ripristino ha senso solo con MM_ARCHIVIO=tabelle: ora il sito usa la riga unica.');
+  if (modalitaCorrente() !== 'tabelle') throw new Error('Il ripristino ha senso solo con MM_ARCHIVIO=tabelle: ora il sito usa la riga unica.');
   return ripristinaRigaCon(stores.riga, stores.tabelle, normalizzaArchivio);
 }
