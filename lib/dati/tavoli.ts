@@ -1,6 +1,6 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import { leggi, modifica, segreto } from './archivio';
+import { leggi, modifica, operazioni, segreto, usaTabelle } from './archivio';
 import type { Archivio, Evento, MotivoRimborso, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { creaCodice, creaTokenQr } from '../qr-token';
@@ -33,7 +33,9 @@ function faiDecadere(d: Archivio, adesso = new Date()) {
 /** Da chiamare prima di leggere i tavoli: non c'è un orologio che gira, le scadenze si applicano alla lettura. */
 export async function applicaScadenze() {
   const d = await leggi();
-  if (d.prenotazioni.some((p) => prenotazioneScaduta(p))) await modifica((a) => { faiDecadere(a); });
+  if (!d.prenotazioni.some((p) => prenotazioneScaduta(p))) return;
+  if (usaTabelle()) { await operazioni().scadenzePrenotazioni(new Date().toISOString()); return; }
+  await modifica((a) => { faiDecadere(a); });
 }
 
 function prAttivoPerEvento(d: Readonly<Archivio>, handle: string | null | undefined, evento: Evento): Pr | null {
@@ -92,10 +94,13 @@ function valida(i: DatiPrenotazione): EsitoPrenotazione | null {
 
 /** Controlli e scrittura nello stesso passaggio: due richieste insieme non prendono lo stesso tavolo. */
 /** Si paga sempre sul sito: il tavolo resta fermo solo per il tempo del pagamento (o del link mandato al cliente). */
-async function crea(i: DatiPrenotazione, opzioni: { prId: (d: Archivio, t: Tavolo, e: Evento) => string | null; inseritaDa: PrenotazioneTavolo['inseritaDa']; soloDelPr?: string }): Promise<EsitoPrenotazione> {
+interface OpzioniCrea { prId: (d: Archivio, t: Tavolo, e: Evento) => string | null; inseritaDa: PrenotazioneTavolo['inseritaDa']; soloDelPr?: string }
+
+async function crea(i: DatiPrenotazione, opzioni: OpzioniCrea): Promise<EsitoPrenotazione> {
   const errore = valida(i);
   if (errore) return errore;
   const chiave = await segreto();
+  if (usaTabelle()) return creaSuTabelle(i, opzioni, chiave);
   return modifica((d): EsitoPrenotazione => {
     faiDecadere(d);
     const t = d.tavoli.find((x) => x.id === i.tavoloId);
@@ -203,6 +208,7 @@ export async function prenotazioniAdmin(s: Sessione, eventoId: string): Promise<
  * Restituisce la prenotazione chiusa (per l'email al cliente) o null se era già chiusa.
  */
 export async function annullaPrenotazione(s: Sessione, id: string): Promise<PrenotazioneVista | null> {
+  if (usaTabelle()) return annullaSuTabelle(s, id);
   return modifica((d) => {
     const p = d.prenotazioni.find((x) => x.id === id);
     if (!p) throw new Error('Prenotazione non trovata');
@@ -280,6 +286,13 @@ export async function prenotazioniPerEmail(email: string): Promise<PrenotazioneV
  * le segna come avvisate e le restituisce, così l'email parte una volta sola.
  */
 export async function chiuseDaAvvisare(adesso = new Date()): Promise<PrenotazioneVista[]> {
+  if (usaTabelle()) {
+    const ids = await operazioni().avvisiChiusura(adesso.toISOString());
+    if (!ids.length) return [];
+    const d = await leggi();
+    return ids.flatMap((id) => { const p = d.prenotazioni.find((x) => x.id === id); return p ? [vista(d, p)] : []; })
+      .filter((v): v is PrenotazioneVista => v !== null && !eventoPassato(v.evento, adesso));
+  }
   return modifica((d) => {
     faiDecadere(d, adesso);
     // Una pagina di pagamento lasciata a metà dal cliente non è una prenotazione persa: lo sa già.
@@ -307,6 +320,16 @@ export async function emailAdmin(): Promise<string[]> {
  * ricevuto non va disturbato) e una volta sola. `emailPr`: null se il PR non ha un accesso.
  */
 export async function promemoriaRichiestePr(adesso = new Date()): Promise<{ vista: PrenotazioneVista; emailPr: string | null }[]> {
+  if (usaTabelle()) {
+    const ids = await operazioni().promemoriaPrenotazioni(ORE_MINIME_PROMEMORIA_PR, adesso.toISOString());
+    if (!ids.length) return [];
+    const d = await leggi();
+    return ids.flatMap((id) => {
+      const p = d.prenotazioni.find((x) => x.id === id);
+      const v = p ? vista(d, p) : null;
+      return p && v ? [{ vista: v, emailPr: d.utenti.find((u) => u.ruolo === 'pr' && u.prId === p.prId)?.email ?? null }] : [];
+    });
+  }
   const minimo = ORE_MINIME_PROMEMORIA_PR * 3_600_000;
   return modifica((d) => {
     faiDecadere(d, adesso);
@@ -331,6 +354,7 @@ export async function daPagareOnline(id: string, email: string | null | undefine
 
 /** Ricorda l'ultima pagina di pagamento aperta: al ritorno del cliente si controlla quella. */
 export async function salvaSessionePagamento(id: string, sessione: string) {
+  if (usaTabelle()) { await operazioni().salvaSessionePrenotazione(id, sessione); return; }
   await modifica((d) => {
     const p = d.prenotazioni.find((x) => x.id === id);
     if (p?.pagamentoOnline && p.stato === 'in_attesa') p.pagamentoOnline.sessione = sessione;
@@ -352,6 +376,7 @@ export type EsitoPagamentoOnline =
  * Un pagamento in più su una prenotazione che ne ha già uno non sovrascrive quello vero: si registra a parte, da rimborsare.
  */
 export async function confermaPagamentoOnline(prenotazioneId: string, pagamento: string, adesso = new Date(), ricevuto?: PagamentoRicevuto | null): Promise<EsitoPagamentoOnline> {
+  if (usaTabelle()) return confermaSuTabelle(prenotazioneId, pagamento, adesso, ricevuto);
   return modifica((d): EsitoPagamentoOnline => {
     const p = d.prenotazioni.find((x) => x.id === prenotazioneId);
     if (!p) return { esito: 'sconosciuta' };
@@ -401,6 +426,14 @@ export async function pagamentiDaVerificare(giorni = 3, adesso = new Date()): Pr
 
 /** Il cliente lascia il tavolo prima di pagare (dalla sua pagina): si libera subito per gli altri. */
 export async function lasciaTavolo(id: string, email: string): Promise<PrenotazioneVista | null> {
+  if (usaTabelle()) {
+    const d = await leggi();
+    const p = d.prenotazioni.find((x) => x.id === id);
+    if (!p || p.email !== email.trim().toLowerCase() || p.stato !== 'in_attesa') return null;
+    if (await operazioni().annullaPrenotazione(id, p.email, new Date().toISOString()) !== 'annullata') return null;
+    const dopo = await leggi();
+    return vista(dopo, dopo.prenotazioni.find((x) => x.id === id)!);
+  }
   return modifica((d) => {
     const p = d.prenotazioni.find((x) => x.id === id);
     if (!p || p.email !== email.trim().toLowerCase() || p.stato !== 'in_attesa') return null;
@@ -412,4 +445,70 @@ export async function lasciaTavolo(id: string, email: string): Promise<Prenotazi
     if (t && t.stato === 'riservato') t.stato = 'libero';
     return vista(d, p);
   });
+}
+
+// ------------------------------------------------------------------ con le tabelle (MM_ARCHIVIO=tabelle)
+// Stesse regole di sopra. Il codice controlla quello che non dipende dalle gare (la serata, il link del PR, il gruppo); il database ripete da solo
+// quello che dipende dalle gare: il tavolo preso da un altro, i limiti del cliente, il pagamento registrato una volta sola.
+
+async function creaSuTabelle(i: DatiPrenotazione, opzioni: OpzioniCrea, chiave: string): Promise<EsitoPrenotazione> {
+  const d = await leggi();
+  const t = d.tavoli.find((x) => x.id === i.tavoloId);
+  const evento = t && d.eventi.find((e) => e.id === t.eventoId);
+  if (!t || !evento || !evento.pubblicato || eventoPassato(evento)) return { ok: false, campo: 'tavolo', errore: 'Questo tavolo non è più disponibile.' };
+  if (!richiesteTavoliAperte(evento)) return { ok: false, campo: 'tavolo', errore: 'La serata è già iniziata: i tavoli non si chiedono più dal sito.' };
+  if (opzioni.soloDelPr && (!prPuoProporre(t, opzioni.soloDelPr) || (evento.prAbilitati && !evento.prAbilitati.includes(opzioni.soloDelPr)))) return { ok: false, campo: 'tavolo', errore: 'Questo tavolo non è tra quelli affidati a te.' };
+  const id = randomUUID();
+  const adesso = new Date();
+  const p: PrenotazioneTavolo = {
+    id, tavoloId: t.id, eventoId: evento.id, prId: opzioni.prId(d, t, evento),
+    nome: i.nome.trim(), cognome: i.cognome.trim(), email: i.email.trim().toLowerCase(), telefono: i.telefono.trim(), persone: i.persone,
+    spesaMinima: t.spesaMinima, stato: 'in_attesa',
+    scade: scadenzaPagamentoOnline(adesso, evento, opzioni.inseritaDa !== 'cliente'),
+    tokenQr: creaTokenQr(chiave, id, evento.id, adesso), codice: creaCodice(chiave, id),
+    inseritaDa: opzioni.inseritaDa, consensoPrivacyAt: adesso.toISOString(), createdAt: adesso.toISOString(), pagatoAt: null, metodoPagamento: null, pagatoDa: null, chiusaAt: null, chiusaDa: null, promemoriaAt: null, avvisoChiusuraAt: null, ingressi: [],
+    pagamentoOnline: { sessione: null, pagamento: null, daRimborsare: false },
+  };
+  const r = await operazioni().prenotaTavolo({
+    id, tavoloId: t.id, prId: p.prId, nome: p.nome, cognome: p.cognome, email: p.email, telefono: p.telefono, persone: p.persone,
+    scade: p.scade, tokenQr: p.tokenQr, codice: p.codice, inseritaDa: opzioni.inseritaDa, adesso: adesso.toISOString(),
+  });
+  switch (r.esito) {
+    case 'creata': return { ok: true, prenotazione: p };
+    case 'troppe_persone': return { ok: false, campo: 'persone', errore: `Questo tavolo è per ${r.posti} persone al massimo.` };
+    case 'email_gia': return { ok: false, campo: 'email', errore: 'Con questa email hai già un tavolo per questa serata.' };
+    case 'telefono_gia': return { ok: false, campo: 'telefono', errore: 'Con questo numero c’è già un tavolo per questa serata.' };
+    case 'tavolo_sconosciuto': return { ok: false, campo: 'tavolo', errore: 'Questo tavolo non è più disponibile.' };
+    case 'tavolo_non_disponibile': return { ok: false, campo: 'tavolo', errore: 'Qualcuno ha appena preso questo tavolo: scegline un altro.' };
+  }
+}
+
+async function annullaSuTabelle(s: Sessione, id: string): Promise<PrenotazioneVista | null> {
+  const d = await leggi();
+  const p = d.prenotazioni.find((x) => x.id === id);
+  if (!p) throw new Error('Prenotazione non trovata');
+  const admin = s.utente.ruolo === 'admin';
+  const suaInAttesa = s.utente.ruolo === 'pr' && s.pr && p.prId === s.pr.id && p.stato === 'in_attesa';
+  if (!admin && !suaInAttesa) throw new Error('non_autorizzato');
+  if (!prenotazioneAttiva(p)) return null;
+  if (p.stato === 'confermata') throw new Error('Questa prenotazione è pagata: usa Annulla e rimborsa');
+  const r = await operazioni().annullaPrenotazione(id, s.utente.email, new Date().toISOString());
+  if (r === 'pagata') throw new Error('Questa prenotazione è pagata: usa Annulla e rimborsa');
+  if (r !== 'annullata') return null;
+  const dopo = await leggi();
+  return vista(dopo, dopo.prenotazioni.find((x) => x.id === id)!);
+}
+
+async function confermaSuTabelle(prenotazioneId: string, pagamento: string, adesso: Date, ricevuto?: PagamentoRicevuto | null): Promise<EsitoPagamentoOnline> {
+  const p = (await leggi()).prenotazioni.find((x) => x.id === prenotazioneId);
+  if (!p) return { esito: 'sconosciuta' };
+  const r = await operazioni().confermaPagamentoPrenotazione({
+    id: p.id, pagamento, centesimi: ricevuto?.centesimi ?? inCentesimi(p.spesaMinima), valuta: ricevuto?.valuta ?? 'eur',
+    importoOk: importoCorretto(p.spesaMinima, ricevuto), adesso: adesso.toISOString(),
+  });
+  if (r.esito === 'sconosciuta' || r.esito === 'gia') return { esito: r.esito };
+  const dopo = await leggi();
+  const v = vista(dopo, dopo.prenotazioni.find((x) => x.id === prenotazioneId)!)!;
+  if (r.esito === 'confermata') return { esito: 'confermata', vista: v };
+  return { esito: 'da_rimborsare', vista: v, motivo: r.motivo, importo: r.principale ? p.spesaMinima : r.centesimi / 100 };
 }

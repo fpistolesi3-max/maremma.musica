@@ -10,6 +10,7 @@ import { creaDb, MIGRAZIONI_TAVOLI } from './prova-db';
 import { ADESSO, conferma, crea, nuovaSerata, q, stato, tra, uno, type Json } from './prova-vendite';
 import { rpcDaDb } from './prova-store';
 import { operazioniDa } from './operazioni';
+import { confermaTavolo, nuovoTavolo, prenota } from './prova-tavoli';
 
 async function conDb<T>(prova: (db: PGlite, ev: string, lotto: string) => Promise<T>): Promise<T> {
   const db = await creaDb();
@@ -154,5 +155,82 @@ test('le operazioni del codice (operazioni.ts) restituiscono forme stabili anche
     assert.equal(await o.scadenzeIscrizioni(tra(500)), 0);
     assert.equal(await o.anonimizzaIscrizioni([], tra(500)), 0);
     void ({} as Json);
+  });
+});
+
+// ------------------------------------------------------------------ tappa 7: tavoli, porta, accessi
+
+
+test('la migrazione dei tavoli e della porta si ferma senza le tappe precedenti e si ripete; le funzioni nuove sono chiuse a chi non è il server', async () => {
+  const file = readFileSync(path.join(process.cwd(), 'supabase', 'migrations', '20261110000000_operazioni_tavoli_porta.sql'), 'utf8');
+  const poche = await creaDb(['20261005000000_archivio_mvp.sql', '20261104000000_schema_anagrafiche.sql']);
+  try {
+    await assert.rejects(poche.exec(file), /tappe 1, 2 e 3/);
+  } finally {
+    await poche.close();
+  }
+  const t3 = await creaDb(MIGRAZIONI_TAVOLI);
+  try {
+    await t3.exec(file); await t3.exec(file);
+    const f = await q(t3, `select p.proname, has_function_privilege('anon', p.oid, 'execute') as anon, has_function_privilege('authenticated', p.oid, 'execute') as auth,
+      has_function_privilege('service_role', p.oid, 'execute') as srv, p.prosecdef as definer, p.proconfig::text like '%search_path=%' as vuoto
+      from pg_proc p where p.proname in ('salva_sessione_prenotazione', 'crea_accesso', 'rifiuta_ingresso', 'prenota_tavolo') order by 1`);
+    assert.equal(f.length, 4);
+    for (const r of f) assert.deepEqual([r.anon, r.auth, r.srv, r.definer, r.vuoto], [false, false, true, true, true], String(r.proname));
+  } finally {
+    await t3.close();
+  }
+});
+
+test('prenota_tavolo ora controlla anche i posti del tavolo, nell\'ordine in cui lo faceva il codice (prima tavolo preso, poi posti, poi i limiti del cliente)', async () => {
+  await conDb(async (db, ev) => {
+    const t = await nuovoTavolo(db, ev, { posti: 4 });
+    const grande = await prenota(db, t, { persone: 5 });
+    assert.deepEqual(grande, { ...grande, esito: 'troppe_persone', posti: 4 });
+    assert.equal(await uno(db, "select count(*)::int as n from public.prenotazioni_tavoli where tavolo_id = $1", [t]).then((r) => r.n), 0);
+    assert.equal((await prenota(db, t, { persone: 4 })).esito, 'creata');
+    // Con il tavolo già preso il messaggio è quello del tavolo, anche se il gruppo è troppo grande.
+    assert.equal((await prenota(db, t, { persone: 9 })).esito, 'tavolo_non_disponibile');
+    // Senza posti indicati non c'è limite.
+    const libero = await nuovoTavolo(db, ev, { posti: null });
+    assert.equal((await prenota(db, libero, { persone: 50 })).esito, 'creata');
+  });
+});
+
+test('salva_sessione_prenotazione, crea_accesso e rifiuta_ingresso nei loro casi', async () => {
+  await conDb(async (db, ev, lotto) => {
+    const o = ops(db);
+    // Sessione di pagamento di un tavolo: solo finché è in attesa.
+    const p = await prenota(db, await nuovoTavolo(db, ev));
+    assert.equal(await o.salvaSessionePrenotazione(p.id, 'cs_t'), true);
+    assert.equal((await uno(db, 'select pagamento_sessione from public.prenotazioni_tavoli where id = $1', [p.id])).pagamento_sessione, 'cs_t');
+    await confermaTavolo(db, p.id, 'pi_t');
+    assert.equal(await o.salvaSessionePrenotazione(p.id, 'cs_dopo'), false);
+    assert.equal(await o.salvaSessionePrenotazione(randomUUID(), 'cs_x'), false);
+
+    // Accessi: un nuovo accesso toglie quelli vecchi dello stesso utente e quelli scaduti o usati.
+    const u1 = randomUUID(); const u2 = randomUUID();
+    await db.query("insert into public.utenti (id, email, ruolo) values ($1, 'u1@esempio.it', 'staff'), ($2, 'u2@esempio.it', 'staff')", [u1, u2]);
+    const nuovo = (utente: string, token: string, scade: string) => o.creaAccesso({ id: randomUUID(), utenteId: utente, tokenHash: token, codiceHash: `c-${token}`, scade, adesso: ADESSO.toISOString() });
+    await nuovo(u1, 't1', tra(60)); await nuovo(u2, 't2', tra(60));
+    await db.query("insert into public.accessi (id, utente_id, token_hash, codice_hash, scade, usato) values (gen_random_uuid(), $1, 'scaduto', 'x', $2, false), (gen_random_uuid(), $1, 'usato', 'x', $3, true)", [u2, tra(-5), tra(60)]);
+    await nuovo(u1, 't3', tra(60));
+    const righe = await q(db, 'select token_hash from public.accessi order by token_hash');
+    assert.deepEqual(righe.map((r) => r.token_hash), ['t2', 't3'], 'restano il nuovo di u1 e il valido di u2');
+    assert.equal(await o.usaAccessoToken('t3', ADESSO.toISOString()), u1);
+    assert.equal(await o.usaAccessoToken('t3', ADESSO.toISOString()), null);
+    assert.equal(await o.usaAccessoCodice(u2, 'sbagliato', ADESSO.toISOString()), false);
+    assert.equal(await o.usaAccessoCodice(u2, 'c-t2', ADESSO.toISOString()), true);
+
+    // "Non rientra": salva chi, quando e da quale porta; ripetibile; non su chi è già entrato.
+    const a = await crea(db, ev, lotto, { cognome: 'Rifiutata', email: 'r@esempio.it' });
+    await conferma(db, a.id, 'pi_r');
+    assert.equal(await o.rifiutaIngresso({ id: a.id, eventoId: ev, ora: '2026-10-31T23:30:00.123Z', porta: 'P2', da: 'staff@esempio.it' }), 'rifiutato');
+    assert.deepEqual((await uno(db, 'select rifiuto_ingresso from public.iscrizioni where id = $1', [a.id])).rifiuto_ingresso, { ora: '2026-10-31T23:30:00.123Z', porta: 'P2', da: 'staff@esempio.it' });
+    assert.equal(await o.rifiutaIngresso({ id: a.id, eventoId: ev, ora: '2026-10-31T23:40:00.000Z', porta: 'P1', da: 'altro@esempio.it' }), 'rifiutato');
+    assert.equal(await stato(db, a.id), 'pagato', 'l\'iscrizione resta valida');
+    await db.query("update public.iscrizioni set stato = 'entrato', ora_check_in = now() where id = $1", [a.id]);
+    assert.equal(await o.rifiutaIngresso({ id: a.id, eventoId: ev, ora: '2026-10-31T23:50:00.000Z', porta: 'P1', da: 'staff@esempio.it' }), 'gia_entrato');
+    assert.equal(await o.rifiutaIngresso({ id: randomUUID(), eventoId: ev, ora: '2026-10-31T23:50:00.000Z', porta: 'P1', da: 'staff@esempio.it' }), 'non_trovata');
   });
 });

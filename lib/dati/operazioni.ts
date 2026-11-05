@@ -56,6 +56,20 @@ export interface EsitoConcludiRimborso {
   prenotazioneId?: string | null;
 }
 
+export interface DatiPrenotaTavolo {
+  id: string; tavoloId: string; prId: string | null; nome: string; cognome: string; email: string; telefono: string; persone: number;
+  scade: string; tokenQr: string; codice: string; inseritaDa: 'cliente' | 'pr' | 'crew'; adesso: string;
+}
+export type EsitoPrenotaTavolo =
+  | { esito: 'creata'; id: string }
+  | { esito: 'troppe_persone'; posti: number }
+  | { esito: 'tavolo_non_disponibile' | 'email_gia' | 'telefono_gia' | 'tavolo_sconosciuto' };
+
+export type EsitoAnnullaPrenotazione = 'annullata' | 'gia_chiusa' | 'pagata' | 'sconosciuta';
+export interface EsitoIngressoTavolo { esito: 'entrato' | 'gia_contato' | 'completo' | 'non_pagato' | 'chiusa' | 'sconosciuta'; entrati: number; persone: number }
+export interface EsitoSegnaIngresso { esito: 'entrato' | 'gia_entrato' | 'non_valida' | 'sconosciuta'; oraCheckIn: string | null; porta: string | null }
+export type EsitoRifiutaIngresso = 'rifiutato' | 'gia_entrato' | 'non_trovata';
+
 export type EsitoCambiaStato = 'annullata' | 'ripristinata' | 'pagata' | 'mai_pagata' | 'doppio' | 'ignorata' | 'non_trovata';
 export type EsitoCambiaNominativo = 'cambiato' | 'doppione' | 'non_modificabile' | 'non_trovata';
 
@@ -69,6 +83,19 @@ export interface Operazioni {
   avviaRimborso(d: { pagamento: string; chiave: string; da: string; adesso: string }): Promise<EsitoAvviaRimborso>;
   rimborsoRespinto(pagamento: string): Promise<boolean>;
   concludiRimborso(d: { pagamento: string; da: string; adesso: string }): Promise<EsitoConcludiRimborso>;
+  prenotaTavolo(d: DatiPrenotaTavolo): Promise<EsitoPrenotaTavolo>;
+  confermaPagamentoPrenotazione(d: { id: string; pagamento: string; centesimi: number; valuta: string; importoOk: boolean; adesso: string }): Promise<EsitoConfermaPagamento>;
+  annullaPrenotazione(id: string, da: string, adesso: string): Promise<EsitoAnnullaPrenotazione>;
+  scadenzePrenotazioni(adesso: string): Promise<number>;
+  avvisiChiusura(adesso: string): Promise<string[]>;
+  promemoriaPrenotazioni(oreMinime: number, adesso: string): Promise<string[]>;
+  salvaSessionePrenotazione(id: string, sessione: string): Promise<boolean>;
+  ingressoTavolo(d: { id: string; rif: string; ora: string; porta: string; adesso: string }): Promise<EsitoIngressoTavolo>;
+  segnaIngresso(d: { id: string; eventoId: string; ora: string; porta: string }): Promise<EsitoSegnaIngresso>;
+  rifiutaIngresso(d: { id: string; eventoId: string; ora: string; porta: string; da: string }): Promise<EsitoRifiutaIngresso>;
+  creaAccesso(d: { id: string; utenteId: string; tokenHash: string; codiceHash: string; scade: string; adesso: string }): Promise<void>;
+  usaAccessoToken(tokenHash: string, adesso: string): Promise<string | null>;
+  usaAccessoCodice(utenteId: string, codiceHash: string, adesso: string): Promise<boolean>;
   cambiaStatoIscrizione(id: string, azione: 'annulla' | 'ripristina', adesso: string): Promise<EsitoCambiaStato>;
   cambiaNominativo(d: { id: string; nome: string; cognome: string; dataNascita: string; email: string | null }): Promise<EsitoCambiaNominativo>;
 }
@@ -116,6 +143,57 @@ export function operazioniDa(rpc: Rpc): Operazioni {
       const r = await rpc('concludi_rimborso', { p_pagamento: d.pagamento, p_da: d.da, p_adesso: d.adesso }) as
         { esito: EsitoConcludiRimborso['esito']; chiusa_ordine?: boolean; iscrizione_id?: string | null; prenotazione_id?: string | null };
       return { esito: r.esito, chiusaOrdine: Boolean(r.chiusa_ordine), iscrizioneId: r.iscrizione_id ?? null, prenotazioneId: r.prenotazione_id ?? null };
+    },
+    async prenotaTavolo(d) {
+      const r = await rpc('prenota_tavolo', {
+        p_id: d.id, p_tavolo_id: d.tavoloId, p_pr_id: d.prId, p_nome: d.nome, p_cognome: d.cognome, p_email: d.email, p_telefono: d.telefono, p_persone: d.persone,
+        p_scade: d.scade, p_token_qr: d.tokenQr, p_codice: d.codice, p_inserita_da: d.inseritaDa, p_adesso: d.adesso,
+      }) as { esito: string; id?: string; posti?: number };
+      if (r.esito === 'creata') return { esito: 'creata', id: r.id! };
+      if (r.esito === 'troppe_persone') return { esito: 'troppe_persone', posti: r.posti! };
+      return { esito: r.esito } as EsitoPrenotaTavolo;
+    },
+    async confermaPagamentoPrenotazione(d) {
+      const r = await rpc('conferma_pagamento_prenotazione', {
+        p_id: d.id, p_pagamento: d.pagamento, p_centesimi: d.centesimi, p_valuta: d.valuta, p_importo_ok: d.importoOk, p_adesso: d.adesso,
+      }) as { esito: string; motivo?: MotivoRimborso; principale?: boolean; centesimi?: number };
+      return (r.esito === 'da_rimborsare'
+        ? { esito: 'da_rimborsare', motivo: r.motivo!, principale: Boolean(r.principale), centesimi: r.centesimi ?? d.centesimi }
+        : { esito: r.esito }) as EsitoConfermaPagamento;
+    },
+    async annullaPrenotazione(id, da, adesso) {
+      return ((await rpc('annulla_prenotazione', { p_id: id, p_da: da, p_adesso: adesso })) as { esito: EsitoAnnullaPrenotazione }).esito;
+    },
+    async scadenzePrenotazioni(adesso) {
+      return Number(await rpc('scadenze_prenotazioni', { p_adesso: adesso }));
+    },
+    async avvisiChiusura(adesso) {
+      return ((await rpc('avvisi_chiusura', { p_adesso: adesso })) as string[] | null) ?? [];
+    },
+    async promemoriaPrenotazioni(oreMinime, adesso) {
+      return ((await rpc('promemoria_prenotazioni', { p_ore_minime: oreMinime, p_adesso: adesso })) as string[] | null) ?? [];
+    },
+    async salvaSessionePrenotazione(id, sessione) {
+      return Boolean(await rpc('salva_sessione_prenotazione', { p_id: id, p_sessione: sessione }));
+    },
+    async ingressoTavolo(d) {
+      return await rpc('ingresso_tavolo', { p_prenotazione_id: d.id, p_rif: d.rif, p_ora: d.ora, p_porta: d.porta, p_adesso: d.adesso }) as EsitoIngressoTavolo;
+    },
+    async segnaIngresso(d) {
+      const r = await rpc('segna_ingresso', { p_id: d.id, p_evento_id: d.eventoId, p_ora: d.ora, p_porta: d.porta }) as { esito: EsitoSegnaIngresso['esito']; ora_check_in?: string | null; porta?: string | null };
+      return { esito: r.esito, oraCheckIn: r.ora_check_in ?? null, porta: r.porta ?? null };
+    },
+    async rifiutaIngresso(d) {
+      return ((await rpc('rifiuta_ingresso', { p_id: d.id, p_evento_id: d.eventoId, p_ora: d.ora, p_porta: d.porta, p_da: d.da })) as { esito: EsitoRifiutaIngresso }).esito;
+    },
+    async creaAccesso(d) {
+      await rpc('crea_accesso', { p_id: d.id, p_utente_id: d.utenteId, p_token_hash: d.tokenHash, p_codice_hash: d.codiceHash, p_scade: d.scade, p_adesso: d.adesso });
+    },
+    async usaAccessoToken(tokenHash, adesso) {
+      return ((await rpc('usa_accesso_token', { p_token_hash: tokenHash, p_adesso: adesso })) as string | null) ?? null;
+    },
+    async usaAccessoCodice(utenteId, codiceHash, adesso) {
+      return Boolean(await rpc('usa_accesso_codice', { p_utente_id: utenteId, p_codice_hash: codiceHash, p_adesso: adesso }));
     },
     async cambiaStatoIscrizione(id, azione, adesso) {
       return ((await rpc('cambia_stato_iscrizione', { p_id: id, p_azione: azione, p_adesso: adesso })) as { esito: EsitoCambiaStato }).esito;
