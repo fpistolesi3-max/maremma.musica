@@ -45,6 +45,8 @@ export async function avviaIntro(contenitore: HTMLElement, finita: () => void): 
   const [immagineLogo] = await Promise.all([
     usaPng ? caricaLogo() : Promise.resolve(undefined),
     ...FONT_PER_STILE[INTRO.stile].map(caricaFont),
+    // il nome sull'etichetta del disco, ridisegnato in vettoriale durante l'uscita "foro" (Barlow 600 è già dichiarato dal sito)
+    INTRO.uscita === 'foro' ? document.fonts.load('600 16px "Barlow"') : undefined,
   ]);
 
   const canvas = document.createElement('canvas');

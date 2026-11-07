@@ -17,6 +17,8 @@ interface StatoPorta {
   limite: string | null;          // fino a quando la prevendita vale per entrare (dall'ultima sincronizzazione); null = non ancora saputo
   coda: Movimento[];
   conflitti: number;              // ingressi offline che un'altra porta aveva già fatto
+  altrePorte: number;             // biglietti scoperti "già entrati da un'altra porta" e non ancora segnalati allo staff (avviso sullo scanner, non salvato)
+  chiudiAltrePorte: () => void;
   online: boolean;
   serveAccesso: boolean;         // sessione scaduta: rientrare con il link
   scegliEvento: (id: string) => void;
@@ -50,9 +52,11 @@ export const usePorta = create<StatoPorta>()(
       limite: null,
       coda: [],
       conflitti: 0,
+      altrePorte: 0,
+      chiudiAltrePorte: () => set({ altrePorte: 0 }),
       online: true,
       serveAccesso: false,
-      scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, limite: null, coda: [], conflitti: 0 }); },
+      scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, limite: null, coda: [], conflitti: 0, altrePorte: 0 }); },
       scegliPorta: (p) => set({ porta: p }),
       applicaLocale: (voce, m) => {
         set((s) => ({ elenco: s.elenco.map((v) => (v.id === voce.id ? voce : v)), coda: [...s.coda, m] }));
@@ -81,9 +85,11 @@ export const usePorta = create<StatoPorta>()(
           if (!r.ok) throw new Error(String(r.status));
           const dati = (await r.json()) as { esiti: { idLocale: string; esito: EsitoPorta }[]; elenco: VocePorta[]; limite: string | null; ora: string };
           const conflitti = dati.esiti.filter((e) => e.esito.esito !== 'entrato' && e.esito.esito !== 'rifiutato').length;
+          // Un biglietto singolo che il telefono aveva fatto entrare offline ma un'altra porta aveva già fatto entrare: lo staff va avvisato.
+          const altrePorte = dati.esiti.filter((e) => e.esito.esito === 'gia_entrato' && !e.esito.voce.tavolo).length;
           set((s) => {
             const rimasti = s.coda.filter((m) => !inviati.some((x) => x.idLocale === m.idLocale));
-            return { coda: rimasti, elenco: unisci(dati.elenco, rimasti, s.elenco), salvatoAlle: dati.ora, limite: dati.limite ?? s.limite, conflitti: s.conflitti + conflitti, online: true, serveAccesso: false };
+            return { coda: rimasti, elenco: unisci(dati.elenco, rimasti, s.elenco), salvatoAlle: dati.ora, limite: dati.limite ?? s.limite, conflitti: s.conflitti + conflitti, altrePorte: s.altrePorte + altrePorte, online: true, serveAccesso: false };
           });
           return dati;
         } catch {
