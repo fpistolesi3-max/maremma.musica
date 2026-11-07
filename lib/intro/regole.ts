@@ -2,17 +2,18 @@
 // Niente dipendenze: le funzioni qui sotto finiscono anche nello script inline che decide prima del primo disegno.
 
 export type StileIntro = 'classico' | 'techno' | 'giradischi';
-export type UscitaIntro = 'tenda' | 'blob' | 'strisce' | 'spazzata';
+export type UscitaIntro = 'tenda' | 'blob' | 'strisce' | 'spazzata' | 'foro';
 
 /**
  * La versione in uso. Le altre restano nel codice: per cambiarla basta questa riga.
  * - classico: tipografia cinetica e blob morbidi (uscite pensate: tenda o blob)
  * - techno: tutto a scatti su 128 BPM, glitch a fette (uscita pensata: strisce)
- * - giradischi: lo slogan scende dal piatto, scratch, poi accanto al disco (uscita pensata: spazzata)
+ * - giradischi: lo slogan scende dal piatto, scratch, poi accanto al disco (uscite pensate: foro, spazzata)
+ * Uscita foro: il disco accelera e la vista si tuffa nel foro centrale; spazzata: il braccio gira e cancella l'intro.
  */
 export const INTRO: { stile: StileIntro; uscita: UscitaIntro; logo: 'png' | 'vettoriale' } = {
   stile: 'giradischi',
-  uscita: 'spazzata',
+  uscita: 'foro',
   logo: 'png',
 };
 

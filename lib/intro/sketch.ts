@@ -1,6 +1,6 @@
 // Intro "Mai Mollare" disegnata su Canvas 2D (pennello.ts, stesse funzioni e stesso disegno della prima versione in p5.js).
 // Tutto dipende dal tempo t in secondi: ogni fotogramma si ridisegna identico (export video, screenshot).
-// Palette dell'intro: solo 4 colori, niente gradienti, niente trasparenze.
+// Palette dell'intro: solo 4 colori, niente gradienti, niente trasparenze (tranne le brevi dissolvenze dell'uscita "foro").
 import type { Pennello } from './pennello';
 import type { StileIntro, UscitaIntro } from './regole';
 
@@ -8,8 +8,16 @@ const NOTTE = '#111111';
 const OSSO = '#EFEBE3';
 const PETROLIO = '#12555A';
 const ARANCIO = '#F05A28';
+const VINILE = '#050505'; // il nero del vinile (--vinile del sito), solo per l'etichetta disegnata nell'uscita "foro"
 
 export const DURATA = 2.8; // secondi, uscita compresa
+
+/**
+ * Uscita "foro" (secondi e fattori): i ritocchi di gusto si fanno qui.
+ * giro: da quando il disco comincia ad accelerare; inizio/fine: il tuffo; zoom: quanto si ingrandisce il disco;
+ * curva: quanto lo zoom parte piano e poi accelera (1 = costante); giri: giri in più del disco fino alla fine.
+ */
+export const FORO = { giro: 2.0, inizio: 2.16, fine: DURATA - 0.03, zoom: 14, curva: 1.7, giri: 0.9 };
 
 type Punto = [number, number];
 // monogramma MM dall'SVG del sito (public/img/monogramma.svg), centro = foro del disco
@@ -22,6 +30,7 @@ const seg = (t: number, a: number, b: number) => clamp01((t - a) / (b - a));
 const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 const eOutCubic = (k: number) => 1 - Math.pow(1 - k, 3);
 const eInCubic = (k: number) => k * k * k;
+const eInQuad = (k: number) => k * k;
 const eInOutCubic = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
 const eOutBack = (k: number) => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
 const eOutExpo = (k: number) => (k >= 1 ? 1 : 1 - Math.pow(2, -10 * k));
@@ -497,7 +506,7 @@ export function creaIntro(p: Pennello, opzioni: OpzioniIntro) {
     if (kLogo > 0) {
       p.push();
       p.translate(P.x, P.y);
-      p.rotate(ang * 0.6);
+      p.rotate(ang * 0.6 + giroForo(t));
       const d = V.rDisco * 2 * P.s * kLogo;
       if (opzioni.immagineLogo) { p.imageMode(p.CENTER); p.image(opzioni.immagineLogo, 0, 0, d, d); }
       else { p.noStroke(); p.fill(NOTTE); p.circle(0, 0, d); }
@@ -628,7 +637,123 @@ export function creaIntro(p: Pennello, opzioni: OpzioniIntro) {
     }
   }
 
-  const uscite: Record<UscitaIntro, (L: Misure, t: number) => void> = { tenda: uscitaTenda, blob: uscitaBlob, strisce: uscitaStrisce, spazzata: uscitaSpazzata };
+  // foro: il disco accelera e la vista si tuffa nel foro centrale, che si allarga fino a mostrare tutto il sito (tempi in FORO)
+
+  // giri in più del disco: cominciano poco prima del tuffo e accelerano fino alla fine
+  function giroForo(t: number) {
+    return opzioni.uscita === 'foro' ? FORO.giri * Math.PI * 2 * eInCubic(seg(t, FORO.giro, FORO.fine)) : 0;
+  }
+
+  // etichetta del disco in vettoriale, nelle misure del PNG (708 px di lato, centro = foro): ingrandita resta nitida.
+  // Il monogramma SVG è alla stessa scala del PNG; testo, anello e stelle sono misurati sul PNG.
+  const LATO_LOGO = 708;
+  function etichetta() {
+    const c = ctx();
+    p.noStroke(); p.fill(VINILE); p.circle(0, 0, 242 * 2);
+    p.noFill(); p.stroke(OSSO); p.strokeWeight(1.2); p.circle(0, 0, 232 * 2);
+    // nel PNG monogramma e foro stanno mezzo pixel a destra e in alto rispetto al centro dell'immagine
+    p.push();
+    p.translate(0.5, -0.5);
+    p.strokeWeight(3.6); p.strokeJoin(p.MITER); p.strokeCap('butt');
+    for (const [punti, colore] of [[MM_SX, OSSO], [MM_DX, ARANCIO]] as const) {
+      p.stroke(colore);
+      p.beginShape();
+      punti.forEach(([x, y]) => p.vertex(x - MM_CX, y - MM_CY));
+      p.endShape();
+    }
+    p.strokeWeight(1.8); p.stroke(OSSO); p.circle(0, 0, MM_FORO * 2);
+    p.pop();
+    // stelle a quattro punte con i lati curvi, come nel PNG
+    c.fillStyle = ARANCIO;
+    for (const [x, y] of [[-187.4, 1.6], [195.2, 1.5]]) {
+      const r = 17.5, q = r * 0.3;
+      c.beginPath();
+      c.moveTo(x, y - r);
+      c.quadraticCurveTo(x + q, y - q, x + r, y);
+      c.quadraticCurveTo(x + q, y + q, x, y + r);
+      c.quadraticCurveTo(x - q, y + q, x - r, y);
+      c.quadraticCurveTo(x - q, y - q, x, y - r);
+      c.fill();
+    }
+    // MAREMMA sopra (lettere verso l'esterno), MUSICA sotto (lettere verso il centro)
+    c.font = '600 50px "Barlow"';
+    c.textAlign = 'center';
+    c.textBaseline = 'alphabetic';
+    c.fillStyle = OSSO;
+    const passo = (14.4 * Math.PI) / 180;
+    // verso 1: sopra, da sinistra a destra in senso orario; -1: sotto, in senso antiorario. base = riga del testo sull'asse verticale
+    const lettere = (testo: string, centro: number, verso: 1 | -1, base: number) => {
+      for (let i = 0; i < testo.length; i++) {
+        const a = centro + verso * (i - (testo.length - 1) / 2) * passo;
+        c.save();
+        c.rotate(a + verso * Math.PI / 2);
+        c.fillText(testo[i], 0, base);
+        c.restore();
+      }
+    };
+    lettere('MAREMMA', (-88.8 * Math.PI) / 180, 1, -189);
+    lettere('MUSICA', (89.3 * Math.PI) / 180, -1, 214);
+  }
+
+  function uscitaForo(L: Misure, t: number) {
+    if (t < FORO.inizio) { scena(L, t); return; }
+    const k = seg(t, FORO.inizio, FORO.fine);
+    const c = ctx();
+    if (opzioni.stile !== 'giradischi') {
+      // senza vinile al centro: un foro che si apre dal centro
+      scena(L, FORO.inizio);
+      c.save();
+      c.globalCompositeOperation = 'destination-out';
+      c.beginPath(); c.arc(L.cx, L.cy, eInCubic(k) * L.diag * 0.52, 0, Math.PI * 2); c.fill();
+      c.restore();
+      return;
+    }
+    const V = misuraVinile(L);
+    const P = piatto(L, t);
+    const d = V.rDisco * 2 * P.s;
+    const u = d / LATO_LOGO; // pixel dello schermo per pixel del logo
+    // lo zoom accelera (curva "in"): sembra di cadere dentro
+    const s = Math.pow(FORO.zoom, Math.pow(k, FORO.curva));
+    // il foro deve arrivare oltre l'angolo dello schermo più lontano dal perno
+    const lontano = Math.max(Math.hypot(P.x, P.y), Math.hypot(L.w - P.x, P.y), Math.hypot(P.x, L.h - P.y), Math.hypot(L.w - P.x, L.h - P.y));
+    const rForo0 = MM_FORO * u;
+    const allarga = Math.max(1, (lontano * 1.04) / (rForo0 * FORO.zoom));
+    const rForo = rForo0 * s * (1 + (allarga - 1) * eInQuad(k)) * eOutCubic(seg(k, 0, 0.12));
+
+    p.background(COLORE);
+    p.push();
+    p.translate(P.x, P.y);
+    p.scale(s);
+    p.rotate(giroPiatto(t) * 0.6 + giroForo(t));
+    // fuori dall'etichetta resta il PNG (solchi e riflessi, morbidi anche ingranditi) finché si vede
+    if (opzioni.immagineLogo && 242 * u * s < lontano) { p.imageMode(p.CENTER); p.image(opzioni.immagineLogo, 0, 0, d, d); }
+    // l'etichetta vettoriale prende il posto di quella del PNG nei primi istanti, quando lo zoom è ancora quasi fermo
+    p.scale(u);
+    c.globalAlpha = eOutCubic(seg(k, 0, 0.14));
+    etichetta();
+    p.pop();
+
+    // lo slogan sfuma e vola via (più vicino, si allontana più in fretta del disco)
+    const kVia = seg(k, 0, 0.3);
+    if (kVia < 1) {
+      p.push();
+      c.globalAlpha = 1 - kVia;
+      p.translate(P.x, P.y); p.scale(s * s); p.translate(-P.x, -P.y);
+      disegnaSlogan(L, t, P);
+      p.pop();
+    }
+
+    // il foro: si apre, poi si allarga fino a mostrare tutto il sito; il bordo osso lo segue
+    if (rForo > 0.5) {
+      c.save();
+      c.globalCompositeOperation = 'destination-out';
+      c.beginPath(); c.arc(P.x, P.y, rForo, 0, Math.PI * 2); c.fill();
+      c.restore();
+      p.noFill(); p.stroke(OSSO); p.strokeWeight(1.8 * u * s); p.circle(P.x, P.y, rForo * 2);
+    }
+  }
+
+  const uscite: Record<UscitaIntro, (L: Misure, t: number) => void> = { tenda: uscitaTenda, blob: uscitaBlob, strisce: uscitaStrisce, spazzata: uscitaSpazzata, foro: uscitaForo };
 
   return {
     disegna(t: number) {
