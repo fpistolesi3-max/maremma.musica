@@ -1,12 +1,12 @@
 // Test del livello dati su un archivio temporaneo (non tocca .data/).
 // Si lancia con: npm test  (usa --conditions=react-server per i moduli 'server-only')
-import { test, before, after } from 'node:test';
+import { test, before, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { fissaOrologio } from './orologio-test';
+import { fissaOrologio, ADESSO_TEST } from './orologio-test';
 
 // Il seed ha date relative a "adesso": con l'orologio fisso i test non dipendono dal giorno in cui girano.
 fissaOrologio();
@@ -40,6 +40,24 @@ before(async () => {
   };
 });
 after(() => rmSync(cartella, { recursive: true, force: true }));
+
+/**
+ * Porta aperta: per la durata di `fn` la serata "comincia tra un'ora" (data e fine spostate di conseguenza, poi rimesse a posto). L'orologio finto non si muove:
+ * le prevendite in attesa non scadono e il resto dei test resta com'è. Il server non fa entrare nessuno fuori dalla finestra della porta (12 ore prima, fino a fine serata).
+ */
+async function inSerata<T>(eventoId: string, fn: (ora: string) => Promise<T>): Promise<T> {
+  const e0 = (await m.archivio.leggi()).eventi.find((x) => x.id === eventoId)!;
+  const { data, dataFine } = e0;
+  const delta = ADESSO_TEST.getTime() + 3_600_000 - Date.parse(data);
+  const sposta = (iso: string) => new Date(Date.parse(iso) + delta).toISOString();
+  await m.archivio.modifica((d) => { const e = d.eventi.find((x) => x.id === eventoId)!; e.data = sposta(data); if (dataFine) e.dataFine = sposta(dataFine); });
+  try { return await fn(new Date().toISOString()); } finally {
+    await m.archivio.modifica((d) => { const e = d.eventi.find((x) => x.id === eventoId)!; e.data = data; e.dataFine = dataFine; });
+  }
+}
+type ArgsCheckIn = Parameters<Mod['porta']['checkIn']>;
+const pCheckIn = (s: ArgsCheckIn[0], ev: string, chiave: string, o: ArgsCheckIn[3], rif?: string) => inSerata(ev, (ora) => m.porta.checkIn(s, ev, chiave, { ...o, ora }, rif));
+const pRifiuta = (s: ArgsCheckIn[0], ev: string, chiave: string, o: { porta: string; ora: string }) => inSerata(ev, (ora) => m.porta.rifiutaIngresso(s, ev, chiave, { ...o, ora }));
 
 async function sessione(email: string) {
   const d = await m.archivio.leggi();
@@ -282,11 +300,11 @@ test('porta: QR falsificato non valido, doppio passaggio bloccato, PR non può f
   const i = d.iscrizioni.find((x) => x.stato === 'pagato')!;
   const o = { porta: 'P1', ora: new Date().toISOString() };
   const falso = i.tokenQr.slice(0, -2) + 'xx';
-  assert.equal((await m.porta.checkIn(s, i.eventoId, falso, o)).esito, 'non_valido');
-  assert.equal((await m.porta.checkIn(s, i.eventoId, i.tokenQr, o)).esito, 'entrato');
-  assert.equal((await m.porta.checkIn(s, i.eventoId, i.tokenQr, o)).esito, 'gia_entrato');
+  assert.equal((await pCheckIn(s, i.eventoId, falso, o)).esito, 'non_valido');
+  assert.equal((await pCheckIn(s, i.eventoId, i.tokenQr, o)).esito, 'entrato');
+  assert.equal((await pCheckIn(s, i.eventoId, i.tokenQr, o)).esito, 'gia_entrato');
   const pr = await sessione('test-pr@maremmamusica.test');
-  await assert.rejects(m.porta.checkIn(pr, i.eventoId, i.tokenQr, o), /non_autorizzato/);
+  await assert.rejects(pCheckIn(pr, i.eventoId, i.tokenQr, o), /non_autorizzato/);
 });
 
 test('porta: categoria da confermare, "Non rientra" salvato, solo lo staff, si può comunque far entrare', async () => {
@@ -296,10 +314,10 @@ test('porta: categoria da confermare, "Non rientra" salvato, solo lo staff, si p
   const i = d0.iscrizioni.find((x) => x.stato === 'pagato' && x.origine === 'lista')!;
   await m.archivio.modifica((d) => { d.iscrizioni.find((x) => x.id === i.id)!.categoria = 'Donne'; });
   const o = { porta: 'P1', ora: new Date().toISOString() };
-  assert.equal((await m.porta.checkIn(staff, i.eventoId, i.tokenQr, o)).esito, 'da_confermare', 'senza conferma non entra');
+  assert.equal((await pCheckIn(staff, i.eventoId, i.tokenQr, o)).esito, 'da_confermare', 'senza conferma non entra');
   assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === i.id)!.stato, 'pagato');
-  await assert.rejects(m.porta.rifiutaIngresso(pr, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora }), /non_autorizzato/);
-  assert.equal((await m.porta.rifiutaIngresso(staff, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora })).esito, 'rifiutato');
+  await assert.rejects(pRifiuta(pr, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora }), /non_autorizzato/);
+  assert.equal((await pRifiuta(staff, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora })).esito, 'rifiutato');
   const dopo = (await m.archivio.leggi()).iscrizioni.find((x) => x.id === i.id)!;
   assert.equal(dopo.stato, 'pagato', 'l’iscrizione resta valida');
   assert.equal(dopo.rifiutoIngresso?.porta, 'P1');
@@ -308,8 +326,8 @@ test('porta: categoria da confermare, "Non rientra" salvato, solo lo staff, si p
   assert.equal(voce.rifiuto?.porta, 'P1', 'il rifiuto arriva a tutte le porte');
   const live = await m.admin.serataLive(await sessione('admin@maremmamusica.test'), i.eventoId);
   assert.equal(live!.rifiuti.some((r) => r.id === i.id), true, 'l’admin lo vede nella serata');
-  assert.equal((await m.porta.checkIn(staff, i.eventoId, i.tokenQr, { ...o, confermato: true })).esito, 'entrato', 'ripassato: si può comunque far entrare');
-  assert.equal((await m.porta.rifiutaIngresso(staff, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora })).esito, 'gia_entrato', 'già entrato: nessun rifiuto');
+  assert.equal((await pCheckIn(staff, i.eventoId, i.tokenQr, { ...o, confermato: true })).esito, 'entrato', 'ripassato: si può comunque far entrare');
+  assert.equal((await pRifiuta(staff, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora })).esito, 'gia_entrato', 'già entrato: nessun rifiuto');
 });
 
 test('attività PR e canali: solo admin (lo staff vede solo la porta), i PR no', async () => {
@@ -343,7 +361,7 @@ test('prevendita online: posto fermo, pagamento, ritardo da rimborsare, porta, p
 
   // Prima di pagare: niente QR alla porta, non conta per il PR né in classifica
   const o = { porta: 'P1', ora: new Date().toISOString() };
-  assert.equal((await m.porta.checkIn(staff, halloween.id, id, o)).esito, 'non_pagato');
+  assert.equal((await pCheckIn(staff, halloween.id, id, o)).esito, 'non_pagato');
   const live0 = (await m.admin.serataLive(admin, halloween.id))!;
   assert.ok(live0.prevendita.inAttesa >= 1);
   const prima = live0.classifica.find((c) => c.prId === zarro.pr!.id)!.inLista;
@@ -365,7 +383,7 @@ test('prevendita online: posto fermo, pagamento, ritardo da rimborsare, porta, p
   const live1 = (await m.admin.serataLive(admin, halloween.id))!;
   assert.equal(live1.classifica.find((c) => c.prId === zarro.pr!.id)!.inLista, prima + 1, 'conta per il PR del link');
   assert.equal(live1.prevendita.incassato, live0.prevendita.incassato + 10);
-  assert.equal((await m.porta.checkIn(staff, halloween.id, pagata.tokenQr, o)).esito, 'entrato');
+  assert.equal((await pCheckIn(staff, halloween.id, pagata.tokenQr, o)).esito, 'entrato');
 
   // Non paga in tempo: scade e il posto torna libero; il pagamento che arriva dopo vale se c'è ancora posto
   const t = await m.pubblico.creaIscrizione({ ...base, nome: 'Tito', cognome: 'Tardi', email: 'tito@esempio.it' });
@@ -427,12 +445,15 @@ test('orario limite della prevendita: default 01:00, modificabile per serata, ar
   assert.equal(await m.porta.limitePorta(staff, ev.id), l0130);
 
   // Il server rifà il controllo: un QR pagato dopo il limite non entra, uno fatto offline prima del limite sì (conta l'orario vero).
-  await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: '2026-10-01T00:00:00.000Z' });
+  await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: new Date(Date.parse(ev.data) + 2 * 3_600_000).toISOString() });
   const i = d0.iscrizioni.find((x) => x.eventoId === ev.id && x.stato === 'pagato' && x.origine === 'lista' && !x.categoria)!;
+  const inizio = Date.parse(ev.data);
+  mock.timers.setTime(inizio + 3 * 3_600_000); // tre ore dopo l'inizio: porta aperta, ma l'orario limite (inizio + 2 ore) è passato
   const dopo = await m.porta.checkIn(staff, ev.id, i.tokenQr, { porta: 'P1', ora: new Date().toISOString() });
   assert.equal(dopo.esito, 'oltre_orario');
   assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === i.id)!.stato, 'pagato', 'nessun ingresso registrato');
-  const offline = await m.porta.checkIn(staff, ev.id, i.tokenQr, { porta: 'P1', ora: '2026-09-30T23:00:00.000Z' });
+  const offline = await m.porta.checkIn(staff, ev.id, i.tokenQr, { porta: 'P1', ora: new Date(inizio + 3_600_000).toISOString() });
+  mock.timers.setTime(ADESSO_TEST.getTime());
   assert.equal(offline.esito, 'entrato', 'ingresso fatto prima del limite e sincronizzato dopo');
   await m.archivio.modifica((d) => { const x = d.iscrizioni.find((y) => y.id === i.id)!; x.stato = 'pagato'; x.oraCheckIn = null; x.porta = null; });
 
@@ -700,26 +721,26 @@ test('porta e tavoli: un QR per il gruppo, una persona a passaggio, non pagato n
 
   // In attesa di pagamento: è in elenco ma il QR non vale
   assert.deepEqual([(await voce()).origine, (await voce()).tavolo], ['tavolo', { nome: 'P1', persone: 2, entrati: 0, pagato: false }]);
-  const nonPagato = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm0');
+  const nonPagato = await pCheckIn(staff, ev.id, p.tokenQr, o, 'm0');
   assert.ok(nonPagato.esito === 'non_valido' && /non ancora pagato/.test(nonPagato.motivo));
 
   await tv.confermaPagamentoOnline(p.id, 'prova_porta');
-  const primo = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm1');
+  const primo = await pCheckIn(staff, ev.id, p.tokenQr, o, 'm1');
   assert.ok(primo.esito === 'entrato' && primo.voce.tavolo!.entrati === 1 && primo.incassato === 0);
   // La stessa sincronizzazione ripetuta non fa entrare un'altra persona
-  await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm1');
+  await pCheckIn(staff, ev.id, p.tokenQr, o, 'm1');
   assert.equal((await voce()).tavolo!.entrati, 1);
   assert.equal((await voce()).stato, 'pagato');
   // Secondo del gruppo, col codice dettato: tavolo al completo
-  const secondo = await m.porta.checkIn(staff, ev.id, p.codice, { ...o, porta: 'P2' }, 'm2');
+  const secondo = await pCheckIn(staff, ev.id, p.codice, { ...o, porta: 'P2' }, 'm2');
   assert.ok(secondo.esito === 'entrato' && secondo.voce.stato === 'entrato');
-  const terzo = await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm3');
+  const terzo = await pCheckIn(staff, ev.id, p.tokenQr, o, 'm3');
   assert.equal(terzo.esito, 'gia_entrato');
   assert.equal((await m.admin.serataLive(admin, ev.id))!.tavoli.entrati, 2);
 
   // Annullata: il QR non vale più
   await (await import('../rimborso')).rimborsaPagamento(admin, { tipo: 'tavolo', id: p.id }, 'http://prova');
-  assert.equal((await m.porta.checkIn(staff, ev.id, p.tokenQr, o, 'm4')).esito, 'annullato');
+  assert.equal((await pCheckIn(staff, ev.id, p.tokenQr, o, 'm4')).esito, 'annullato');
 });
 
 test('tavoli: copia da un’altra serata, recupero per email, promemoria una volta sola, CSV', async () => {
@@ -899,12 +920,12 @@ test('serata senza telefono: il documento si conferma sempre, il telefono non sa
   const o = { porta: 'P1', ora: new Date().toISOString() };
 
   // Anche senza categoria: la scansione da sola non basta, serve il "Fai entrare" dopo il controllo del documento.
-  assert.equal((await m.porta.checkIn(staff, ev.id, rossi.tokenQr, o)).esito, 'da_confermare');
+  assert.equal((await pCheckIn(staff, ev.id, rossi.tokenQr, o)).esito, 'da_confermare');
   assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === rossi.id)!.stato, 'pagato');
-  assert.equal((await m.porta.checkIn(staff, ev.id, rossi.tokenQr, { ...o, confermato: true })).esito, 'entrato');
-  assert.equal((await m.porta.checkIn(staff, ev.id, rossi.tokenQr, { ...o, confermato: true })).esito, 'gia_entrato', 'un ingresso solo');
+  assert.equal((await pCheckIn(staff, ev.id, rossi.tokenQr, { ...o, confermato: true })).esito, 'entrato');
+  assert.equal((await pCheckIn(staff, ev.id, rossi.tokenQr, { ...o, confermato: true })).esito, 'gia_entrato', 'un ingresso solo');
   // "Non corrisponde": nessun ingresso, il rifiuto è salvato e l'iscrizione resta valida.
-  assert.equal((await m.porta.rifiutaIngresso(staff, ev.id, verdi.tokenQr, { porta: 'P2', ora: o.ora })).esito, 'rifiutato');
+  assert.equal((await pRifiuta(staff, ev.id, verdi.tokenQr, { porta: 'P2', ora: o.ora })).esito, 'rifiutato');
   assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === verdi.id)!.stato, 'pagato');
 
   // Lista di riserva: in ordine alfabetico, con data di nascita; solo staff e admin.
@@ -962,7 +983,7 @@ test('serata normale (con QR): l’admin corregge il nome, biglietto e QR restan
 
   // Alla porta il QR di prima fa entrare, col nome nuovo; dopo l'ingresso il nome non si cambia più.
   const o = { porta: 'P1', ora: new Date().toISOString() };
-  assert.equal((await m.porta.checkIn(staff, ev.id, prima.iscrizione.tokenQr, o)).esito, 'entrato');
+  assert.equal((await pCheckIn(staff, ev.id, prima.iscrizione.tokenQr, o)).esito, 'entrato');
   await assert.rejects(m.admin.cambiaNominativo(admin, r.iscrizione.id, { ...corretto, cognome: 'Altro' }), /non è ancora entrato/);
 });
 
@@ -1047,7 +1068,7 @@ test('prevendita non completata: alla porta compare una volta, "non pagato", non
   assert.equal(prima.length, 1);
   assert.equal(prima[0].stato, 'in_attesa');
   assert.equal(decidiIngresso(prima[0], { ...o }).esito.esito, 'non_pagato');
-  assert.equal((await m.porta.checkIn(staff, ev.id, prima[0].token, o)).esito, 'non_pagato', 'anche dal server: niente ingresso senza pagamento');
+  assert.equal((await pCheckIn(staff, ev.id, prima[0].token, o)).esito, 'non_pagato', 'anche dal server: niente ingresso senza pagamento');
 });
 
 test('QR di un’altra serata: la porta dice di quale e solo se la firma è vera; le bozze non si aprono alla porta', async () => {
@@ -1060,9 +1081,9 @@ test('QR di un’altra serata: la porta dice di quale e solo se la firma è vera
   const o = { porta: 'P1', ora: new Date().toISOString() };
 
   // Scansionato sulla serata sbagliata: l'ingresso non passa...
-  assert.equal((await m.porta.checkIn(staff, halloween.id, bigliettoAltra.tokenQr, o)).esito, 'non_valido');
+  assert.equal((await pCheckIn(staff, halloween.id, bigliettoAltra.tokenQr, o)).esito, 'non_valido');
   // ...ma la porta riconosce la serata del biglietto.
-  assert.deepEqual(await m.porta.serataDelBiglietto(staff, bigliettoAltra.tokenQr), { id: altra.id, nome: altra.nome, data: altra.data });
+  assert.deepEqual(await m.porta.serataDelBiglietto(staff, bigliettoAltra.tokenQr), { id: altra.id, nome: altra.nome, data: altra.data, finestra: 'prima' });
   // Un biglietto di questa serata dice questa serata (il telefono confronta e non propone niente).
   const bigliettoHalloween = d.iscrizioni.find((i) => i.eventoId === halloween.id && i.tokenQr)!;
   assert.equal((await m.porta.serataDelBiglietto(staff, bigliettoHalloween.tokenQr))?.id, halloween.id);
@@ -1082,6 +1103,79 @@ test('QR di un’altra serata: la porta dice di quale e solo se la firma è vera
     await m.archivio.modifica((x) => { x.eventi.find((e) => e.id === altra.id)!.pubblicato = true; });
   }
   assert.ok((await m.porta.eventiPorta(staff)).some((e) => e.id === altra.id));
+});
+
+test('porta: il biglietto di una serata futura non si consuma; quello di stanotte sì, anche se il telefono è sulla serata sbagliata', async () => {
+  const staff = await sessione('porta@maremmamusica.test');
+  const d = await m.archivio.leggi();
+  const halloween = d.eventi.find((e) => e.slug === 'halloween-party')!;
+  const solchi = d.eventi.find((e) => e.slug === 'solchi')!;
+  const { creaTokenQr, creaCodice } = await import('../qr-token');
+  const { cambiaSerataPossibile } = await import('../porta-logica');
+  const segreto = await m.archivio.segreto();
+  const base = d.iscrizioni.find((i) => i.eventoId === halloween.id && i.stato === 'pagato' && i.origine === 'lista')!;
+  const nuovo = async (eventoId: string, cognome: string) => {
+    const id = crypto.randomUUID();
+    const i = { ...structuredClone(base), id, eventoId, cognome, stato: 'pagato' as const, categoria: null, rifiutoIngresso: null, oraCheckIn: null, porta: null,
+      tokenQr: creaTokenQr(segreto, id, eventoId), codice: creaCodice(segreto, id) };
+    await m.archivio.modifica((a) => { a.iscrizioni.push(i); });
+    return i;
+  };
+  const stato = async (id: string) => (await m.archivio.leggi()).iscrizioni.find((x) => x.id === id)!;
+  const futuro = await nuovo(solchi.id, 'FuturaSolchi');
+  const stanotte = await nuovo(halloween.id, 'StanottePorta');
+  const chiusa = /Porta non ancora aperta/;
+
+  // Adesso (11 giorni prima) nessuna delle due porte è aperta: niente ingresso, niente "Non rientra", il biglietto resta com'era.
+  const o = { porta: 'P1', ora: new Date().toISOString() };
+  for (const [ev, i] of [[halloween.id, stanotte], [solchi.id, futuro]] as const) {
+    const r = await m.porta.checkIn(staff, ev, i.tokenQr, o);
+    assert.ok(r.esito === 'non_valido' && chiusa.test(r.motivo), 'porta chiusa');
+    const rif = await m.porta.rifiutaIngresso(staff, ev, i.tokenQr, { porta: 'P1', ora: o.ora });
+    assert.ok(rif.esito === 'non_valido' && chiusa.test(rif.motivo), 'nemmeno il rifiuto si registra');
+    assert.deepEqual([(await stato(i.id)).stato, (await stato(i.id)).oraCheckIn, (await stato(i.id)).rifiutoIngresso], ['pagato', null, null]);
+  }
+  assert.equal((await m.porta.serataDelBiglietto(staff, futuro.tokenQr))?.finestra, 'prima');
+
+  // Stanotte c'è Halloween: la sua porta è aperta, quella di Solchi (tra 18 giorni) no.
+  await inSerata(halloween.id, async (ora) => {
+    const oraS = { porta: 'P1', ora };
+    // Il QR di Solchi scansionato su Solchi: il server non lo fa entrare (e non lo consuma)...
+    const su = await m.porta.checkIn(staff, solchi.id, futuro.tokenQr, oraS);
+    assert.ok(su.esito === 'non_valido' && chiusa.test(su.motivo));
+    assert.equal((await stato(futuro.id)).stato, 'pagato', 'nessun ingresso registrato');
+    // ...e scansionato su Halloween è "di un'altra serata", ma futura: il telefono non offre "Cambia serata".
+    assert.equal((await m.porta.checkIn(staff, halloween.id, futuro.tokenQr, oraS)).esito, 'non_valido');
+    const serataFutura = (await m.porta.serataDelBiglietto(staff, futuro.tokenQr))!;
+    assert.equal(serataFutura.id, solchi.id);
+    assert.equal(serataFutura.finestra, 'prima');
+    assert.equal(cambiaSerataPossibile(serataFutura), false);
+    // Un telefono rimasto su Solchi legge il QR di stanotte: la porta dice "altra serata" ed è quella aperta, quindi "Cambia serata" funziona come prima.
+    assert.equal((await m.porta.checkIn(staff, solchi.id, stanotte.tokenQr, oraS)).esito, 'non_valido');
+    const serataAperta = (await m.porta.serataDelBiglietto(staff, stanotte.tokenQr))!;
+    assert.equal(serataAperta.id, halloween.id);
+    assert.equal(serataAperta.finestra, 'aperta');
+    assert.equal(cambiaSerataPossibile(serataAperta), true);
+    assert.equal((await m.porta.checkIn(staff, halloween.id, stanotte.tokenQr, oraS)).esito, 'entrato');
+    assert.equal((await stato(stanotte.id)).stato, 'entrato');
+    // Il biglietto futuro è ancora intatto.
+    assert.deepEqual([(await stato(futuro.id)).stato, (await stato(futuro.id)).oraCheckIn], ['pagato', null]);
+  });
+
+  // Offline: conta l'istante dell'ingresso. Fatto durante la serata e inviato a serata finita vale; fatto a serata finita no.
+  const tardi = await nuovo(halloween.id, 'InviatoDopo');
+  const nonValido = await nuovo(halloween.id, 'DopoLaFine');
+  const { data, dataFine } = halloween;
+  const adesso = Date.now();
+  await m.archivio.modifica((a) => { const e = a.eventi.find((x) => x.id === halloween.id)!; e.data = new Date(adesso - 10 * 3_600_000).toISOString(); e.dataFine = new Date(adesso - 2 * 3_600_000).toISOString(); });
+  try {
+    assert.equal((await m.porta.checkIn(staff, halloween.id, tardi.tokenQr, { porta: 'P1', ora: new Date(adesso - 5 * 3_600_000).toISOString() })).esito, 'entrato', 'fatto in serata, inviato dopo');
+    const dopo = await m.porta.checkIn(staff, halloween.id, nonValido.tokenQr, { porta: 'P1', ora: new Date(adesso - 3_600_000).toISOString() });
+    assert.ok(dopo.esito === 'non_valido' && dopo.motivo === 'Serata finita');
+    assert.equal((await stato(nonValido.id)).stato, 'pagato');
+  } finally {
+    await m.archivio.modifica((a) => { const e = a.eventi.find((x) => x.id === halloween.id)!; e.data = data; e.dataFine = dataFine; });
+  }
 });
 
 test('serata: il prezzo viene dai tipi, il primo salvataggio è una bozza con il suo primo tipo', async () => {

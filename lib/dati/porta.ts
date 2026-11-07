@@ -3,7 +3,7 @@ import { leggi, modifica, operazioni, segreto, usaTabelle } from './archivio';
 import type { Archivio, Iscrizione, PrenotazioneTavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { leggiTokenQr, verificaTokenQr } from '../qr-token';
-import { decidiIngresso, trovaVoce, type EsitoPorta, type OpzioniIngresso, type SerataBiglietto, type VocePorta } from '../porta-logica';
+import { decidiIngresso, finestraPorta, motivoPortaChiusa, trovaVoce, type EsitoPorta, type OpzioniIngresso, type SerataBiglietto, type VocePorta } from '../porta-logica';
 import { randomUUID } from 'node:crypto';
 import { eventoPassato, iscrizioneScaduta, limiteIngresso, prenotazioneAttiva, prenotazioneScaduta } from '../regole';
 
@@ -53,7 +53,7 @@ export async function eventiPorta(s: Sessione) {
     .filter((e) => e.pubblicato && !eventoPassato(e, ieri))
     .sort((a, b) => a.data.localeCompare(b.data))
     .map((e) => ({
-      id: e.id, nome: e.nome, data: e.data, numero: e.numero, etaMinima: e.etaMinima,
+      id: e.id, nome: e.nome, data: e.data, dataFine: e.dataFine, numero: e.numero, etaMinima: e.etaMinima,
       limite: limiteIngresso(e), capienza: e.capienza ?? null, senzaTelefono: e.senzaTelefono,
     }));
 }
@@ -77,7 +77,19 @@ export async function serataDelBiglietto(s: Sessione, chiave: string): Promise<S
   const eventoId = d.iscrizioni.find((i) => i.id === letto.id)?.eventoId ?? d.prenotazioni.find((p) => p.id === letto.id)?.eventoId;
   if (!eventoId || !verificaTokenQr(await segreto(), chiave, eventoId)) return null;
   const e = (await eventiPorta(s)).find((x) => x.id === eventoId);
-  return e ? { id: e.id, nome: e.nome, data: e.data } : null;
+  return e ? { id: e.id, nome: e.nome, data: e.data, finestra: finestraPorta(e, new Date()) } : null;
+}
+
+/**
+ * La porta di una serata si apre 12 ore prima dell'inizio e si chiude a fine serata: fuori da lì nessun ingresso (e nessun "Non rientra") si registra,
+ * né con la riga unica né con le tabelle. Conta l'istante in cui l'ingresso è stato fatto, così un ingresso fatto offline in serata e inviato dopo vale.
+ * Serve soprattutto a non consumare il biglietto di una serata futura scansionato per sbaglio. Null = porta aperta (o serata sconosciuta: lo dirà la ricerca).
+ */
+async function portaChiusa(eventoId: string, ora: string): Promise<string | null> {
+  const e = (await leggi()).eventi.find((x) => x.id === eventoId);
+  if (!e) return null;
+  const f = finestraPorta(e, ora);
+  return f === 'aperta' ? null : motivoPortaChiusa(f);
 }
 
 /** Lista di riserva per le serate senza telefono, in ordine alfabetico: chi ha una prevendita valida, con nome e data di nascita da confrontare col documento. */
@@ -113,6 +125,8 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
   }
   // L'orario di un ingresso registrato offline resta quello vero, ma mai nel futuro.
   const ora = new Date(Math.min(new Date(o.ora).getTime() || Date.now(), Date.now())).toISOString();
+  const chiusa = await portaChiusa(eventoId, ora);
+  if (chiusa) return { esito: 'non_valido', motivo: chiusa };
   if (usaTabelle()) return checkInSuTabelle(eventoId, chiave, o, rif, ora);
   return modifica((d) => {
     const elenco = d.iscrizioni.filter((i) => i.eventoId === eventoId);
@@ -148,6 +162,8 @@ export async function checkIn(s: Sessione, eventoId: string, chiave: string, o: 
 export async function rifiutaIngresso(s: Sessione, eventoId: string, chiave: string, o: { porta: string; ora: string }): Promise<EsitoPorta> {
   soloStaff(s);
   const ora = new Date(Math.min(new Date(o.ora).getTime() || Date.now(), Date.now())).toISOString();
+  const chiusa = await portaChiusa(eventoId, ora);
+  if (chiusa) return { esito: 'non_valido', motivo: chiusa };
   if (usaTabelle()) return rifiutaSuTabelle(s, eventoId, chiave, o, ora);
   return modifica((d): EsitoPorta => {
     const v = trovaVoce(vociEvento(d, eventoId), chiave);

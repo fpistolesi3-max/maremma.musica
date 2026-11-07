@@ -374,6 +374,12 @@ async function storiaTavoliPorta(): Promise<Esito> {
   mock.timers.setTime(ADESSO_TEST.getTime());
 
   // ---- porta
+  // (La prevendita in attesa si crea prima di spostare la serata: dopo l'inizio non si può più iscriversi.)
+  const inAttesa = await prova(() => m.pubblico.creaIscrizione({ slug: 'halloween-party', nome: 'Porta', cognome: 'Attesa', dataNascita: '1999-09-09', email: 'pa@esempio.it', marketing: false, handlePr: null }));
+  const idAttesa = 'v' in inAttesa && inAttesa.v.ok ? inAttesa.v.iscrizione.id : '';
+  // La porta si apre 12 ore prima dell'inizio e si chiude a fine serata: per queste prove la serata comincia la sera del 19.10, come gli ingressi qui sotto.
+  const { id: _idEv, createdAt: _cEv, updatedAt: _uEv, piantinaUrl: _pEv, ...datiEv } = ev;
+  out.serataDellaPorta = await prova(async () => { await admin.salvaEvento(sAdmin, ev.id, { ...datiEv, data: '2026-10-19T21:00:00.000Z', dataFine: '2026-10-20T03:00:00.000Z' }); return true; });
   const o = (rif?: string) => ({ porta: 'P1', ora: '2026-10-19T20:00:00.000Z', rif });
   const tokenT = (await pren(id1)).tokenQr; // rimborsata: non entra
   out.portaTavoloRimborsato = await prova(async () => (await porta.checkIn(sStaff, ev.id, tokenT, o(), 'r0')).esito);
@@ -385,8 +391,6 @@ async function storiaTavoliPorta(): Promise<Esito> {
   out.portaTavoloIngressi = (await pren(idPag)).ingressi.map((i) => `${i.rif}|${i.porta}`).sort();
   const dtutte = await lettura();
   const pagata = dtutte.iscrizioni.find((i) => i.stato === 'pagato' && i.eventoId === ev.id)!;
-  const inAttesa = await prova(() => m.pubblico.creaIscrizione({ slug: 'halloween-party', nome: 'Porta', cognome: 'Attesa', dataNascita: '1999-09-09', email: 'pa@esempio.it', marketing: false, handlePr: null }));
-  const idAttesa = 'v' in inAttesa && inAttesa.v.ok ? inAttesa.v.iscrizione.id : '';
   out.portaIscrizione = await prova(async () => [(await porta.checkIn(sStaff, ev.id, pagata.tokenQr, o())).esito, (await porta.checkIn(sStaff, ev.id, pagata.tokenQr, o())).esito, (await porta.checkIn(sStaff, ev.id, (await pren(idPag)).codice, o())).esito]);
   out.portaNonPagata = await prova(async () => (await porta.checkIn(sStaff, ev.id, (await lettura()).iscrizioni.find((i) => i.id === idAttesa)!.tokenQr, o())).esito);
   out.portaQrFalso = await prova(async () => (await porta.checkIn(sStaff, ev.id, 'MM1.falso.1.firma', o())).esito);
