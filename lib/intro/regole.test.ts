@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decidiIntro, scriptIntro } from './regole';
+import { INTRO, decidiIntro, scriptIntro } from './regole';
+import { DURATA, FORO } from './sketch';
 
 test('intro: solo alla prima pagina pubblica della sessione, mai con movimento ridotto o sul biglietto', () => {
   const base = { giaVista: false, movimentoRidotto: false, percorso: '/' };
@@ -49,4 +50,14 @@ test('script inline: segna la sessione, mette data-intro e salta il caricamento 
 
   assert.ok(!esegui({ percorso: '/biglietto' }).intro);
   assert.ok(!esegui({ senzaStorage: true }).intro, 'senza storage niente intro, e nessun errore');
+});
+
+test('uscita foro: è quella in uso, dura circa 0,6 s e non allunga l\'intro', () => {
+  assert.equal(INTRO.stile, 'giradischi');
+  assert.equal(INTRO.uscita, 'foro');
+  assert.equal(DURATA, 2.8, 'durata totale come prima');
+  const tuffo = FORO.fine - FORO.inizio;
+  assert.ok(tuffo >= 0.5 && tuffo <= 0.7, `tuffo di ${tuffo} s`);
+  assert.ok(FORO.giro <= FORO.inizio && FORO.fine <= DURATA, 'il disco accelera prima del tuffo e tutto finisce entro la durata');
+  assert.ok(FORO.curva > 1, 'lo zoom accelera (curva "in")');
 });
