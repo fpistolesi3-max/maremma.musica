@@ -291,6 +291,8 @@ test('totali della serata: lordo, rimborsato, netto, prevendite per tipo, tavoli
   const gamma = await iscrizione(c.id);
   assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === c.id)!.stato, 'pagato');
   const { checkIn } = await import('./porta');
+  // La porta si apre 12 ore prima dell'inizio: la serata comincia tra un'ora.
+  await m.archivio.modifica((d) => { const e = d.eventi.find((x) => x.id === ev.id)!; e.data = new Date(Date.now() + 3_600_000).toISOString(); e.dataFine = null; });
   assert.equal((await checkIn(staff, ev.id, gamma.tokenQr, { porta: 'P1', ora: new Date().toISOString() })).esito, 'entrato');
 
   const live = (await m.admin.serataLive(admin, ev.id))!;

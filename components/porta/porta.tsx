@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePorta, nuovoId } from './store';
 import { Fotocamera } from './fotocamera';
-import { categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, entratiVoce, personeVoce, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
+import { cambiaSerataPossibile, categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, entratiVoce, finestraPorta, personeVoce, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
 import { etichettaCanale } from '@/lib/canali';
 
 // Scanner della porta (mockup Porta 1–5). Tutto il controllo avviene sul telefono con l'elenco salvato:
 // funziona anche senza campo, e gli ingressi si sincronizzano appena torna la connessione.
 
-interface EventoPorta { id: string; nome: string; data: string; numero: number | null; etaMinima: number; limite: string | null; capienza: number | null; senzaTelefono: boolean }
+interface EventoPorta { id: string; nome: string; data: string; dataFine: string | null; numero: number | null; etaMinima: number; limite: string | null; capienza: number | null; senzaTelefono: boolean }
 
 type Schermo =
   | { tipo: 'scanner' }
@@ -90,12 +90,14 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   /** `confermato`: lo staff ha toccato "Fai entrare" dopo aver controllato la categoria. */
   const entra = useCallback((v: VocePorta, confermato = false) => {
     const s = usePorta.getState();
-    const { esito, aggiornata } = decidiIngresso(v, { porta: s.porta, ora: new Date().toISOString(), confermato, documento: senzaTelefono, limite });
+    const ora = new Date().toISOString();
+    // Fuori dalla finestra della porta (12 ore prima dell'inizio, fino a fine serata) non entra nessuno: il biglietto di un'altra sera non si consuma.
+    const { esito, aggiornata } = decidiIngresso(v, { porta: s.porta, ora, confermato, documento: senzaTelefono, limite, finestra: evento ? finestraPorta(evento, ora) : undefined });
     if (aggiornata) {
       s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, ora: aggiornata.oraCheckIn!, ...(confermato ? { conferma: true } : {}) });
     }
     mostra(esito);
-  }, [limite, mostra, senzaTelefono]);
+  }, [evento, limite, mostra, senzaTelefono]);
 
   /** "Non rientra": nessun ingresso, il rifiuto va in coda come gli ingressi (anche offline) e l'iscrizione resta valida. */
   const rifiuta = useCallback((v: VocePorta) => {
@@ -127,6 +129,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
 
   /** "Cambia serata →": passa all'altra serata e rilegge lo stesso QR appena arriva il suo elenco. */
   const cambiaSerata = useCallback(async (serata: SerataBiglietto, chiave: string) => {
+    if (!cambiaSerataPossibile(serata)) return; // una serata futura non si apre per far entrare un biglietto
     // Cambiare serata svuota la coda del telefono: prima si inviano gli ingressi ancora in sospeso.
     await usePorta.getState().sincronizza();
     if (usePorta.getState().coda.length > 0) {
@@ -156,7 +159,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   if (!pronto) return <div className="min-h-dvh bg-vinile" />;
 
   const colori = schermo.tipo === 'esito'
-    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-stop text-osso', oltre_orario: 'bg-stop text-osso', altra_serata: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
+    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-stop text-osso', oltre_orario: 'bg-stop text-osso', altra_serata: schermo.esito.esito === 'altra_serata' && !cambiaSerataPossibile(schermo.esito.serata) ?'bg-stop text-osso' : 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
     : schermo.tipo === 'cerca' || schermo.tipo === 'impostazioni' ? 'bg-notte text-osso' : 'bg-vinile text-osso';
   const suPieno = schermo.tipo === 'esito';
 
@@ -462,6 +465,17 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
   // Biglietto vero ma di un'altra serata: lo staff ha aperto la serata sbagliata.
   if (esito.esito === 'altra_serata') {
     const { serata } = esito;
+    // "Cambia serata" solo se la porta di quella serata è aperta adesso (è quella di stanotte): serve quando il telefono è sulla serata sbagliata.
+    // Un biglietto di una serata futura (o già finita) non si tocca: non entra, non si consuma e resta valido per la sua sera.
+    if (!cambiaSerataPossibile(serata)) {
+      return (
+        <>
+          <Blocco ruolo="alert" simbolo="x" motivo={serata.finestra === 'prima' ? `Biglietto per ${serata.nome} ${giornoMese(serata.data)}` : `Serata finita: ${serata.nome} ${giornoMese(serata.data)}`}
+            titolo={titoli.nonEntra} riga={serata.finestra === 'prima' ? 'Vale quella sera: il biglietto resta valido.' : 'Quella serata è già finita.'} />
+          <div className="flex flex-none flex-col px-4 pb-7"><Pieno onClick={onChiudi}>{indietro}</Pieno></div>
+        </>
+      );
+    }
     return (
       <>
         <Blocco ruolo="alert" motivo={`Altra serata: ${serata.nome} ${giornoMese(serata.data)}`} titolo={titoli.controlla} />
@@ -514,6 +528,7 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
     if (m.startsWith('Tavolo')) { motivo = 'Non pagato'; riga = 'Chiama la crew.'; }
     else if (m.startsWith('Non è in elenco')) { motivo = 'Non è in elenco'; riga = online ? 'Prova con Cerca per nome.' : 'Senza rete: riprova quando torna.'; }
     else if (m.startsWith('Codice non trovato')) { motivo = m; riga = 'Prova con Cerca per nome.'; }
+    else if (m.startsWith('Porta non ancora aperta') || m.startsWith('Serata finita')) { motivo = m; riga = 'Scegli la serata di stanotte nelle Impostazioni.'; }
     else if (m.startsWith('Ci sono ingressi')) { motivo = 'Ingressi da inviare'; riga = 'Aspetta la sincronizzazione e riprova.'; }
     else motivo = m;
   }

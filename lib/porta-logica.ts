@@ -1,5 +1,6 @@
 // Logica della porta condivisa da server e telefono dello staff (che la usa anche senza campo).
-import type { RifiutoIngresso, StatoIscrizione } from './dati/tipi';
+import type { Evento, RifiutoIngresso, StatoIscrizione } from './dati/tipi';
+import { eventoPassato } from './regole';
 
 export interface VocePorta {
   id: string;
@@ -63,8 +64,30 @@ export function conteggioPorta(elenco: VocePorta[], o: { capienza?: number | nul
   return { entrati, attesi, liberi, dopoLimite };
 }
 
-/** Serata di un biglietto che non è quella aperta sul telefono. */
-export interface SerataBiglietto { id: string; nome: string; data: string }
+/** Da quante ore prima dell'inizio la porta di una serata è aperta. */
+export const ORE_APERTURA_PORTA = 12;
+
+/**
+ * La finestra della porta di una serata: dalle 12 ore prima dell'inizio fino a quando la serata è finita (`eventoPassato`).
+ * Fuori da qui nessun ingresso si registra: né sul telefono né sul server. Un biglietto di una serata futura non si consuma.
+ * `ora` è l'istante dell'ingresso (per gli ingressi fatti offline, quello vero), non quello della sincronizzazione.
+ */
+export type FinestraPorta = 'prima' | 'aperta' | 'dopo';
+
+export function finestraPorta(e: Pick<Evento, 'data' | 'dataFine'>, ora: string | Date): FinestraPorta {
+  const t = typeof ora === 'string' ? Date.parse(ora) : ora.getTime();
+  if (t < Date.parse(e.data) - ORE_APERTURA_PORTA * 3_600_000) return 'prima';
+  return eventoPassato(e, new Date(t)) ? 'dopo' : 'aperta';
+}
+
+/** "Cambia serata →" si offre solo se la porta dell'altra serata è aperta adesso (è quella di stanotte): una serata futura non si apre per far entrare un biglietto. */
+export const cambiaSerataPossibile = (serata: Pick<SerataBiglietto, 'finestra'>) => serata.finestra === 'aperta';
+
+/** Cosa dice la porta quando la finestra non è aperta (stesso testo sul telefono e sul server). */
+export const motivoPortaChiusa = (f: FinestraPorta) => (f === 'prima' ? 'Porta non ancora aperta per questa serata' : 'Serata finita');
+
+/** Serata di un biglietto che non è quella aperta sul telefono; `finestra` dice se la sua porta è aperta adesso (decide il server). */
+export interface SerataBiglietto { id: string; nome: string; data: string; finestra: FinestraPorta }
 
 export type EsitoPorta =
   | { esito: 'entrato'; voce: VocePorta; incassato: number; ora: string; primaPagato: boolean }
@@ -87,6 +110,8 @@ export interface OpzioniIngresso {
   documento?: boolean;
   /** Orario limite della prevendita della serata (ISO): dopo, un QR di prevendita non entra. I tavoli non ne hanno. */
   limite?: string | null;
+  /** La finestra della porta all'istante `ora`: se non è "aperta" non entra nessuno (prima viene questo controllo, poi tutti gli altri). */
+  finestra?: FinestraPorta;
 }
 
 /**
@@ -97,6 +122,7 @@ export interface OpzioniIngresso {
  * Fa eccezione il QR di un tavolo, che vale per più persone: ogni passaggio ne fa entrare una, fino al completo.
  */
 export function decidiIngresso(voce: VocePorta, o: OpzioniIngresso): { esito: EsitoPorta; aggiornata: VocePorta | null } {
+  if (o.finestra && o.finestra !== 'aperta') return { esito: { esito: 'non_valido', motivo: motivoPortaChiusa(o.finestra) }, aggiornata: null };
   if (voce.stato === 'annullato' || voce.stato === 'rimborsato') return { esito: { esito: 'annullato', voce }, aggiornata: null };
   if (voce.tavolo) {
     const t = voce.tavolo;
