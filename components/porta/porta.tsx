@@ -119,8 +119,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
         const serata = await altraSerata(chiave, usePorta.getState().eventoId);
         if (serata) { mostra({ esito: 'altra_serata', serata, chiave }); return; }
       }
-      const salvato = usePorta.getState().salvatoAlle;
-      mostra({ esito: 'non_valido', motivo: chiave.startsWith('MM1.') ? `Non è in elenco${salvato ? ` (salvato alle ${oraDi(salvato)})` : ''}` : 'Codice non trovato' });
+      mostra({ esito: 'non_valido', motivo: chiave.startsWith('MM1.') ? 'Non è in elenco' : 'Codice non trovato' });
       return;
     }
     entra(v);
@@ -157,7 +156,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   if (!pronto) return <div className="min-h-dvh bg-vinile" />;
 
   const colori = schermo.tipo === 'esito'
-    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-attesa text-su-stato', oltre_orario: 'bg-stop text-osso', altra_serata: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
+    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-stop text-osso', oltre_orario: 'bg-stop text-osso', altra_serata: 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
     : schermo.tipo === 'cerca' || schermo.tipo === 'impostazioni' ? 'bg-notte text-osso' : 'bg-vinile text-osso';
   const suPieno = schermo.tipo === 'esito';
 
@@ -178,8 +177,8 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
       <button type="button" onClick={() => setSchermo({ tipo: 'impostazioni' })} className="flex flex-none flex-col gap-[10px] border-0 bg-transparent px-4 pt-[14px] text-left text-current" aria-label="Impostazioni della porta">
         <span className="flex w-full items-center gap-[10px]">
           <span className="min-w-0 flex-grow truncate text-[11px] font-semibold leading-none tracking-logo">{st.porta.replace('P', 'PORTA ')} · {(evento?.nome ?? 'SCEGLI LA SERATA').toUpperCase()}</span>
-          <span className="flex-none font-mono text-[12px] font-medium leading-none" aria-label={`In lista ${entrati} entrati su ${totale}${dopoLimite && liberi != null ? `, liberi ${liberi}` : ''}`}>
-            LISTA {entrati}<span className={suPieno ? 'opacity-50' : 'text-osso-3'}>/{totale}</span>
+          <span className="flex-none font-mono text-[12px] font-medium leading-none" aria-label={`Dentro ${entrati} su ${totale}${dopoLimite && liberi != null ? `, liberi ${liberi}` : ''}`}>
+            DENTRO {entrati}<span className={suPieno ? 'opacity-50' : 'text-osso-3'}>/{totale}</span>
             {dopoLimite && liberi != null && <span className={suPieno ? 'opacity-70' : 'text-osso-2'}> · LIBERI {liberi}</span>}
           </span>
         </span>
@@ -190,6 +189,12 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
 
       {st.serveAccesso && (
         <a href="/accedi?dopo=/door" className="mx-4 mt-3 block border border-attesa p-3 text-[14px] text-attesa no-underline">Accesso scaduto: gli ingressi restano salvati sul telefono. Tocca qui per rientrare.</a>
+      )}
+
+      {st.altrePorte > 0 && schermo.tipo !== 'esito' && (
+        <button type="button" onClick={st.chiudiAltrePorte} className="mx-4 mt-3 block border border-attesa bg-transparent p-3 text-left text-[16px] leading-5 text-attesa">
+          {st.altrePorte === 1 ? '1 biglietto era già entrato da un’altra porta.' : `${st.altrePorte} biglietti erano già entrati da un’altra porta.`}
+        </button>
       )}
 
       {schermo.tipo === 'scanner' && !senzaTelefono && (
@@ -243,19 +248,22 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
                 : dentro ? ['mm-chip mm-chip--entrato', `Entrato ${v.oraCheckIn ? oraDi(v.oraCheckIn) : ''}`]
                 : v.stato === 'annullato' || v.stato === 'rimborsato' ? ['mm-chip mm-chip--annullato', 'Annullato']
                   : v.stato === 'pagato' ? ['mm-chip mm-chip--pagato', 'Pagato']
-                    : v.stato === 'in_attesa' ? ['mm-chip mm-chip--incassare', 'Prevendita non completata · non vale per entrare'] : ['mm-chip mm-chip--lista', 'In lista'];
-              return (
-                <div key={v.id} className="flex items-center gap-3 border-t border-linea py-4">
-                  <div className="flex min-w-0 flex-grow flex-col gap-[6px]">
+                    : v.stato === 'in_attesa' ? ['mm-chip mm-chip--incassare', 'Non pagato'] : ['mm-chip mm-chip--lista', 'In lista'];
+              // Tutta la riga si tocca (stessa azione del vecchio "Apri"); le righe che non si possono aprire restano ferme.
+              const apribile = !dentro && v.stato !== 'annullato' && v.stato !== 'rimborsato' && (!v.tavolo || v.tavolo.pagato);
+              const contenuto = (
+                <>
+                  <div className="flex min-w-0 flex-grow flex-col gap-[6px] text-left">
                     <span className="font-display text-[24px] font-extrabold uppercase leading-none">{v.nome} {v.cognome}</span>
-                    <span className="font-mono text-[11px] leading-[14px] text-osso-2">{v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()}` : nascita(v.dataNascita)}{v.categoria ? ` · ${v.categoria.toUpperCase()}` : ''} · {testoLista(v).replace('Lista: ', '').toUpperCase()}</span>
+                    <span className="font-mono text-[11px] leading-[14px] text-osso-2">{v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()}` : nascita(v.dataNascita)}{v.categoria ? ` · ${v.categoria.toUpperCase()}` : ''} · {listaBreve(v).toUpperCase()}</span>
                     <span className={`${chip[0]} self-start`}>{chip[1]}</span>
                   </div>
-                  {!dentro && v.stato !== 'annullato' && v.stato !== 'rimborsato' && (!v.tavolo || v.tavolo.pagato) && (
-                    <button type="button" className="mm-btn mm-btn--primario" style={{ minHeight: 48, padding: '0 16px', fontSize: 13 }} onClick={() => entra(v)}>Apri</button>
-                  )}
-                </div>
+                  {apribile && <svg className="flex-none text-osso-2" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>}
+                </>
               );
+              return apribile
+                ? <button key={v.id} type="button" onClick={() => entra(v)} className="flex w-full items-center gap-3 border-0 border-t border-linea bg-transparent px-0 py-4 text-osso">{contenuto}</button>
+                : <div key={v.id} className="flex items-center gap-3 border-t border-linea py-4">{contenuto}</div>;
             })}
             {q && risultati.length === 0 && <p className="border-t border-linea py-4 text-osso-2">Nessuno con questo nome in elenco.</p>}
           </div>
@@ -298,7 +306,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
       )}
 
       {schermo.tipo === 'esito' && (
-        <Esito esito={schermo.esito} senzaTelefono={senzaTelefono} online={st.online} salvatoAlle={st.salvatoAlle}
+        <Esito esito={schermo.esito} senzaTelefono={senzaTelefono} online={st.online}
           onRiprova={() => { if (schermo.esito.esito === 'non_pagato') void riprova(schermo.esito.voce); }}
           onCambiaSerata={() => { if (schermo.esito.esito === 'altra_serata') void cambiaSerata(schermo.esito.serata, schermo.esito.chiave); }}
           onFaiEntrare={() => { if (schermo.esito.esito === 'da_confermare') entra(schermo.esito.voce, true); }}
@@ -346,6 +354,11 @@ function testoLista(v: VocePorta) {
   return `Lista: ${v.lista}${v.lista === 'Maremma Musica' ? canale : ''}`;
 }
 
+/** Nella ricerca: solo il nome della lista, senza il canale di arrivo. */
+function listaBreve(v: VocePorta) {
+  return v.origine === 'cassa' ? testoLista(v) : v.lista;
+}
+
 function StatoRete() {
   const { online, salvatoAlle, coda } = usePorta();
   const ok = online && coda.length === 0;
@@ -359,32 +372,60 @@ function StatoRete() {
   );
 }
 
-function Esito({ esito, senzaTelefono, online, salvatoAlle, onRiprova, onCambiaSerata, onFaiEntrare, onNonRientra, onChiudi }: {
-  esito: EsitoPorta; senzaTelefono: boolean; online: boolean; salvatoAlle: string | null; onRiprova: () => void; onCambiaSerata: () => void; onFaiEntrare: () => void; onNonRientra: () => void; onChiudi: () => void;
+const icone = {
+  ok: <svg width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" /></svg>,
+  x: <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>,
+};
+
+// Il titolone è sempre l'azione dell'addetto, in tre sole parole; il motivo sta nella riga piccola sotto.
+const titoli = {
+  entra: <span className="font-display text-[min(104px,30vw)] font-black uppercase leading-[.9]">Entra</span>,
+  // Interlinea abbastanza larga perché le due righe di "Non entra" non si tocchino; "Controlla" si rimpicciolisce sugli schermi stretti (320 px).
+  nonEntra: <span className="font-display text-[min(100px,28vw)] font-black uppercase leading-[.98]">Non<br />entra</span>,
+  controlla: <span className="font-display text-[min(76px,20vw)] font-black uppercase leading-[.9]">Controlla</span>,
+};
+
+function Blocco({ ruolo, simbolo, motivo, titolo, nome, mono, riga }: {
+  ruolo: 'status' | 'alert'; simbolo?: 'ok' | 'x'; motivo: string; titolo: React.ReactNode; nome?: string; mono?: string; riga?: string;
 }) {
-  const linea = 'my-[10px] h-px bg-current opacity-30';
+  return (
+    <div role={ruolo} className="flex flex-grow flex-col justify-center gap-[14px] px-4">
+      {simbolo && icone[simbolo]}
+      <span className="font-mono text-[13px] font-medium uppercase leading-[18px]">{motivo}</span>
+      {titolo}
+      {nome && <><div className="my-[10px] h-px bg-current opacity-30" /><span className="font-display text-[40px] font-black uppercase leading-[.95] [overflow-wrap:anywhere]">{nome}</span></>}
+      {mono && <span className="font-mono text-[13px] font-medium uppercase leading-[18px]">{mono}</span>}
+      {riga && <span className="text-[17px] font-medium leading-6">{riga}</span>}
+    </div>
+  );
+}
+
+/** L'unico pulsante pieno della schermata. */
+function Pieno({ onClick, children, alto = 64 }: { onClick: () => void; children: React.ReactNode; alto?: number }) {
+  return <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: alto, fontSize: alto > 64 ? 22 : 17 }} onClick={onClick}>{children}</button>;
+}
+
+function Secondario({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return <button type="button" className="mm-btn" style={{ color: 'inherit', minHeight: 48 }} onClick={onClick}>{children}</button>;
+}
+
+function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiEntrare, onNonRientra, onChiudi }: {
+  esito: EsitoPorta; senzaTelefono: boolean; online: boolean; onRiprova: () => void; onCambiaSerata: () => void; onFaiEntrare: () => void; onNonRientra: () => void; onChiudi: () => void;
+}) {
   const indietro = senzaTelefono ? 'Torna alla ricerca' : 'Torna allo scanner';
-  const X = <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>;
 
   if (esito.esito === 'entrato') {
     const v = esito.voce;
+    const motivo = v.tavolo ? `Tavolo ${v.tavolo.nome} · ${v.tavolo.entrati} di ${v.tavolo.persone}`
+      : categoriaDaControllare(v) ? `${v.categoria} · controllata` : esito.primaPagato || v.importo > 0 ? 'Prevendita pagata' : 'Ingresso libero';
+    // L'età aiuta il confronto col documento; il controllo resta allo staff (la porta non blocca nessuno per l'età).
+    const eta = v.dataNascita ? `${anni(v.dataNascita)} anni` : undefined;
     return (
       <>
-        <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-          <svg width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" /></svg>
-          <span className="font-mono text-[13px] font-medium leading-[18px]">
-            {v.tavolo ? `TAVOLO ${v.tavolo.nome.toUpperCase()} · PAGATO` : esito.primaPagato ? 'PAGATO' : v.importo > 0 ? 'PAGATO' : 'INGRESSO LIBERO'} · {oraDi(esito.ora)}
-          </span>
-          <span className="font-display text-[104px] font-black uppercase leading-[.8]">Valido</span>
-          {/* Un QR per tutto il tavolo: ogni passaggio è una persona. */}
-          {v.tavolo && <span className="font-display text-[56px] font-black uppercase leading-[.85]">{v.tavolo.entrati} di {v.tavolo.persone}</span>}
-          <div className={linea} />
-          <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
-          <span className="text-[17px] font-medium leading-6">{testoLista(v)}{categoriaDaControllare(v) ? ` · ${v.categoria!.toUpperCase()} CONTROLLATA` : ''}</span>
-        </div>
+        <Blocco ruolo="status" simbolo="ok" motivo={motivo} titolo={titoli.entra} nome={`${v.nome} ${v.cognome}`} riga={eta} />
         <div className="flex flex-none flex-col gap-3 px-4 pb-7">
           <div className="h-[3px] bg-[rgba(5,5,5,.18)]"><div className="h-full bg-vinile" style={{ animation: 'mm-barra 2s linear forwards' }} /></div>
-          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onChiudi}>Prossimo</button>
+          <Pieno onClick={onChiudi}>Prossimo</Pieno>
           <span className="text-center font-mono text-[11px] font-medium leading-[14px]">{senzaTelefono ? 'TORNO ALLA RICERCA TRA 2 S' : 'TORNO ALLO SCANNER TRA 2 S'}</span>
         </div>
       </>
@@ -397,21 +438,11 @@ function Esito({ esito, senzaTelefono, online, salvatoAlle, onRiprova, onCambiaS
     const v = esito.voce;
     return (
       <>
-        <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-          <span className="font-mono text-[13px] font-medium leading-[18px]">PREVENDITA NON COMPLETATA · NON VALE PER ENTRARE{!online && salvatoAlle ? ` · ELENCO DELLE ${oraDi(salvatoAlle)}` : ''}</span>
-          <span className="font-display text-[72px] font-black uppercase leading-[.85]">Non<br />completata</span>
-          <div className={linea} />
-          <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
-          <span className="font-mono text-[13px] font-medium leading-[18px]">NASCITA {nascita(v.dataNascita)} · {anni(v.dataNascita)} ANNI</span>
-          <span className="text-[17px] font-medium leading-6">
-            {online
-              ? 'Il pagamento non è arrivato: non ha un QR e non ha una prevendita valida. Può comprarla ora dal suo telefono (rifà la prevendita sul sito con gli stessi dati), poi tocca “Ha pagato ora? Riprova”.'
-              : 'Senza rete: se ha pagato dopo l’ultimo aggiornamento non lo vediamo ancora. Aspetta che torni la rete e tocca “Ha pagato ora? Riprova”.'}
-          </span>
-        </div>
+        <Blocco ruolo="status" simbolo="x" motivo="Non pagato" titolo={titoli.nonEntra} nome={`${v.nome} ${v.cognome}`}
+          riga={online ? 'Può pagare ora dal telefono.' : 'Senza rete: riprova quando torna.'} />
         <div className="flex flex-none flex-col gap-2 px-4 pb-7">
-          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onRiprova}>Ha pagato ora? Riprova</button>
-          <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 48 }} onClick={onChiudi}>Non entra</button>
+          <Pieno onClick={onRiprova}>Ha pagato? Riprova</Pieno>
+          <Secondario onClick={onChiudi}>{indietro}</Secondario>
         </div>
       </>
     );
@@ -422,17 +453,8 @@ function Esito({ esito, senzaTelefono, online, salvatoAlle, onRiprova, onCambiaS
     const v = esito.voce;
     return (
       <>
-        <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-          {X}
-          <span className="font-mono text-[13px] font-medium leading-[18px]">ORARIO LIMITE {oraDi(esito.limite)} SUPERATO · INGRESSO NON REGISTRATO</span>
-          <span className="font-display text-[64px] font-black uppercase leading-[.85]">Prevendita<br />non valida</span>
-          <div className={linea} />
-          <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
-          <span className="text-[17px] font-medium leading-6">Orario limite superato, prevendita non valida.</span>
-        </div>
-        <div className="flex flex-none flex-col gap-2 px-4 pb-7">
-          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onChiudi}>{indietro}</button>
-        </div>
+        <Blocco ruolo="alert" simbolo="x" motivo={`Orario superato · ${oraDi(esito.limite)}`} titolo={titoli.nonEntra} nome={`${v.nome} ${v.cognome}`} />
+        <div className="flex flex-none flex-col gap-2 px-4 pb-7"><Pieno onClick={onChiudi}>{indietro}</Pieno></div>
       </>
     );
   }
@@ -442,39 +464,28 @@ function Esito({ esito, senzaTelefono, online, salvatoAlle, onRiprova, onCambiaS
     const { serata } = esito;
     return (
       <>
-        <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-          <span className="font-mono text-[13px] font-medium leading-[18px]">QR VALIDO · NON È DI QUESTA SERATA</span>
-          <span className="font-display text-[88px] font-black uppercase leading-[.85]">Altra<br />serata</span>
-          <div className={linea} />
-          <span className="font-display text-[40px] font-black uppercase leading-[.95] [overflow-wrap:anywhere]">{serata.nome}</span>
-          <span className="text-[17px] font-medium leading-6">Biglietto di {serata.nome} ({giornoMese(serata.data)}). Cambia serata e il QR si controlla lì.</span>
-        </div>
+        <Blocco ruolo="alert" motivo={`Altra serata: ${serata.nome} ${giornoMese(serata.data)}`} titolo={titoli.controlla} />
         <div className="flex flex-none flex-col gap-2 px-4 pb-7">
-          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 64, fontSize: 17 }} onClick={onCambiaSerata}>Cambia serata →</button>
-          <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 48 }} onClick={onChiudi}>{indietro}</button>
+          <Pieno onClick={onCambiaSerata}>Cambia serata →</Pieno>
+          <Secondario onClick={onChiudi}>{indietro}</Secondario>
         </div>
       </>
     );
   }
 
-  // Prevendita con categoria: l'ingresso si registra solo dopo la scelta dello staff.
+  // Prevendita con categoria (o serata senza telefono): l'ingresso si registra solo dopo la scelta dello staff.
   if (esito.esito === 'da_confermare') {
     const v = esito.voce;
+    const riservata = categoriaDaControllare(v);
     return (
       <>
-        <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-          <span className="font-mono text-[13px] font-medium leading-[18px]">{categoriaDaControllare(v) ? 'PREVENDITA RISERVATA · CONTROLLA IL DOCUMENTO' : 'SERATA SENZA TELEFONO · CONTROLLA IL DOCUMENTO'}</span>
-          <span className={`font-display ${categoriaDaControllare(v) ? 'text-[88px]' : 'text-[64px]'} font-black uppercase leading-[.85] [overflow-wrap:anywhere]`}>{categoriaDaControllare(v) ? v.categoria : 'Documento'}</span>
-          <div className={linea} />
-          <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
-          <span className="font-mono text-[13px] font-medium leading-[18px]">NASCITA {nascita(v.dataNascita)} · {anni(v.dataNascita)} ANNI</span>
-          {v.rifiuto && <span className="text-[17px] font-semibold leading-6">Rifiutato alle {oraDi(v.rifiuto.ora)}{v.rifiuto.da !== 'staff' ? ` da ${v.rifiuto.da}` : ''} ({v.rifiuto.porta.replace('P', 'PORTA ')}). Puoi comunque farlo entrare.</span>}
-          <span className="text-[17px] font-medium leading-6">{testoLista(v)}</span>
-        </div>
+        <Blocco ruolo="alert" motivo={riservata ? `${v.categoria} · documento` : 'Documento'} titolo={titoli.controlla} nome={`${v.nome} ${v.cognome}`}
+          mono={`Nascita ${nascita(v.dataNascita)} · ${anni(v.dataNascita)} anni`}
+          riga={v.rifiuto ? `Rifiutato alle ${oraDi(v.rifiuto.ora)} (${v.rifiuto.porta.replace('P', 'porta ')}).` : undefined} />
         <div className="flex flex-none flex-col gap-3 px-4 pb-7">
-          <button type="button" className="mm-btn" style={{ background: 'var(--vinile)', color: 'var(--osso)', minHeight: 76, fontSize: 22 }} onClick={onFaiEntrare}>Fai entrare</button>
-          <button type="button" className="mm-btn" style={{ border: '2px solid var(--vinile)', color: 'var(--vinile)', minHeight: 76, fontSize: 22 }} onClick={onNonRientra}>{categoriaDaControllare(v) ? 'Non rientra' : 'Non corrisponde'}</button>
-          <button type="button" className="mm-btn" style={{ color: 'var(--vinile)', minHeight: 44 }} onClick={onChiudi}>{indietro}</button>
+          <Pieno onClick={onFaiEntrare} alto={76}>Fai entrare</Pieno>
+          <button type="button" className="mm-btn" style={{ border: '2px solid currentColor', color: 'inherit', minHeight: 76, fontSize: 22 }} onClick={onNonRientra}>{riservata ? 'Non entra' : 'Non corrisponde'}</button>
+          <Secondario onClick={onChiudi}>{indietro}</Secondario>
         </div>
       </>
     );
@@ -482,44 +493,34 @@ function Esito({ esito, senzaTelefono, online, salvatoAlle, onRiprova, onCambiaS
 
   if (esito.esito === 'rifiutato') {
     const v = esito.voce;
-    return (
-      <div role="status" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-        {X}
-        <span className="font-mono text-[13px] font-medium leading-[18px]">{categoriaDaControllare(v) ? `${v.categoria!.toUpperCase()} · ` : 'DOCUMENTO NON CORRISPONDE · '}RIFIUTO SALVATO{!online ? ' · SI SINCRONIZZA AL RITORNO DELLA RETE' : ''}</span>
-        <span className="font-display text-[100px] font-black uppercase leading-[.8]">Non<br />entra</span>
-        <div className={linea} />
-        <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>
-        <span className="text-[17px] font-medium leading-6">L’iscrizione resta valida: decide l’admin se rimborsare.</span>
-      </div>
-    );
+    return <Blocco ruolo="status" simbolo="x" motivo="Rifiuto salvato" titolo={titoli.nonEntra} nome={`${v.nome} ${v.cognome}`} riga={online ? undefined : 'Si invia quando torna la rete.'} />;
   }
 
+  // Già entrato, tavolo pieno, annullato, non valido: tutti "Non entra", cambia solo il motivo.
   const v = 'voce' in esito ? esito.voce : null;
   const pieno = esito.esito === 'gia_entrato' && esito.voce.tavolo ? esito.voce.tavolo : null;
-  const dettaglio = pieno ? `TAVOLO ${pieno.nome.toUpperCase()} · ${pieno.entrati} DI ${pieno.persone} GIÀ ENTRATI`
-    : esito.esito === 'gia_entrato'
-    ? `STESSO QR · ENTRATO ${esito.voce.oraCheckIn ? oraDi(esito.voce.oraCheckIn) : ''}${esito.voce.porta ? ` · ${esito.voce.porta.replace('P', 'PORTA ')}` : ''}`
-    : esito.esito === 'annullato' ? 'QR ANNULLATO DALLA CREW' : esito.esito === 'non_valido' ? esito.motivo.toUpperCase() : '';
+  let motivo = '';
+  let riga: string | undefined;
+  if (pieno) {
+    motivo = `Tavolo pieno · ${pieno.entrati} di ${pieno.persone}`;
+    riga = 'Chi è in più può comprare la prevendita.';
+  } else if (esito.esito === 'gia_entrato') {
+    motivo = `Già entrato${esito.voce.oraCheckIn ? ` ${oraDi(esito.voce.oraCheckIn)}` : ''}${esito.voce.porta ? ` · ${esito.voce.porta.replace('P', 'porta ')}` : ''}`;
+    riga = 'Se non è lei/lui, il QR è stato girato.';
+  } else if (esito.esito === 'annullato') {
+    motivo = 'Annullato';
+  } else if (esito.esito === 'non_valido') {
+    const m = esito.motivo;
+    if (m.startsWith('Tavolo')) { motivo = 'Non pagato'; riga = 'Chiama la crew.'; }
+    else if (m.startsWith('Non è in elenco')) { motivo = 'Non è in elenco'; riga = online ? 'Prova con Cerca per nome.' : 'Senza rete: riprova quando torna.'; }
+    else if (m.startsWith('Codice non trovato')) { motivo = m; riga = 'Prova con Cerca per nome.'; }
+    else if (m.startsWith('Ci sono ingressi')) { motivo = 'Ingressi da inviare'; riga = 'Aspetta la sincronizzazione e riprova.'; }
+    else motivo = m;
+  }
   return (
     <>
-      <div role="alert" className="flex flex-grow flex-col justify-center gap-[14px] px-4">
-        {X}
-        <span className="font-mono text-[13px] font-medium leading-[18px]">{dettaglio}</span>
-        <span className="font-display text-[100px] font-black uppercase leading-[.8]">{pieno ? <>Tavolo<br />pieno</> : esito.esito === 'gia_entrato' ? <>Già<br />entrato</> : <>Non<br />valido</>}</span>
-        <div className={linea} />
-        {v && <span className="font-display text-[40px] font-black uppercase leading-[.95]">{v.nome} {v.cognome}</span>}
-        <span className="text-[17px] font-medium leading-6">
-          {pieno ? 'Il tavolo è al completo: con questo QR non entra più nessuno. Chi è in più non ha una prevendita valida: può comprarla ora dal telefono.'
-            : esito.esito === 'non_valido' && esito.motivo.startsWith('Tavolo') ? 'La prenotazione non è stata pagata: il QR non vale. Chiama la crew.'
-            : esito.esito === 'non_valido' && !online && esito.motivo.startsWith('Non è in elenco') ? 'Senza rete: chi ha pagato dopo l’ultimo aggiornamento non è ancora in elenco. Aspetta che torni la rete e riprova.'
-            : esito.esito === 'gia_entrato' ? 'Controlla il documento. Se è un’altra persona, il QR è stato girato: non entra.'
-            : esito.esito === 'annullato' ? 'Questa iscrizione è stata annullata: non entra con questo QR.'
-              : 'Controlla il documento e prova con "Cerca per nome". Se non ha una prevendita valida, può comprarla ora dal telefono.'}
-        </span>
-      </div>
-      <div className="flex flex-none px-4 pb-7">
-        <button type="button" className="mm-btn mm-btn--linea flex-grow" style={{ minHeight: 64, fontSize: 17, borderColor: 'currentColor', color: 'inherit' }} onClick={onChiudi}>{indietro}</button>
-      </div>
+      <Blocco ruolo="alert" simbolo="x" motivo={motivo} titolo={titoli.nonEntra} nome={v ? `${v.nome} ${v.cognome}` : undefined} riga={riga} />
+      <div className="flex flex-none flex-col px-4 pb-7"><Pieno onClick={onChiudi}>{indietro}</Pieno></div>
     </>
   );
 }
