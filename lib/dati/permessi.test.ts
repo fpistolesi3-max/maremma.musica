@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { fissaOrologio, ADESSO_TEST } from './orologio-test';
+import type { Iscrizione } from './tipi';
 
 // Il seed ha date relative a "adesso": con l'orologio fisso i test non dipendono dal giorno in cui girano.
 fissaOrologio();
@@ -1362,4 +1363,51 @@ test('orario limite: dopo il limite non si vende più, nemmeno riprendendo una r
     await m.admin.salvaEvento(admin, ev.id, { ...dati, prevenditaFinoAlle: null });
   }
   await (await import('../rimborso')).rimborsaPagamento(admin, { tipo: 'prevendita', id }, 'http://prova');
+});
+
+test('iscrizioni (admin): la ricerca guarda in tutte le serate, i filtri PR e canale tornano gli stessi numeri di Canali', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const d0 = await m.archivio.leggi();
+  const ev = d0.eventi.find((e) => e.slug === 'halloween-party')!;
+  const altra = d0.eventi.find((e) => e.id !== ev.id)!;
+  const zarro = d0.pr.find((p) => p.handle === 'zarro-pollicino')!;
+  const ora = new Date().toISOString();
+  const nuova = (id: string, eventoId: string, cognome: string, extra: Partial<Iscrizione>) => ({
+    id, eventoId, lottoId: null, categoria: null, prId: null, nome: 'Zaira', cognome, dataNascita: '1995-05-05', email: `${id}@esempio.it`,
+    tokenQr: `MM1.${id}.x.y`, codice: id.toUpperCase(), stato: 'in_lista', metodoPagamento: null, importo: 0, pagatoAt: null, scade: null, pagamentoOnline: null,
+    oraCheckIn: null, porta: null, consensoPrivacyAt: ora, consensoMarketing: false, annullatoAt: null, createdAt: ora, canale: 'diretto', consegnaId: null, origine: 'sito', rifCassa: null,
+    ...extra,
+  }) as Iscrizione;
+  const ids = ['zz-a', 'zz-b', 'zz-c', 'zz-d'];
+  await m.archivio.modifica((d) => {
+    d.iscrizioni.push(
+      nuova('zz-a', ev.id, 'Provapr', { prId: zarro.id, canale: 'instagram' }),
+      nuova('zz-b', ev.id, 'Provalibera', { canale: 'instagram' }),
+      nuova('zz-c', altra.id, 'Provaaltrove', { canale: 'diretto' }),
+      nuova('zz-d', ev.id, 'Provacassa', { origine: 'cassa', canale: 'cassa', stato: 'entrato', metodoPagamento: 'porta_pos', importo: 15 }),
+    );
+  });
+  try {
+    const trova = async (filtro: Parameters<typeof m.admin.iscrizioniAdmin>[1]) =>
+      (await m.admin.iscrizioniAdmin(admin, filtro)).map((x) => x.iscrizione.id).filter((x) => ids.includes(x)).sort();
+    assert.deepEqual(await trova({ q: 'provapr' }), ['zz-a'], 'ricerca per cognome senza serata: la trova ovunque');
+    assert.deepEqual(await trova({ q: 'zaira provaaltrove' }), ['zz-c'], 'nome e cognome insieme, in un’altra serata');
+    assert.deepEqual(await trova({ q: 'zz-c@esempio' }), ['zz-c'], 'per email, anche in un’altra serata');
+    assert.deepEqual(await trova({ eventoId: ev.id, q: 'esempio.it' }), ['zz-a', 'zz-b', 'zz-d'], 'con una serata scelta si resta in quella (zz-c è di un’altra)');
+    assert.deepEqual(await trova({ eventoId: ev.id, pr: 'zarro-pollicino' }), ['zz-a']);
+    assert.deepEqual(await trova({ eventoId: ev.id, pr: 'nessuno' }), ['zz-b'], 'senza PR: come in Canali, senza gli ingressi storici della porta');
+    assert.deepEqual(await trova({ pr: 'nessuno' }), ['zz-b', 'zz-c'], 'senza serata: tutte le serate');
+    assert.deepEqual(await trova({ eventoId: ev.id, pr: 'con' }), ['zz-a']);
+    assert.deepEqual(await trova({ eventoId: ev.id, pr: 'nessuno', canale: 'instagram' }), ['zz-b']);
+    assert.deepEqual(await trova({ canale: 'diretto' }), ['zz-c']);
+    assert.deepEqual(await trova({ pr: 'non-esiste' }), [], 'un PR che non c’è non mostra nessuno');
+    // Stessi numeri di Canali: chi arriva da solo da Instagram nella serata = le righe attive del filtro "senza PR + Instagram".
+    const canali = await m.gestione.canaliSerata(admin, ev.id);
+    const riga = canali.senzaPr.canali.find((c) => c.canale === 'instagram')!;
+    const viste = (await m.admin.iscrizioniAdmin(admin, { eventoId: ev.id, pr: 'nessuno', canale: 'instagram' })).filter((x) => ['in_lista', 'pagato', 'entrato'].includes(x.iscrizione.stato));
+    assert.equal(viste.length, riga.inLista);
+    assert.equal(await m.admin.nomePr(admin, 'zarro-pollicino'), 'Zarro Pollicino');
+  } finally {
+    await m.archivio.modifica((d) => { d.iscrizioni = d.iscrizioni.filter((x) => !ids.includes(x.id)); });
+  }
 });

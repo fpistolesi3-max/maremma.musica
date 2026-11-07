@@ -2,6 +2,8 @@ import { richiedi } from '@/lib/sessione';
 import { canaliSerata, type RigaCanale } from '@/lib/dati/gestione-pr';
 import { CANALI, CANALI_CONDIVISIBILI } from '@/lib/canali';
 import { dataPunti, giornoSett } from '@/lib/formato';
+import { percorsoIscrizioni } from '@/lib/iscrizioni-vista';
+import Link from 'next/link';
 import { Resa, Riquadro } from '@/components/gestione';
 import { AggiornamentoLive } from '@/components/admin/live';
 import { TestataAdmin } from '@/components/admin/ui';
@@ -40,8 +42,8 @@ export default async function Canali({ searchParams }: Props) {
 
       <div className="grid gap-x-12 px-4 md:px-12 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col">
-          <Tabella titolo="Per canale · senza PR" righe={c.senzaPr.canali} vuoto="Ancora nessuno si è iscritto da solo." />
-          <Tabella titolo="Come vengono aperti i link dei PR" righe={c.conPr.canali} vuoto="Nessuna iscrizione dai PR." piccola />
+          <Tabella titolo="Per canale · senza PR" righe={c.senzaPr.canali} vuoto="Ancora nessuno si è iscritto da solo." evento={c.evento?.id} pr="nessuno" />
+          <Tabella titolo="Come vengono aperti i link dei PR" righe={c.conPr.canali} vuoto="Nessuna iscrizione dai PR." piccola evento={c.evento?.id} pr="con" />
           <p className="m-0 pb-8 text-[13px] leading-5 text-osso-3">
             Il canale si riconosce da solo: dal social da cui arriva la persona (Instagram, Facebook e TikTok aprono il sito nel loro browser)
             o dal link etichettato. &quot;Diretto&quot; è chi ha scritto l&apos;indirizzo o ha aperto un link senza etichetta, per esempio da WhatsApp.
@@ -62,7 +64,7 @@ export default async function Canali({ searchParams }: Props) {
   );
 }
 
-function Tabella({ titolo, righe, vuoto, piccola }: { titolo: string; righe: RigaCanale[]; vuoto: string; piccola?: boolean }) {
+function Tabella({ titolo, righe, vuoto, piccola, evento, pr }: { titolo: string; righe: RigaCanale[]; vuoto: string; piccola?: boolean; evento?: string; pr: 'nessuno' | 'con' }) {
   return (
     <section className="flex flex-col gap-[10px] py-6">
       <h2 className={`m-0 font-display font-black uppercase leading-none ${piccola ? 'text-[20px]' : 'text-[26px]'}`}>{titolo}</h2>
@@ -73,10 +75,10 @@ function Tabella({ titolo, righe, vuoto, piccola }: { titolo: string; righe: Rig
             {righe.map((r) => (
               <tr key={r.canale}>
                 <td className="mm-classifica__nome">{r.etichetta}</td>
-                <td className="mm-num">{r.inLista}</td>
+                <td className="mm-num"><Link href={percorsoIscrizioni({ evento, pr, canale: r.canale })} className="text-osso underline decoration-arancio underline-offset-[6px]" aria-label={`${r.inLista} in lista da ${r.etichetta}: vedi le iscrizioni`}>{r.inLista}</Link></td>
                 <td><div className="flex items-center justify-end gap-2"><div className="mm-barra" style={{ minWidth: 48, width: 48 }}><span style={{ width: `${r.quota}%` }} /></div><span className="w-9 text-right font-mono text-[12px] text-osso-2">{r.quota}%</span></div></td>
                 <td className="mm-num text-arancio">+{r.nuovi24h}</td>
-                <td className="mm-num">{r.entrati}</td>
+                <td className="mm-num"><Link href={percorsoIscrizioni({ evento, pr, canale: r.canale, stato: 'entrato' })} className="text-osso underline decoration-arancio underline-offset-[6px]" aria-label={`${r.entrati} entrati da ${r.etichetta}: vedi le iscrizioni`}>{r.entrati}</Link></td>
                 <td><Resa valore={r.resa} /></td>
               </tr>
             ))}

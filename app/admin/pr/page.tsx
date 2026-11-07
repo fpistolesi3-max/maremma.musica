@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { origineRichiesta, richiedi } from '@/lib/sessione';
 import { panoramicaPr } from '@/lib/dati/gestione-pr';
 import { dataPunti, euro, giornoSett } from '@/lib/formato';
+import { percorsoIscrizioni } from '@/lib/iscrizioni-vista';
 import { Riquadro } from '@/components/gestione';
 import { SceltaSerata } from '@/components/gestione-client';
 import { AggiornamentoLive } from '@/components/admin/live';
@@ -76,9 +77,9 @@ export default async function PaginaPr({ searchParams }: Props) {
                     </div>
                     <span className="break-all font-mono text-[12px] leading-4 text-osso-2">{r.email ?? 'Nessuna email'}</span>
                     <div className="grid grid-cols-3 gap-2 font-mono text-[11px] text-osso-2">
-                      <span><b className="block font-display text-[26px] font-black leading-none text-osso">{r.inLista}</b>IN LISTA</span>
+                      <Link href={percorsoIscrizioni({ evento: p.evento?.id, pr: r.pr.handle })} className="text-osso-2 no-underline" aria-label={`${r.inLista} in lista: vedi le iscrizioni di ${r.pr.nomeDisplay}`}><b className="block font-display text-[26px] font-black leading-none text-osso">{r.inLista}</b><span className="underline decoration-arancio underline-offset-[6px]">IN LISTA</span></Link>
                       <span><b className="block font-display text-[26px] font-black leading-none text-osso">{r.pagati}</b>PAGATI</span>
-                      <span><b className="block font-display text-[26px] font-black leading-none text-ok">{r.entrati}</b>ENTRATI</span>
+                      <Link href={percorsoIscrizioni({ evento: p.evento?.id, pr: r.pr.handle, stato: 'entrato' })} className="text-osso-2 no-underline" aria-label={`${r.entrati} entrati: vedi le iscrizioni di ${r.pr.nomeDisplay}`}><b className="block font-display text-[26px] font-black leading-none text-ok">{r.entrati}</b><span className="underline decoration-arancio underline-offset-[6px]">ENTRATI</span></Link>
                     </div>
                   </div>
                   <div className="flex min-w-0 flex-col gap-3">

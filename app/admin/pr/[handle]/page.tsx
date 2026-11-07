@@ -11,6 +11,7 @@ import { InvitoWhatsApp, ModificaPr } from '@/components/admin/pr-client';
 import { StatoPr } from '@/components/admin/azioni-client';
 import { origineRichiesta } from '@/lib/sessione';
 import { testoInvitoPr } from '@/lib/inviti';
+import { percorsoIscrizioni } from '@/lib/iscrizioni-vista';
 
 export const metadata = { title: 'Dettaglio PR' };
 
@@ -117,8 +118,8 @@ export default async function DettaglioPr({ params, searchParams }: Props) {
                   {x.serate.map((r) => (
                     <tr key={r.evento.id}>
                       <td className="whitespace-nowrap"><Link href={`/admin/pr/${x.pr.handle}?serata=${r.evento.id}`} className="no-underline"><span className="font-mono text-[12px] text-osso-2">{giornoSett(r.evento.data)} {dataPunti(r.evento.data)}</span> <span className="font-display text-[18px] font-extrabold uppercase">{r.evento.nome}</span></Link></td>
-                      <td className="mm-num">{r.inLista}</td>
-                      <td className="mm-num">{r.entrati}</td>
+                      <td className="mm-num"><Link href={percorsoIscrizioni({ evento: r.evento.id, pr: x.pr.handle })} className="text-osso underline decoration-arancio underline-offset-[6px]" aria-label={`${r.inLista} in lista: vedi le iscrizioni`}>{r.inLista}</Link></td>
+                      <td className="mm-num"><Link href={percorsoIscrizioni({ evento: r.evento.id, pr: x.pr.handle, stato: 'entrato' })} className="text-osso underline decoration-arancio underline-offset-[6px]" aria-label={`${r.entrati} entrati: vedi le iscrizioni`}>{r.entrati}</Link></td>
                       <td><Resa valore={r.resa} /></td>
                       <td className="mm-num">{euro(r.incassatoOnline)}</td>
                     </tr>
