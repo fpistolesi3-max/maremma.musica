@@ -197,13 +197,20 @@ export function daRimborsareAncora(i: Pick<Iscrizione, 'pagamentoOnline'>) {
   return Boolean(po?.daRimborsare || po?.inPiu?.some((x) => x.rimborso?.stato !== 'fatto'));
 }
 
-export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; q?: string; stato?: string }) {
+/**
+ * Le iscrizioni, con i filtri della pagina Iscrizioni. `pr` è l'handle di un PR; "nessuno" = arrivati da soli (stessa gente di "senza PR" in Canali,
+ * senza gli ingressi storici della porta), "con" = portati da un PR qualsiasi. `canale` = da dove sono arrivati (instagram, diretto…).
+ */
+export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; q?: string; stato?: string; pr?: string; canale?: string }) {
   soloAdmin(s);
   const d = await leggi();
+  const prId = filtro.pr && filtro.pr !== 'nessuno' && filtro.pr !== 'con' ? d.pr.find((p) => p.handle === filtro.pr)?.id ?? '?' : null;
   const norm = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const q = filtro.q ? norm(filtro.q) : '';
   return d.iscrizioni
     .filter((i) => !filtro.eventoId || i.eventoId === filtro.eventoId)
+    .filter((i) => !filtro.pr || (filtro.pr === 'nessuno' ? !i.prId && i.origine !== 'cassa' : filtro.pr === 'con' ? Boolean(i.prId) : i.prId === prId))
+    .filter((i) => !filtro.canale || (i.canale || 'diretto') === filtro.canale)
     // Storico: la prevendita mai completata di chi era poi entrato dalla cassa è chiusa e collegata a quell'ingresso: la persona compare una volta sola.
     // Se il pagamento è arrivato lo stesso, resta visibile tra i rimborsi.
     .filter((i) => !(i.chiusaDaCassa && i.stato === 'scaduta' && !daRimborsareAncora(i)))
@@ -216,6 +223,12 @@ export async function iscrizioniAdmin(s: Sessione, filtro: { eventoId?: string; 
       evento: d.eventi.find((e) => e.id === i.eventoId)!,
       lista: i.origine === 'cassa' ? 'Ingresso alla porta (storico)' : (i.prId ? d.pr.find((p) => p.id === i.prId)?.nomeDisplay : null) ?? 'Maremma Musica',
     }));
+}
+
+/** Il nome con cui un PR compare nei filtri (l'handle se non esiste più). */
+export async function nomePr(s: Sessione, handle: string) {
+  soloAdmin(s);
+  return (await leggi()).pr.find((p) => p.handle === handle)?.nomeDisplay ?? handle;
 }
 
 /** Annulla senza rimborso (solo ciò che non è stato pagato) o ripristina. Il rimborso di ciò che è pagato sta in lib/dati/rimborsi.ts. */

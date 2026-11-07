@@ -27,3 +27,9 @@ export function dividiSerate<T extends { passata: boolean; evento: { data: strin
     passate: serate.filter((x) => x.passata).sort((a, b) => per(b, a)),
   };
 }
+
+/** La serata a cui si apre una pagina senza scelta: la prossima (come "Prossima serata" nella home admin: tra quelle in arrivo vince la prima pubblicata), altrimenti l'ultima passata. */
+export function serataIniziale<T extends { passata: boolean; evento: { data: string; pubblicato: boolean } }>(serate: T[]): T | null {
+  const { inArrivo, passate } = dividiSerate(serate);
+  return inArrivo.slice().sort((a, b) => Number(b.evento.pubblicato) - Number(a.evento.pubblicato))[0] ?? passate[0] ?? null;
+}

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dividiSerate, entratiDaMostrare, quantoManca, statoSerata } from './elenco-serate';
+import { dividiSerate, entratiDaMostrare, quantoManca, serataIniziale, statoSerata } from './elenco-serate';
 
 const SERATA = '2026-11-16T21:00:00.000Z'; // lunedì 16.11 alle 22:00 a Roma
 
@@ -33,4 +33,12 @@ test('elenco: in arrivo dalla più vicina, passate dalla più recente', () => {
   assert.deepEqual(inArrivo.map((x) => x.id), ['c', 'b', 'a']);
   assert.deepEqual(passate.map((x) => x.id), ['d', 'e']);
   assert.deepEqual(dividiSerate([s('x', '2026-09-12T20:00:00.000Z', true)]).inArrivo, []);
+});
+
+test('apertura: la prossima serata (a parità vince la pubblicata), altrimenti l’ultima passata', () => {
+  const s = (id: string, data: string, passata: boolean, pubblicato = true) => ({ id, passata, evento: { data, pubblicato } });
+  assert.equal(serataIniziale([s('a', '2027-01-16T21:00:00.000Z', false), s('b', '2026-11-23T22:00:00.000Z', false), s('p', '2026-10-05T20:00:00.000Z', true)])?.id, 'b');
+  assert.equal(serataIniziale([s('bozza', '2026-11-23T22:00:00.000Z', false, false), s('pub', '2027-01-16T21:00:00.000Z', false)])?.id, 'pub', 'come "Prossima serata" della home: la pubblicata batte la bozza più vicina');
+  assert.equal(serataIniziale([s('d', '2026-10-05T20:00:00.000Z', true), s('e', '2026-09-12T20:00:00.000Z', true)])?.id, 'd');
+  assert.equal(serataIniziale([]), null);
 });
