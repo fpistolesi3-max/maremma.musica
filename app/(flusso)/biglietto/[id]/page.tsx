@@ -5,6 +5,9 @@ import { applicaScadenzeIscrizioni } from '@/lib/dati/prevendita';
 import { verificaRitornoIscrizione } from '@/lib/pagamento-prevendita';
 import { linkPagaBiglietto } from '@/lib/biglietto-email';
 import { qrMostrabile, testoLimite } from '@/lib/regole';
+import { linkComeArrivare } from '@/lib/luogo';
+import { linkSerataPr, linkWhatsAppAmici } from '@/lib/link-serata';
+import { emailVereAttive } from '@/lib/posta';
 import { lasciaPostoAzione } from '@/app/azioni/prevendita';
 import { origineRichiesta } from '@/lib/sessione';
 import { headers } from 'next/headers';
@@ -43,6 +46,12 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
   const ua = (await headers()).get('user-agent') ?? '';
   const passPossibile = Boolean(b && conQr && esitoPass(b).ok);
   const wallet: WalletDisponibili = { apple: passPossibile && appleConfigurato(), google: passPossibile && googleConfigurato(), primaGoogle: /Android/i.test(ua) };
+  // "Ti abbiamo mandato il QR a…" è vero solo con le email vere; "Come arrivare" solo se la pagina della serata rivelerebbe il posto.
+  const emailVere = emailVereAttive();
+  const comeArrivare = b ? linkComeArrivare(b.evento) : null;
+  // Il link della serata da girare agli amici: quello del PR, se il biglietto arriva da un PR.
+  const origine = b && conQr ? await origineRichiesta() : '';
+  const linkAmici = b && conQr ? (b.prHandle ? linkSerataPr(origine, b.evento, b.prHandle) : `${origine.replace(/\/+$/, '')}/e/${b.evento.slug}`) : '';
 
   return (
     <div className="mm-grana mm-curve flex min-h-dvh flex-col bg-notte bg-[position:-1000px_-80px]">
@@ -69,12 +78,14 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
             <section className="flex flex-col gap-[14px] px-4 pb-8 pt-6 md:px-0">
               {appenaPagato ? (
                 <>
-                  <span className="font-mono text-[11px] leading-none tracking-[.06em] text-ok">{b.iscrizione.importo > 0 ? `✓ PAGAMENTO RICEVUTO · ${euro(b.iscrizione.importo)}` : '✓ ISCRIZIONE CONFERMATA'}</span>
-                  <h1 className="m-0 font-display text-[96px] font-black uppercase leading-[.82]">Sei<br /><span className="text-arancio">in lista.</span></h1>
+                  <span className="font-mono text-[11px] leading-none tracking-[.06em] text-ok">{b.iscrizione.importo > 0 ? '✓ PAGATO' : '✓ ISCRIZIONE CONFERMATA'}</span>
+                  <h1 className="m-0 font-display text-[96px] font-black uppercase leading-[.82]">
+                    {b.iscrizione.importo > 0 ? <>Ci<br /><span className="text-arancio">sei.</span></> : <>Sei<br /><span className="text-arancio">in lista.</span></>}
+                  </h1>
                   <p className="m-0 text-[18px] leading-[27px]">
                     Ci vediamo sotto cassa, {b.iscrizione.nome}.{b.evento.dressCode ? ` Dress code: ${b.evento.dressCode.toLowerCase()}.` : ''} {b.evento.senzaTelefono ? 'Serata senza telefono: alla porta porta un documento.' : 'Alla porta mostra questo QR con un documento.'}{testoLimite(b.evento) ? ` ${testoLimite(b.evento)}` : ''}
                   </p>
-                  {pagato && b.iscrizione.importo > 0 && <PulsanteMorph href="#qr" esterno esito className="mm-btn--pieno">Biglietto pronto</PulsanteMorph>}
+                  {!b.evento.senzaTelefono && <a href="#qr" className="self-start font-mono text-[12px] leading-4 tracking-[.04em] text-osso-2 underline decoration-arancio underline-offset-4 md:hidden">Vedi il QR ↓</a>}
                 </>
               ) : (
                 <>
@@ -85,14 +96,14 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
               )}
             </section>
             <section className="hidden flex-col gap-3 md:flex">
-              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} wallet={wallet} />
+              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} wallet={wallet} emailVere={emailVere} comeArrivare={comeArrivare} codice={b.iscrizione.codice} />
             </section>
           </div>
 
           <div className="flex flex-col">
             <section id="qr" className="flex justify-center px-4 md:px-0"><BigliettoQr b={b} appenaPagato={appenaPagato} /></section>
             <section className="flex flex-col gap-3 px-4 pt-7 md:hidden">
-              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} wallet={wallet} />
+              <Azioni id={b.iscrizione.id} email={b.iscrizione.email} nuovo={appenaPagato} senzaTelefono={b.evento.senzaTelefono} wallet={wallet} emailVere={emailVere} comeArrivare={comeArrivare} codice={b.iscrizione.codice} />
             </section>
             <section className="mx-4 mt-9 flex flex-col gap-[14px] border border-linea bg-notte-2 px-5 py-6 md:mx-0">
               <span className="font-display text-[30px] font-black uppercase leading-[.95]">Porta la tua gente</span>
@@ -100,6 +111,10 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
                 Manda questo link agli amici{b.prHandle ? `: finiscono anche loro nella lista di ${b.lista}.` : ': si mettono in lista in un minuto.'}
               </span>
               <CampoLink link={b.prHandle ? `/e/${b.evento.slug}/${b.prHandle}` : `/e/${b.evento.slug}`} />
+              <a className="mm-btn mm-btn--clip mm-btn--linea mm-btn--pieno" href={linkWhatsAppAmici(b.evento, linkAmici)} target="_blank" rel="noopener noreferrer">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 14.9L2 22l5.25-1.38A9.9 9.9 0 1 0 12.04 2Zm0 18.1c-1.5 0-2.97-.4-4.25-1.16l-.3-.18-3.12.82.83-3.04-.2-.31a8.1 8.1 0 1 1 7.04 3.87Zm4.44-6.07c-.24-.12-1.44-.71-1.66-.79-.22-.08-.38-.12-.54.12-.16.24-.62.79-.76.95-.14.16-.28.18-.52.06-.24-.12-1.02-.38-1.94-1.2-.72-.64-1.2-1.43-1.34-1.67-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.1 3.64.57.25 1.02.4 1.37.5.58.18 1.1.16 1.52.1.46-.07 1.44-.59 1.64-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.46-.28Z" /></svg>
+                Manda su WhatsApp
+              </a>
             </section>
           </div>
         </main>
@@ -170,14 +185,23 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
   );
 }
 
-function Azioni({ id, email, nuovo, senzaTelefono, wallet }: { id: string; email: string; nuovo: boolean; senzaTelefono: boolean; wallet: WalletDisponibili }) {
+const EMAIL_ASSISTENZA = 'maremmamusica@gmail.com';
+const secondario = 'mm-btn mm-btn--clip mm-btn--linea min-h-[48px] flex-1 !px-3 text-center !text-[13px] !leading-4 !tracking-[.04em]';
+
+function Azioni({ id, email, nuovo, senzaTelefono, wallet, emailVere, comeArrivare, codice }: { id: string; email: string; nuovo: boolean; senzaTelefono: boolean; wallet: WalletDisponibili; emailVere: boolean; comeArrivare: string | null; codice: string }) {
   const q = `?email=${encodeURIComponent(email)}`;
   return (
     <>
-      {nuovo && <span className="text-[14px] leading-5 text-osso-2">{senzaTelefono ? 'Ti abbiamo mandato la conferma a' : 'Ti abbiamo mandato il QR a'} <span className="text-osso">{email}</span>.</span>}
-      {!senzaTelefono && <a className="mm-btn mm-btn--clip mm-btn--linea mm-btn--pieno" href={`/api/biglietto/${id}/pdf${q}`} target="_blank" rel="noopener">Scarica PDF</a>}
+      {nuovo && (emailVere
+        ? <span className="text-[14px] leading-5 text-osso-2">{senzaTelefono ? 'Ti abbiamo mandato la conferma a' : 'Ti abbiamo mandato il QR a'} <span className="text-osso">{email}</span>.</span>
+        : !senzaTelefono && <span className="text-[14px] leading-5 text-osso-2">Salva il PDF o fai uno screenshot del QR.</span>)}
+      {!senzaTelefono && <a className="mm-btn mm-btn--primario mm-btn--pieno" href={`/api/biglietto/${id}/pdf${q}`} target="_blank" rel="noopener">Scarica PDF</a>}
       <PulsantiWallet id={id} query={q} wallet={wallet} />
-      <a className="mm-btn mm-btn--muto self-center" href={`/api/biglietto/${id}/calendario${q}`}>Aggiungi al calendario</a>
+      <div className="flex gap-3">
+        <a className={secondario} href={`/api/biglietto/${id}/calendario${q}`}>Aggiungi al calendario</a>
+        {comeArrivare && <a className={secondario} href={comeArrivare} target="_blank" rel="noopener noreferrer">Come arrivare</a>}
+      </div>
+      <a className="self-center font-mono text-[11px] leading-4 text-osso-2 hover:text-osso" href={`mailto:${EMAIL_ASSISTENZA}?subject=${encodeURIComponent(`Dati sbagliati sul biglietto ${codice}`)}`}>Dati sbagliati? <span className="underline decoration-arancio underline-offset-4">Scrivici</span></a>
     </>
   );
 }

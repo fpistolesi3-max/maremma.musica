@@ -932,6 +932,40 @@ test('serata senza telefono: il documento si conferma sempre, il telefono non sa
   assert.equal((await m.archivio.leggi()).iscrizioni.find((x) => x.id === verdi.id)!.email, 'nuova@esempio.it', 'vuota: resta com’era');
 });
 
+test('serata normale (con QR): l’admin corregge il nome, biglietto e QR restano gli stessi, finché non è entrato', async () => {
+  const admin = await sessione('admin@maremmamusica.test');
+  const staff = await sessione('porta@maremmamusica.test');
+  const pr = await sessione('test-pr@maremmamusica.test');
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  assert.equal(ev.senzaTelefono, false, 'è una serata con il QR');
+  const email = 'sbagliata@esempio.it';
+  const r = await m.pubblico.creaIscrizione({ slug: 'halloween-party', handlePr: null, nome: 'Anna', cognome: 'Sbagliata', dataNascita: '1994-04-04', email, marketing: false });
+  assert.ok(r.ok);
+  if (!r.ok) return;
+  await m.prevendita.confermaPagamentoIscrizione(r.iscrizione.id, 'prova_sbagliata');
+  const prima = (await m.pubblico.bigliettoPubblico(r.iscrizione.id, email))!;
+  assert.equal(prima.iscrizione.cognome, 'Sbagliata');
+
+  const corretto = { nome: 'Anna', cognome: 'Giusti', dataNascita: '1994-04-04' };
+  await assert.rejects(m.admin.cambiaNominativo(staff, r.iscrizione.id, corretto), /non_autorizzato/);
+  await assert.rejects(m.admin.cambiaNominativo(pr, r.iscrizione.id, corretto), /non_autorizzato/);
+  await assert.rejects(m.admin.cambiaNominativo(admin, r.iscrizione.id, { ...corretto, dataNascita: '2012-01-01' }), /18\+/);
+  await m.admin.cambiaNominativo(admin, r.iscrizione.id, corretto);
+
+  // Il biglietto online (e il PDF, che legge lo stesso dato) mostra il nome nuovo; QR, codice e pagamento non cambiano.
+  const dopo = (await m.pubblico.bigliettoPubblico(r.iscrizione.id, email))!;
+  assert.deepEqual([dopo.iscrizione.nome, dopo.iscrizione.cognome], ['Anna', 'Giusti']);
+  assert.equal(dopo.iscrizione.tokenQr, prima.iscrizione.tokenQr, 'il QR resta valido');
+  assert.equal(dopo.iscrizione.codice, prima.iscrizione.codice);
+  assert.equal(dopo.iscrizione.stato, 'pagato');
+  assert.equal(dopo.iscrizione.importo, prima.iscrizione.importo);
+
+  // Alla porta il QR di prima fa entrare, col nome nuovo; dopo l'ingresso il nome non si cambia più.
+  const o = { porta: 'P1', ora: new Date().toISOString() };
+  assert.equal((await m.porta.checkIn(staff, ev.id, prima.iscrizione.tokenQr, o)).esito, 'entrato');
+  await assert.rejects(m.admin.cambiaNominativo(admin, r.iscrizione.id, { ...corretto, cognome: 'Altro' }), /non è ancora entrato/);
+});
+
 test('anonimizzazione: dopo 30 giorni spariscono i dati personali, restano età e conti, righe anonime senza conflitti', async () => {
   const d0 = await m.archivio.leggi();
   const ev = d0.eventi.find((e) => e.slug === 'senza-telefono')!;
