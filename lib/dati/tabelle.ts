@@ -143,6 +143,7 @@ export function componiArchivio(raw: LeggiTutto, adesso: Date = new Date()): Arc
       pagamentoOnline: pagamentoOnline(r.pagamento_online, r.pagamento_sessione, perPrenotazione.get(r.id) ?? []),
       ingressi: (ingressiDi.get(r.id) ?? []).sort((a, b) => String(a.ora).localeCompare(String(b.ora)) || String(a.rif).localeCompare(String(b.rif)))
         .map((i) => ({ rif: i.rif, ora: isoObbligatorio(i.ora), porta: i.porta })),
+      anonimizzata: anon, anonimizzataAt: iso(r.anonimizzata_at),
     };
   });
 

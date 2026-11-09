@@ -6,6 +6,7 @@ import type { EsitoPorta, VocePorta } from '@/lib/porta-logica';
 
 // Stato del telefono della porta, salvato in localStorage: l'elenco resta anche senza campo
 // e gli ingressi fatti offline aspettano in coda finché torna la connessione.
+// L'elenco contiene dati personali: si cancella quando lo staff esce e quando la serata esce dalla porta (vedi `svuota`).
 
 export interface Movimento { idLocale: string; voceId: string; chiave: string; ora: string; conferma?: boolean; rifiuto?: boolean }
 
@@ -26,6 +27,8 @@ interface StatoPorta {
   applicaLocale: (voce: VocePorta, m: Movimento) => void;
   sincronizza: () => Promise<{ esiti: { idLocale: string; esito: EsitoPorta }[] } | null>;
   scarica: () => Promise<void>;
+  /** Cancella dal telefono l'elenco (nomi, date di nascita). Mai con ingressi ancora da inviare: risponde false e non tocca niente. */
+  svuota: () => boolean;
 }
 
 /** L'elenco del server vince, tranne per le persone con un ingresso ancora in coda sul telefono. */
@@ -99,6 +102,11 @@ export const usePorta = create<StatoPorta>()(
         }
       },
       scarica: async () => { await get().sincronizza(); },
+      svuota: () => {
+        if (get().coda.length > 0) return false;
+        set({ eventoId: null, elenco: [], salvatoAlle: null, limite: null, conflitti: 0, altrePorte: 0 });
+        return true;
+      },
     }),
     {
       name: 'mm-porta',

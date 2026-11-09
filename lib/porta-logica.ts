@@ -80,6 +80,18 @@ export function finestraPorta(e: Pick<Evento, 'data' | 'dataFine'>, ora: string 
   return eventoPassato(e, new Date(t)) ? 'dopo' : 'aperta';
 }
 
+/**
+ * Ore dopo la fine della serata in cui la porta la tiene ancora (ingressi tardivi, sincronizzazioni rimaste indietro).
+ * Poi il server non manda più l'elenco e il telefono dello staff lo cancella: nomi e date di nascita non restano nei telefoni.
+ */
+export const ORE_PORTA_DOPO_SERATA = 12;
+
+/** La serata è uscita dalla porta (finita da più di ORE_PORTA_DOPO_SERATA): niente più elenco, né sul server né sul telefono. */
+export function serataFuoriPorta(e: Pick<Evento, 'data' | 'dataFine'>, ora: string | Date = new Date()): boolean {
+  const t = typeof ora === 'string' ? Date.parse(ora) : ora.getTime();
+  return eventoPassato(e, new Date(t - ORE_PORTA_DOPO_SERATA * 3_600_000));
+}
+
 /** "Cambia serata →" si offre solo se la porta dell'altra serata è aperta adesso (è quella di stanotte): una serata futura non si apre per far entrare un biglietto. */
 export const cambiaSerataPossibile = (serata: Pick<SerataBiglietto, 'finestra'>) => serata.finestra === 'aperta';
 

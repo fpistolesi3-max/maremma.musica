@@ -1,7 +1,7 @@
 // La finestra della porta: un biglietto di un'altra sera non si consuma. Si lancia con: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cambiaSerataPossibile, decidiIngresso, finestraPorta, motivoPortaChiusa, type VocePorta } from './porta-logica';
+import { cambiaSerataPossibile, decidiIngresso, finestraPorta, motivoPortaChiusa, serataFuoriPorta, type VocePorta } from './porta-logica';
 
 const SERATA = { data: '2026-10-31T21:00:00.000Z', dataFine: '2026-11-01T03:00:00.000Z' }; // 22:00 – 04:00 a Roma
 const ore = (da: string, h: number) => new Date(Date.parse(da) + h * 3_600_000).toISOString();
@@ -75,4 +75,15 @@ test('l\'anteprima non salta nessun controllo: già entrato, annullato, porta ch
   assert.equal(decidiIngresso(voce({ categoria: 'Donne' }), o).esito.esito, 'da_confermare', 'la categoria resta il flusso giallo');
   assert.equal(decidiIngresso(voce(), { ...o, documento: true }).esito.esito, 'da_confermare', 'serata senza telefono: resta il flusso giallo');
   assert.equal(decidiIngresso(voce({ tavolo: { nome: 'T1', persone: 4, entrati: 4, pagato: true } }), o).esito.esito, 'gia_entrato', 'tavolo pieno');
+});
+
+test('elenco della porta: la serata esce dalla porta 12 ore dopo la fine, poi il telefono cancella nomi e date di nascita', () => {
+  assert.equal(serataFuoriPorta(SERATA, ore(SERATA.data, -48)), false, 'una serata futura resta (lo staff scarica l’elenco prima)');
+  assert.equal(serataFuoriPorta(SERATA, SERATA.dataFine), false);
+  assert.equal(serataFuoriPorta(SERATA, ore(SERATA.dataFine, 12)), false, 'alle 12 ore esatte dopo la fine c’è ancora');
+  assert.equal(serataFuoriPorta(SERATA, ore(SERATA.dataFine, 12.01)), true);
+  // Senza orario di chiusura la serata dura 8 ore: fuori 20 ore dopo l'inizio.
+  const senzaFine = { data: SERATA.data, dataFine: null };
+  assert.equal(serataFuoriPorta(senzaFine, ore(SERATA.data, 19.99)), false);
+  assert.equal(serataFuoriPorta(senzaFine, ore(SERATA.data, 20.01)), true);
 });
