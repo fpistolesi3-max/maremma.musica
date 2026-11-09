@@ -158,7 +158,7 @@ function FormTavolo({ eventoId, t, pr }: { eventoId: string; t: RigaTavolo; pr: 
         <div className="flex flex-wrap content-end gap-x-4 gap-y-2 md:col-span-3">
           {pr.map((x) => (
             <label key={x.id} className="flex items-center gap-2 text-[14px]">
-              <input type="checkbox" name="prAbilitati" value={x.id} defaultChecked={t.prAbilitati?.includes(x.id)} className="h-4 w-4 accent-[var(--arancio)]"
+              <input type="checkbox" name="prAbilitati" value={x.id} checked={scelti.includes(x.id)} className="h-4 w-4 accent-[var(--arancio)]"
                 onChange={(e) => setScelti((s) => (e.target.checked ? [...s, x.id] : s.filter((i) => i !== x.id)))} />{x.nome}
             </label>
           ))}

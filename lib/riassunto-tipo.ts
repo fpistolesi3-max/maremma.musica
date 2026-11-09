@@ -68,9 +68,9 @@ function quandoInizia(d: DatiTipo): { testo: string; dopoAParte: boolean } {
 
   if (giorni != null) {
     const serata = apertura(d);
-    const prima = giorni === 0 ? 'il giorno della serata' : `${plurale(giorni, 'giorno', 'giorni')} prima`;
+    const prima = giorni === 0 ? 'all’apertura della serata' : `${plurale(giorni, 'giorno', 'giorni')} prima`;
     if (serata != null) return { testo: `In vendita dal ${giornoEOra(new Date(serata - giorni * GIORNO).toISOString())} (${prima})`, dopoAParte: dopo };
-    return { testo: giorni === 0 ? 'In vendita dal giorno della serata' : `In vendita da ${plurale(giorni, 'giorno', 'giorni')} prima della serata`, dopoAParte: dopo };
+    return { testo: giorni === 0 ? 'In vendita dall’apertura della serata' : `In vendita da ${plurale(giorni, 'giorno', 'giorni')} prima della serata`, dopoAParte: dopo };
   }
   if (data) return { testo: `In vendita dal ${data}`, dopoAParte: dopo };
   if (dopo) return { testo: 'In vendita quando finiscono i posti del tipo prima', dopoAParte: false };

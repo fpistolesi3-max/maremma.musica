@@ -21,7 +21,7 @@ test('esempio del modulo: data fissa 28/11, 100 posti', () => {
 test('inizio: N giorni prima (0, 1, molti)', () => {
   assert.match(con({ uscitaModo: 'giorni', uscitaGiorniPrima: '14' }), /^In vendita da 14 giorni prima della serata fino/);
   assert.match(con({ uscitaModo: 'giorni', uscitaGiorniPrima: '1' }), /^In vendita da 1 giorno prima della serata fino/);
-  assert.match(con({ uscitaModo: 'giorni', uscitaGiorniPrima: '0' }), /^In vendita dal giorno della serata fino/);
+  assert.match(con({ uscitaModo: 'giorni', uscitaGiorniPrima: '0' }), /^In vendita dall’apertura della serata fino/);
 });
 
 test('inizio: quando finisce il tipo prima, da solo o con una data', () => {
@@ -96,7 +96,7 @@ const SERATA = '2026-12-07T21:00:00.000Z';
 test('con la data della serata: «14 giorni prima» diventa anche il giorno', () => {
   assert.match(con({ dataSerata: SERATA, uscitaModo: 'giorni', uscitaGiorniPrima: '14' }), /^In vendita dal 23\/11 alle 22:00 \(14 giorni prima\) fino alla serata/);
   assert.match(con({ dataSerata: SERATA, uscitaModo: 'giorni', uscitaGiorniPrima: '1' }), /^In vendita dal 06\/12 alle 22:00 \(1 giorno prima\)/);
-  assert.match(con({ dataSerata: SERATA, uscitaModo: 'giorni', uscitaGiorniPrima: '0' }), /^In vendita dal 07\/12 alle 22:00 \(il giorno della serata\)/);
+  assert.match(con({ dataSerata: SERATA, uscitaModo: 'giorni', uscitaGiorniPrima: '0' }), /^In vendita dal 07\/12 alle 22:00 \(all’apertura della serata\)/);
 });
 
 test('con la data della serata: «N ore prima» diventa anche il giorno e l’ora', () => {
