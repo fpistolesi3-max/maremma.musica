@@ -23,12 +23,15 @@ export const EVENTO_FINE_INTRO = 'mm:intro-fine';
 export const ATTESA_MASSIMA_MS = 2000;
 
 /**
- * Parte solo alla prima pagina pubblica della sessione (anche all'avvio della web app installata, che è una sessione nuova).
- * Mai con prefers-reduced-motion e mai sul biglietto, che si apre dalla mail e spesso alla porta.
+ * Parte solo alla prima pagina pubblica della sessione (anche all'avvio della web app installata, che è una sessione nuova)
+ * e solo per chi arriva da fuori (Instagram, Google, link diretto).
+ * Mai con prefers-reduced-motion, mai sul biglietto (si apre dalla mail e spesso alla porta), mai sulle pagine legali
+ * (privacy, condizioni, cookie) e mai arrivando da un'altra pagina del sito: un link aperto in una scheda nuova
+ * ha una sessione nuova, ma l'intro l'ha già vista.
  * Deve restare autonoma (niente riferimenti esterni): viene copiata così com'è nello script inline.
  */
-export function decidiIntro(s: { giaVista: boolean; movimentoRidotto: boolean; percorso: string }): boolean {
-  return !s.giaVista && !s.movimentoRidotto && !/^\/biglietto(\/|$)/.test(s.percorso);
+export function decidiIntro(s: { giaVista: boolean; movimentoRidotto: boolean; percorso: string; dalSito: boolean }): boolean {
+  return !s.giaVista && !s.movimentoRidotto && !s.dalSito && !/^\/(biglietto|privacy|condizioni|cookie)(\/|$)/.test(s.percorso);
 }
 
 function avvio(decidi: typeof decidiIntro, chiave: string) {
@@ -36,7 +39,8 @@ function avvio(decidi: typeof decidiIntro, chiave: string) {
     const s = window.sessionStorage;
     const giaVista = !!s.getItem(chiave);
     s.setItem(chiave, '1');
-    if (!decidi({ giaVista, movimentoRidotto: matchMedia('(prefers-reduced-motion: reduce)').matches, percorso: location.pathname })) return;
+    const dalSito = document.referrer.indexOf(location.origin + '/') === 0;
+    if (!decidi({ giaVista, movimentoRidotto: matchMedia('(prefers-reduced-motion: reduce)').matches, percorso: location.pathname, dalSito })) return;
     // nella stessa sessione l'intro sostituisce il caricamento della home
     s.setItem('mm-caricamento', '1');
     document.documentElement.setAttribute('data-intro', '');

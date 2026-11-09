@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { INTRO, decidiIntro, scriptIntro } from './regole';
 import { DURATA, FORO } from './sketch';
 
-test('intro: solo alla prima pagina pubblica della sessione, mai con movimento ridotto o sul biglietto', () => {
-  const base = { giaVista: false, movimentoRidotto: false, percorso: '/' };
+test('intro: solo alla prima pagina pubblica della sessione, mai con movimento ridotto, sul biglietto o sulle pagine legali', () => {
+  const base = { giaVista: false, movimentoRidotto: false, percorso: '/', dalSito: false };
   assert.ok(decidiIntro(base));
   assert.ok(decidiIntro({ ...base, percorso: '/eventi' }));
   assert.ok(decidiIntro({ ...base, percorso: '/e/halloween-party' }));
@@ -13,10 +13,14 @@ test('intro: solo alla prima pagina pubblica della sessione, mai con movimento r
   assert.ok(!decidiIntro({ ...base, percorso: '/biglietto' }), 'biglietto dalla mail');
   assert.ok(!decidiIntro({ ...base, percorso: '/biglietto/abc' }));
   assert.ok(decidiIntro({ ...base, percorso: '/bigliettone' }), 'solo il segmento esatto');
+  for (const percorso of ['/privacy', '/condizioni', '/cookie', '/privacy/'])
+    assert.ok(!decidiIntro({ ...base, percorso }), `pagina legale ${percorso}`);
+  assert.ok(decidiIntro({ ...base, percorso: '/privacy-extra' }), 'solo il segmento esatto');
+  assert.ok(!decidiIntro({ ...base, dalSito: true }), 'arrivo da un\'altra pagina del sito (link in una scheda nuova)');
 });
 
 // esegue lo script inline in un browser finto e restituisce cosa ha lasciato
-function esegui(s: { storage?: Record<string, string>; ridotto?: boolean; percorso?: string; senzaStorage?: boolean }) {
+function esegui(s: { storage?: Record<string, string>; ridotto?: boolean; percorso?: string; senzaStorage?: boolean; referrer?: string }) {
   const storage = { ...(s.storage ?? {}) };
   const attributi: Record<string, string> = {};
   const finto = {
@@ -27,8 +31,8 @@ function esegui(s: { storage?: Record<string, string>; ridotto?: boolean; percor
       },
     },
     matchMedia: () => ({ matches: !!s.ridotto }),
-    location: { pathname: s.percorso ?? '/' },
-    document: { documentElement: { setAttribute: (k: string, v: string) => { attributi[k] = v; } } },
+    location: { pathname: s.percorso ?? '/', origin: 'https://maremmamusica.it' },
+    document: { referrer: s.referrer ?? '', documentElement: { setAttribute: (k: string, v: string) => { attributi[k] = v; } } },
   };
   new Function('window', 'matchMedia', 'location', 'document', scriptIntro())(finto.window, finto.matchMedia, finto.location, finto.document);
   return { storage, intro: 'data-intro' in attributi };
@@ -50,6 +54,18 @@ test('script inline: segna la sessione, mette data-intro e salta il caricamento 
 
   assert.ok(!esegui({ percorso: '/biglietto' }).intro);
   assert.ok(!esegui({ senzaStorage: true }).intro, 'senza storage niente intro, e nessun errore');
+});
+
+test('script inline: niente intro su privacy e termini aperti dal modulo in una scheda nuova, sì a chi arriva da fuori', () => {
+  // scheda nuova = sessione nuova, ma si arriva dalla prevendita del sito
+  const legale = esegui({ percorso: '/privacy', referrer: 'https://maremmamusica.it/e/halloween-party/prevendita' });
+  assert.ok(!legale.intro);
+  assert.equal(legale.storage['mm-caricamento'], undefined);
+  assert.ok(!esegui({ percorso: '/condizioni' }).intro, 'pagina legale anche da link diretto');
+  assert.ok(!esegui({ percorso: '/eventi', referrer: 'https://maremmamusica.it/' }).intro, 'qualsiasi pagina aperta dal sito');
+  assert.ok(esegui({ referrer: 'https://l.instagram.com/' }).intro, 'da Instagram sì');
+  assert.ok(esegui({ referrer: 'https://www.google.com/' }).intro, 'da Google sì');
+  assert.ok(esegui({ referrer: 'https://maremmamusica.it.truffa.com/' }).intro, 'solo la stessa origine conta');
 });
 
 test('uscita foro: è quella in uso, dura circa 0,6 s e non allunga l\'intro', () => {
