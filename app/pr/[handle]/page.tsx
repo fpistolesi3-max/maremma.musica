@@ -214,7 +214,7 @@ async function AreaPr({ sessioneHandle, serataScelta, nuovoTavolo }: { sessioneH
                         <span className="flex-grow text-right font-display text-[22px] font-extrabold leading-none">{euro(p.spesaMinima)}</span>
                       </div>
                       <span className="font-mono text-[11px] leading-4 text-osso-2">
-                        {`${p.nome} ${p.cognome}`.toUpperCase()} · {p.persone} PERSONE · {p.telefono}{p.stato === 'in_attesa' ? ` · DECADE ${quandoScade(p.scade).toUpperCase()}` : ''}
+                        {p.anonimizzata ? 'DATI CANCELLATI' : `${p.nome} ${p.cognome}`.toUpperCase()} · {p.persone} PERSONE{p.anonimizzata ? '' : ` · ${p.telefono}`}{p.stato === 'in_attesa' ? ` · DECADE ${quandoScade(p.scade).toUpperCase()}` : ''}
                       </span>
                       {/* Richiesta fermata dal PR con il pagamento online: può rimandare il link al cliente. */}
                       {p.stato === 'in_attesa' && p.pagamentoOnline && p.inseritaDa === 'pr' && (
