@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { copiaTipiAzione, eliminaLottoAzione, modelloTipiAzione, salvaLottoAzione, type EsitoAzione } from '@/app/azioni/admin';
 import { MODELLI } from '@/lib/tipi-modelli';
+import { riassuntoTipo, type DatiTipo, type FineModo, type PrModo, type UscitaModo } from '@/lib/riassunto-tipo';
 import { StatoSalvataggio, useModuloSalvabile } from './salva-tutto';
 
 export interface RigaLotto {
@@ -14,7 +15,7 @@ export interface RigaLotto {
 
 const CATEGORIE = ['Donne', 'Studenti', 'Gruppi', 'Under 25'];
 
-/** Tipi di prevendita della serata: prezzo, categoria, quando escono e quando chiudono, posti, link PR. */
+/** Tipi di prevendita della serata: prezzo, categoria, quando va in vendita e quando finisce, posti, link PR. */
 export function Lotti({ eventoId, lotti, pr, altreSerate }: {
   eventoId: string; lotti: RigaLotto[]; pr: { id: string; nome: string }[]; altreSerate: { id: string; etichetta: string; quanti: number }[];
 }) {
@@ -82,15 +83,40 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
   );
 }
 
+/** I valori del modulo come sono adesso (anche non salvati), per il riepilogo in parole semplici. */
+function leggiDati(form: HTMLFormElement, pr: { id: string; nome: string }[], primo: boolean): DatiTipo {
+  const f = new FormData(form);
+  const testo = (k: string) => String(f.get(k) ?? '');
+  const scelti = f.getAll('prAbilitati').map(String);
+  return {
+    uscitaModo: testo('uscitaModo') as UscitaModo, uscitaGiorniPrima: testo('uscitaGiorniPrima'), dataInizio: testo('dataInizio'),
+    dopoPrecedente: f.get('dopoPrecedente') === 'on', primo,
+    fineModo: testo('fineModo') as FineModo, fineOrePrima: testo('fineOrePrima'), dataFine: testo('dataFine'),
+    quantita: testo('quantita'), categoria: testo('categoria'), confermaCategoria: f.get('confermaCategoria') === 'on',
+    prModo: testo('prModo') as PrModo, prScelti: pr.filter((x) => scelti.includes(x.id)).map((x) => x.nome),
+  };
+}
+
 function FormLotto({ eventoId, l, pr, primo }: { eventoId: string; l: RigaLotto; pr: { id: string; nome: string }[]; primo: boolean }) {
-  const { esito, modificato, inCorso, proprieta } = useModuloSalvabile(salvaLottoAzione, 'tipo');
+  const { formRef, esito, modificato, inCorso, proprieta } = useModuloSalvabile(salvaLottoAzione, 'tipo');
   const p = l.id || 'nuovo';
   const [uscita, setUscita] = useState(l.uscitaGiorniPrima != null ? 'giorni' : l.dataInizio ? 'data' : 'subito');
   const [fine, setFine] = useState(l.fineOrePrima != null ? 'ore' : l.dataFine ? 'data' : 'mai');
   const [categoria, setCategoria] = useState(l.categoria);
   const [prModo, setPrModo] = useState(!l.visibileDaPr ? 'nessuno' : l.prAbilitati ? 'alcuni' : 'tutti');
+  const [dati, setDati] = useState<DatiTipo>(() => ({
+    uscitaModo: uscita as UscitaModo, uscitaGiorniPrima: l.uscitaGiorniPrima == null ? '' : String(l.uscitaGiorniPrima), dataInizio: l.dataInizio,
+    dopoPrecedente: l.dopoPrecedente, primo,
+    fineModo: fine as FineModo, fineOrePrima: l.fineOrePrima == null ? '' : String(l.fineOrePrima), dataFine: l.dataFine,
+    quantita: l.quantita == null ? '' : String(l.quantita), categoria: l.categoria, confermaCategoria: l.confermaCategoria,
+    prModo: prModo as PrModo, prScelti: pr.filter((x) => l.prAbilitati?.includes(x.id)).map((x) => x.nome),
+  }));
+  const aggiorna = () => { if (formRef.current) setDati(leggiDati(formRef.current, pr, primo)); };
+  // Quando si cambia modo compaiono altri campi: il riepilogo li rilegge appena ci sono.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(aggiorna, [uscita, fine, categoria, prModo]);
   return (
-    <form {...proprieta} className="grid gap-3 md:grid-cols-4">
+    <form {...proprieta} onChange={() => { proprieta.onChange(); aggiorna(); }} className="grid gap-3 md:grid-cols-4">
       <input type="hidden" name="eventoId" value={eventoId} />
       <input type="hidden" name="id" value={l.id} />
       <input type="hidden" name="ordine" value={l.ordine} />
@@ -142,6 +168,11 @@ function FormLotto({ eventoId, l, pr, primo }: { eventoId: string; l: RigaLotto;
           </div>
         )}
       </fieldset>
+
+      <div className="border-l-2 border-linea-forte bg-notte px-4 py-3 md:col-span-4" aria-live="polite">
+        <span className="mm-campo__etichetta">In parole semplici</span>
+        <p className="m-0 mt-1 text-[14px] leading-5">{riassuntoTipo(dati)}</p>
+      </div>
 
       <div className="flex items-center justify-end gap-3 md:col-span-4">
         <StatoSalvataggio esito={esito} modificato={modificato} nuovo={!l.id} />

@@ -30,7 +30,7 @@ const STATI: [StatoTavolo, string][] = [
 ];
 const STATI_A_MANO = STATI.filter(([v]) => v === 'libero' || v === 'non_in_vendita');
 
-/** Tavoli della serata: nome, zona, posti, spesa minima, stato, a quali PR sono affidati e chi li ha chiesti. */
+/** Tavoli della serata: nome, zona, posti, spesa minima, stato, quali PR possono prenotarli e chi li ha chiesti. */
 export function Tavoli({ eventoId, tavoli, pr, emailVere }: { eventoId: string; tavoli: RigaTavolo[]; pr: { id: string; nome: string }[]; emailVere: boolean }) {
   const [msg, setMsg] = useState<EsitoAzione>({});
   const [inCorso, avvia] = useTransition();
@@ -109,7 +109,7 @@ function SerieTavoli({ eventoId }: { eventoId: string }) {
       </div>
       <Mini id="serie-zona" nome="zona" etichetta="Zona" v="" lista="tavoli-zone" />
       <Mini id="serie-posti" nome="posti" etichetta="Posti per tavolo" v="" numerico />
-      <Mini id="serie-spesa" nome="spesaMinima" etichetta="Spesa min. €" v="0" numerico />
+      <Mini id="serie-spesa" nome="spesaMinima" etichetta="Spesa minima €" v="0" numerico />
       <span className="font-mono text-[12px] text-osso-2 sm:col-span-2 md:col-span-5">
         {nomi.length ? `Nomi: ${nomi.length > 4 ? `${nomi[0]}, ${nomi[1]} … ${nomi[nomi.length - 1]}` : nomi.join(', ')}` : 'Scrivi quanti tavoli (da 1 a 60) e un nome di partenza, per esempio T1.'}
       </span>
@@ -126,28 +126,28 @@ function FormTavolo({ eventoId, t, pr }: { eventoId: string; t: RigaTavolo; pr: 
   const [chi, setChi] = useState<'tutti' | 'alcuni' | 'nessuno'>(!t.visibileDaPr ? 'nessuno' : t.prAbilitati ? 'alcuni' : 'tutti');
   const p = t.id || 'nuovo';
   return (
-    <form {...proprieta} className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_120px_minmax(0,1fr)]">
+    <form {...proprieta} className="grid gap-3 md:grid-cols-6">
       <input type="hidden" name="eventoId" value={eventoId} />
       <input type="hidden" name="id" value={t.id} />
       <input type="hidden" name="ordine" value={t.ordine} />
-      <Mini id={`t-${p}-nome`} nome="nome" etichetta="Nome" v={t.nome} />
-      <Mini id={`t-${p}-zona`} nome="zona" etichetta="Zona" v={t.zona} lista="tavoli-zone" />
-      <Mini id={`t-${p}-posti`} nome="posti" etichetta="Posti (obbligatorio)" v={t.posti == null ? '' : String(t.posti)} numerico />
-      <Mini id={`t-${p}-spesa`} nome="spesaMinima" etichetta="Spesa min. €" v={String(t.spesaMinima)} numerico />
-      <div className="mm-campo">
+      <div className="md:col-span-3"><Mini id={`t-${p}-nome`} nome="nome" etichetta="Nome" v={t.nome} /></div>
+      <div className="md:col-span-3"><Mini id={`t-${p}-zona`} nome="zona" etichetta="Zona (es. Privé, Pista)" v={t.zona} lista="tavoli-zone" /></div>
+      <div className="md:col-span-2"><Mini id={`t-${p}-posti`} nome="posti" etichetta="Posti al tavolo" v={t.posti == null ? '' : String(t.posti)} numerico /></div>
+      <div className="md:col-span-2"><Mini id={`t-${p}-spesa`} nome="spesaMinima" etichetta="Spesa minima €" v={String(t.spesaMinima)} numerico /></div>
+      <div className="mm-campo md:col-span-2">
         <label className="mm-campo__etichetta" htmlFor={`t-${p}-stato`}>Stato</label>
         {/* Con una prenotazione attiva lo stato lo decide lei (in attesa → riservato, pagata → confermato). */}
         <select id={`t-${p}-stato`} name="stato" defaultValue={t.stato} disabled={Boolean(t.prenotazione)} className="mm-campo__input" style={{ height: 44, fontSize: 15 }}>
           {(t.prenotazione ? STATI : STATI_A_MANO).map(([v, testo]) => <option key={v} value={v}>{testo}</option>)}
         </select>
       </div>
-      <div className="md:col-span-5"><Mini id={`t-${p}-nota`} nome="nota" etichetta="Nota (la vedi solo tu, es. a chi è riservato)" v={t.nota} /></div>
-      <div className="mm-campo md:col-span-2">
-        <label className="mm-campo__etichetta" htmlFor={`t-${p}-chi`}>Affidato ai PR</label>
+      <div className="md:col-span-6"><Mini id={`t-${p}-nota`} nome="nota" etichetta="Nota (solo per te, per esempio a chi è riservato)" v={t.nota} /></div>
+      <div className="mm-campo md:col-span-3">
+        <label className="mm-campo__etichetta" htmlFor={`t-${p}-chi`}>Prenotabile dai PR</label>
         <select id={`t-${p}-chi`} name="prChi" value={chi} onChange={(e) => setChi(e.target.value as typeof chi)} className="mm-campo__input" style={{ height: 44, fontSize: 15 }}>
           <option value="tutti">Tutti i PR</option>
           <option value="alcuni">Solo alcuni PR</option>
-          <option value="nessuno">Nessun PR</option>
+          <option value="nessuno">Nessun PR (solo dal sito)</option>
         </select>
       </div>
       {chi === 'alcuni' && (
@@ -160,7 +160,7 @@ function FormTavolo({ eventoId, t, pr }: { eventoId: string; t: RigaTavolo; pr: 
           {pr.length === 0 && <span className="text-[14px] text-osso-2">Non ci sono PR.</span>}
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-end gap-3 md:col-span-5">
+      <div className="flex flex-wrap items-center justify-end gap-3 md:col-span-6">
         <StatoSalvataggio esito={esito} modificato={modificato} nuovo={!t.id} />
         {/* Un tavolo esistente si salva con il «Salva» in basso (insieme a tutto il resto); uno nuovo si aggiunge qui. */}
         {!t.id && <button type="submit" className="mm-btn mm-btn--linea" style={{ minHeight: 44 }} disabled={inCorso}>Aggiungi il tavolo</button>}

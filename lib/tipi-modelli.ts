@@ -1,15 +1,15 @@
 import type { Lotto } from './dati/tipi';
 
-// Modelli rapidi di tipi di prevendita: partono dal prezzo della serata, l'admin poi ritocca prezzi, posti e uscite.
-// Le uscite sono relative alla serata, quindi seguono la data se la serata si sposta.
+// Modelli rapidi di tipi di prevendita: partono dal prezzo della serata, l'admin poi ritocca prezzi, posti e date di vendita.
+// Le date di vendita sono relative alla serata, quindi seguono la data se la serata si sposta.
 
 export type NomeModello = 'unico' | 'early-standard' | 'early-donne-standard';
 export type TipoModello = Omit<Lotto, 'id' | 'eventoId' | 'ordine'>;
 
 export const MODELLI: { id: NomeModello; nome: string; descrizione: string }[] = [
   { id: 'unico', nome: 'Un solo prezzo', descrizione: 'Un tipo "Standard" sempre in vendita.' },
-  { id: 'early-standard', nome: 'Early bird + Standard', descrizione: 'Early bird da 21 giorni prima (100 posti), Standard da 7 giorni prima: l’Early bird chiude quando esce lo Standard.' },
-  { id: 'early-donne-standard', nome: 'Early bird + Donne + Standard', descrizione: 'Early bird da 21 giorni prima, Donne da 14, Standard da 7: ognuno chiude quando esce il successivo.' },
+  { id: 'early-standard', nome: 'Early bird + Standard', descrizione: 'Early bird da 21 giorni prima (100 posti), Standard da 7 giorni prima: l’Early bird finisce quando parte lo Standard.' },
+  { id: 'early-donne-standard', nome: 'Early bird + Donne + Standard', descrizione: 'Early bird da 21 giorni prima, Donne da 14, Standard da 7: ognuno finisce quando parte il successivo.' },
 ];
 
 const base: TipoModello = {

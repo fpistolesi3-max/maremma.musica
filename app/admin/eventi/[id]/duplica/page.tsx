@@ -23,7 +23,7 @@ export default async function DuplicaSerataPagina({ params }: Props) {
       <div className="flex flex-col gap-2 px-4 pt-8 md:px-12">
         <p className="m-0 max-w-[560px] text-[15px] leading-6">
           Copia la serata con tutto quello che serve: i dati, i PR abilitati, le impostazioni della porta, {x.lotti.length} {x.lotti.length === 1 ? 'tipo' : 'tipi'} di prevendita
-          (le uscite seguono la nuova data) e {x.tavoli.length} {x.tavoli.length === 1 ? 'tavolo' : 'tavoli'}{e.piantinaUrl ? ' con la piantina' : ''}.
+          (le date di vendita seguono la nuova data) e {x.tavoli.length} {x.tavoli.length === 1 ? 'tavolo' : 'tavoli'}{e.piantinaUrl ? ' con la piantina' : ''}.
         </p>
         <p className="m-0 max-w-[560px] text-[14px] leading-5 text-osso-2">La copia nasce in bozza, con un altro numero e un altro indirizzo, e non è in copertina. Non vengono copiate iscrizioni, prenotazioni e incassi.</p>
       </div>
