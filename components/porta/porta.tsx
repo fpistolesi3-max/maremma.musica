@@ -425,9 +425,10 @@ const icone = {
 
 // Il titolone è sempre l'azione dell'addetto, in tre sole parole; il motivo sta nella riga piccola sotto.
 const titoli = {
-  entra: <span className="font-display text-[min(104px,30vw)] font-black uppercase leading-[.9]">Entra</span>,
-  // Interlinea abbastanza larga perché le due righe di "Non entra" non si tocchino; "Controlla" si rimpicciolisce sugli schermi stretti (320 px).
-  nonEntra: <span className="font-display text-[min(100px,28vw)] font-black uppercase leading-[.98]">Non<br />entra</span>,
+  valida: <span className="font-display text-[min(104px,30vw)] font-black uppercase leading-[.9]">Valida</span>,
+  // Interlinea abbastanza larga perché le due righe di "Non valida" non si tocchino; "Controlla" e "Rifiutato" (parole lunghe) si rimpiccioliscono sugli schermi stretti (320 px).
+  nonValida: <span className="font-display text-[min(100px,28vw)] font-black uppercase leading-[.98]"><span className="block">Non</span>{' '}<span className="block">valida</span></span>,
+  rifiutato: <span className="font-display text-[min(76px,20vw)] font-black uppercase leading-[.9]">Rifiutato</span>,
   controlla: <span className="font-display text-[min(76px,20vw)] font-black uppercase leading-[.9]">Controlla</span>,
 };
 
@@ -466,7 +467,7 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
     const motivo = v.tavolo ? `Tavolo ${v.tavolo.nome} · ${v.tavolo.entrati} di ${v.tavolo.persone}` : esito.primaPagato || v.importo > 0 ? 'Prevendita pagata' : 'Ingresso libero';
     return (
       <>
-        <Blocco ruolo="status" simbolo="ok" motivo={motivo} titolo={titoli.entra} nome={`${v.nome} ${v.cognome}`} mono={datiDocumento(v)} riga={testoLista(v)} />
+        <Blocco ruolo="status" simbolo="ok" motivo={motivo} titolo={titoli.valida} nome={`${v.nome} ${v.cognome}`} mono={datiDocumento(v)} riga={testoLista(v)} />
         <div className="flex flex-none flex-col gap-3 px-4 pb-7">
           <Pieno onClick={onFaiEntrare} alto={76}>Fai entrare</Pieno>
           <button type="button" className="mm-btn" style={{ border: '2px solid currentColor', color: 'inherit', minHeight: 76, fontSize: 22 }} onClick={onNonRientra}>Non corrisponde</button>
@@ -484,7 +485,7 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
     const v = esito.voce;
     return (
       <>
-        <Blocco ruolo="status" simbolo="x" motivo="Non pagato" titolo={titoli.nonEntra} nome={`${v.nome} ${v.cognome}`}
+        <Blocco ruolo="status" simbolo="x" motivo="Non pagato" titolo={titoli.nonValida} nome={`${v.nome} ${v.cognome}`}
           riga={online ? 'Può pagare ora dal telefono.' : 'Senza rete: riprova quando torna.'} />
         <div className="flex flex-none flex-col gap-2 px-4 pb-7">
           <Pieno onClick={onRiprova}>Ha pagato? Riprova</Pieno>
@@ -499,7 +500,7 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
     const v = esito.voce;
     return (
       <>
-        <Blocco ruolo="alert" simbolo="x" motivo={`Orario superato · ${oraDi(esito.limite)}`} titolo={titoli.nonEntra} nome={`${v.nome} ${v.cognome}`} />
+        <Blocco ruolo="alert" simbolo="x" motivo={`Orario superato · ${oraDi(esito.limite)}`} titolo={titoli.nonValida} nome={`${v.nome} ${v.cognome}`} />
         <div className="flex flex-none flex-col gap-2 px-4 pb-7"><Pieno onClick={onChiudi}>{indietro}</Pieno></div>
       </>
     );
@@ -513,8 +514,8 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
     if (!cambiaSerataPossibile(serata)) {
       return (
         <>
-          <Blocco ruolo="alert" simbolo="x" motivo={serata.finestra === 'prima' ? `Biglietto per ${serata.nome} ${giornoMese(serata.data)}` : `Serata finita: ${serata.nome} ${giornoMese(serata.data)}`}
-            titolo={titoli.nonEntra} riga={serata.finestra === 'prima' ? 'Vale quella sera: il biglietto resta valido.' : 'Quella serata è già finita.'} />
+          <Blocco ruolo="alert" simbolo="x" motivo={serata.finestra === 'prima' ? `Vale per ${serata.nome} ${giornoMese(serata.data)}` : `Serata finita: ${serata.nome} ${giornoMese(serata.data)}`}
+            titolo={titoli.nonValida} riga={serata.finestra === 'prima' ? 'Il biglietto resta valido.' : 'Quella serata è già finita.'} />
           <div className="flex flex-none flex-col px-4 pb-7"><Pieno onClick={onChiudi}>{indietro}</Pieno></div>
         </>
       );
@@ -552,13 +553,13 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
     const v = esito.voce;
     return (
       <>
-        <Blocco ruolo="status" simbolo="x" motivo={v.tavolo ? 'Non corrisponde' : online ? 'Rifiuto salvato' : 'Rifiuto salvato · si invia con la rete'} titolo={titoli.nonEntra} nome={`${v.nome} ${v.cognome}`} riga="Il biglietto resta valido." />
+        <Blocco ruolo="status" simbolo="x" motivo={v.tavolo ? 'Non corrisponde' : online ? 'Rifiuto salvato' : 'Rifiuto salvato · si invia con la rete'} titolo={titoli.rifiutato} nome={`${v.nome} ${v.cognome}`} riga="Il biglietto resta valido." />
         <div className="flex flex-none flex-col px-4 pb-7"><Pieno onClick={onChiudi}>Prossimo</Pieno></div>
       </>
     );
   }
 
-  // Già entrato, tavolo pieno, annullato, non valido: tutti "Non entra", cambia solo il motivo.
+  // Già entrato, tavolo pieno, annullato, non valido: tutti "Non valida", cambia solo il motivo.
   const v = 'voce' in esito ? esito.voce : null;
   const pieno = esito.esito === 'gia_entrato' && esito.voce.tavolo ? esito.voce.tavolo : null;
   let motivo = '';
@@ -582,7 +583,7 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
   }
   return (
     <>
-      <Blocco ruolo="alert" simbolo="x" motivo={motivo} titolo={titoli.nonEntra} nome={v ? `${v.nome} ${v.cognome}` : undefined} riga={riga} />
+      <Blocco ruolo="alert" simbolo="x" motivo={motivo} titolo={titoli.nonValida} nome={v ? `${v.nome} ${v.cognome}` : undefined} riga={riga} />
       <div className="flex flex-none flex-col px-4 pb-7"><Pieno onClick={onChiudi}>{indietro}</Pieno></div>
     </>
   );
