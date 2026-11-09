@@ -39,7 +39,8 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   const [q, setQ] = useState('');
   const [confermaEsci, setConfermaEsci] = useState(false);
   const [inSospeso, setInSospeso] = useState<{ eventoId: string; chiave: string } | null>(null); // QR da rileggere dopo "Cambia serata"
-  const ritorno = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [conferma, setConferma] = useState<string | null>(null); // "✓ Elena Conti dentro": riga breve sullo scanner dopo "Fai entrare", non blocca niente
+  const timerConferma = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Evento di default: quello salvato, altrimenti il più vicino.
   useEffect(() => {
@@ -77,34 +78,59 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   // Dopo l'orario limite le prevendite non valgono più: la testata dice quanti posti restano (se la serata ha la capienza). Tutto dai dati del telefono.
   const { liberi, dopoLimite } = conteggioPorta(st.elenco, { capienza: evento?.capienza, limite, ora: new Date().toISOString() });
 
-  const mostra = useCallback((esito: EsitoPorta) => {
-    clearTimeout(ritorno.current);
-    setSchermo({ tipo: 'esito', esito });
-    // Dopo un ingresso riuscito (o un "Non rientra") torna da solo allo scanner (mockup: 2 secondi).
-    // Nelle serate senza telefono "scanner" è la ricerca per cognome, che riparte vuota per il prossimo.
-    if (esito.esito === 'entrato' || esito.esito === 'rifiutato') {
-      ritorno.current = setTimeout(() => { if (senzaTelefono) setQ(''); setSchermo(SCANNER); }, 2000);
-    }
-  }, [senzaTelefono]);
+  /** Ogni schermata d'esito si chiude solo con un tasto: niente ritorno automatico. */
+  const mostra = useCallback((esito: EsitoPorta) => { setSchermo({ tipo: 'esito', esito }); }, []);
 
-  /** `confermato`: lo staff ha toccato "Fai entrare" dopo aver controllato la categoria. */
-  const entra = useCallback((v: VocePorta, confermato = false) => {
-    const s = usePorta.getState();
+  /** Si torna allo scanner (nelle serate senza telefono "scanner" è la ricerca per cognome, che riparte vuota per il prossimo). */
+  const alloScanner = useCallback(() => { if (senzaTelefono) setQ(''); setSchermo(SCANNER); }, [senzaTelefono]);
+
+  const mostraConferma = useCallback((testo: string) => {
+    clearTimeout(timerConferma.current);
+    setConferma(testo);
+    timerConferma.current = setTimeout(() => setConferma(null), 2500);
+  }, []);
+
+  const argsIngresso = useCallback(() => {
     const ora = new Date().toISOString();
     // Fuori dalla finestra della porta (12 ore prima dell'inizio, fino a fine serata) non entra nessuno: il biglietto di un'altra sera non si consuma.
-    const { esito, aggiornata } = decidiIngresso(v, { porta: s.porta, ora, confermato, documento: senzaTelefono, limite, finestra: evento ? finestraPorta(evento, ora) : undefined });
+    return { porta: usePorta.getState().porta, ora, documento: senzaTelefono, limite, finestra: evento ? finestraPorta(evento, ora) : undefined };
+  }, [evento, limite, senzaTelefono]);
+
+  /** Scansione o tocco su una riga: SOLO guardare. Se può entrare mostra "ENTRA" con i dati da confrontare col documento; l'ingresso non è ancora registrato. */
+  const valuta = useCallback((v: VocePorta) => {
+    mostra(decidiIngresso(v, { ...argsIngresso(), anteprima: true }).esito);
+  }, [argsIngresso, mostra]);
+
+  /** Registra l'ingresso (stessa logica di sempre, coda offline compresa) e torna subito allo scanner. `confermato`: lo staff ha controllato la categoria (o il documento). */
+  const entra = useCallback((v: VocePorta, confermato = false) => {
+    const s = usePorta.getState();
+    const { esito, aggiornata } = decidiIngresso(v, { ...argsIngresso(), confermato });
     if (aggiornata) {
       s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, ora: aggiornata.oraCheckIn!, ...(confermato ? { conferma: true } : {}) });
+      mostraConferma(`✓ ${aggiornata.nome} ${aggiornata.cognome} dentro${aggiornata.tavolo ? ` · ${aggiornata.tavolo.entrati} di ${aggiornata.tavolo.persone}` : ''}`);
+      alloScanner();
+      return;
     }
-    mostra(esito);
-  }, [evento, limite, mostra, senzaTelefono]);
+    mostra(esito); // ad esempio "già entrato" se nel frattempo è entrato da un'altra porta
+  }, [alloScanner, argsIngresso, mostra, mostraConferma]);
 
-  /** "Non rientra": nessun ingresso, il rifiuto va in coda come gli ingressi (anche offline) e l'iscrizione resta valida. */
+  /**
+   * "Fai entrare": prima, se c'è rete, si riscarica l'elenco (al massimo un secondo e mezzo) e si decide sulla voce aggiornata: se lo stesso QR è entrato
+   * da un'altra porta compare "Già entrato" invece di registrare due volte. Il server rifà comunque il controllo quando riceve l'ingresso.
+   */
+  const faiEntrare = useCallback(async (v: VocePorta, confermato = false) => {
+    if (navigator.onLine) await Promise.race([usePorta.getState().sincronizza(), new Promise((r) => setTimeout(r, 1500))]);
+    entra(trovaVoce(usePorta.getState().elenco, v.id) ?? v, confermato);
+  }, [entra]);
+
+  /** "Non corrisponde" / "Non entra": nessun ingresso, il rifiuto va in coda come gli ingressi (anche offline) e l'iscrizione resta valida (il vero intestatario può ancora entrare). */
   const rifiuta = useCallback((v: VocePorta) => {
     const s = usePorta.getState();
+    const voce = trovaVoce(s.elenco, v.id) ?? v; // la voce vera, non quella "dopo l'ingresso" dell'anteprima
     const ora = new Date().toISOString();
-    const aggiornata: VocePorta = { ...v, rifiuto: { ora, porta: s.porta, da: 'staff' } };
-    s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: v.id, chiave: v.id, ora, rifiuto: true });
+    const aggiornata: VocePorta = { ...voce, rifiuto: { ora, porta: s.porta, da: 'staff' } };
+    // I tavoli non hanno un rifiuto salvato (il server lo tiene solo per le prevendite): si mostra e basta, il biglietto non si tocca.
+    if (!voce.tavolo) s.applicaLocale(aggiornata, { idLocale: nuovoId(), voceId: voce.id, chiave: voce.id, ora, rifiuto: true });
     mostra({ esito: 'rifiutato', voce: aggiornata });
   }, [mostra]);
 
@@ -124,8 +150,8 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
       mostra({ esito: 'non_valido', motivo: chiave.startsWith('MM1.') ? 'Non è in elenco' : 'Codice non trovato' });
       return;
     }
-    entra(v);
-  }, [entra, mostra]);
+    valuta(v);
+  }, [valuta, mostra]);
 
   /** "Cambia serata →": passa all'altra serata e rilegge lo stesso QR appena arriva il suo elenco. */
   const cambiaSerata = useCallback(async (serata: SerataBiglietto, chiave: string) => {
@@ -149,17 +175,17 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   /** "Riprova" dopo "Prevendita non completata": magari ha appena pagato dal telefono. */
   const riprova = useCallback(async (v: VocePorta) => {
     await usePorta.getState().sincronizza();
-    entra(trovaVoce(usePorta.getState().elenco, v.id) ?? v);
-  }, [entra]);
+    valuta(trovaVoce(usePorta.getState().elenco, v.id) ?? v);
+  }, [valuta]);
 
-  useEffect(() => () => clearTimeout(ritorno.current), []);
+  useEffect(() => () => clearTimeout(timerConferma.current), []);
 
   const risultati = useMemo(() => cercaPerNome(st.elenco, q), [st.elenco, q]);
 
   if (!pronto) return <div className="min-h-dvh bg-vinile" />;
 
   const colori = schermo.tipo === 'esito'
-    ? { entrato: 'bg-ok text-su-stato', non_pagato: 'bg-stop text-osso', oltre_orario: 'bg-stop text-osso', altra_serata: schermo.esito.esito === 'altra_serata' && !cambiaSerataPossibile(schermo.esito.serata) ?'bg-stop text-osso' : 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
+    ? { entrato: 'bg-ok text-su-stato', valido: 'bg-ok text-su-stato', non_pagato: 'bg-stop text-osso', oltre_orario: 'bg-stop text-osso', altra_serata: schermo.esito.esito === 'altra_serata' && !cambiaSerataPossibile(schermo.esito.serata) ?'bg-stop text-osso' : 'bg-attesa text-su-stato', gia_entrato: 'bg-stop text-osso', annullato: 'bg-stop text-osso', non_valido: 'bg-stop text-osso', da_confermare: 'bg-attesa text-su-stato', rifiutato: 'bg-stop text-osso' }[schermo.esito.esito]
     : schermo.tipo === 'cerca' || schermo.tipo === 'impostazioni' ? 'bg-notte text-osso' : 'bg-vinile text-osso';
   const suPieno = schermo.tipo === 'esito';
 
@@ -192,6 +218,10 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
 
       {st.serveAccesso && (
         <a href="/accedi?dopo=/door" className="mx-4 mt-3 block border border-attesa p-3 text-[14px] text-attesa no-underline">Accesso scaduto: gli ingressi restano salvati sul telefono. Tocca qui per rientrare.</a>
+      )}
+
+      {conferma && schermo.tipo !== 'esito' && (
+        <div role="status" className="mx-4 mt-3 border border-ok p-3 text-[16px] font-semibold leading-5 text-ok">{conferma}</div>
       )}
 
       {st.altrePorte > 0 && schermo.tipo !== 'esito' && (
@@ -265,7 +295,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
                 </>
               );
               return apribile
-                ? <button key={v.id} type="button" onClick={() => entra(v)} className="flex w-full items-center gap-3 border-0 border-t border-linea bg-transparent px-0 py-4 text-osso">{contenuto}</button>
+                ? <button key={v.id} type="button" onClick={() => valuta(v)} className="flex w-full items-center gap-3 border-0 border-t border-linea bg-transparent px-0 py-4 text-osso">{contenuto}</button>
                 : <div key={v.id} className="flex items-center gap-3 border-t border-linea py-4">{contenuto}</div>;
             })}
             {q && risultati.length === 0 && <p className="border-t border-linea py-4 text-osso-2">Nessuno con questo nome in elenco.</p>}
@@ -312,9 +342,9 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
         <Esito esito={schermo.esito} senzaTelefono={senzaTelefono} online={st.online}
           onRiprova={() => { if (schermo.esito.esito === 'non_pagato') void riprova(schermo.esito.voce); }}
           onCambiaSerata={() => { if (schermo.esito.esito === 'altra_serata') void cambiaSerata(schermo.esito.serata, schermo.esito.chiave); }}
-          onFaiEntrare={() => { if (schermo.esito.esito === 'da_confermare') entra(schermo.esito.voce, true); }}
-          onNonRientra={() => { if (schermo.esito.esito === 'da_confermare') rifiuta(schermo.esito.voce); }}
-          onChiudi={() => { clearTimeout(ritorno.current); if (senzaTelefono) setQ(''); setSchermo(SCANNER); }} />
+          onFaiEntrare={() => { if (schermo.esito.esito === 'valido') void faiEntrare(schermo.esito.voce); else if (schermo.esito.esito === 'da_confermare') void faiEntrare(schermo.esito.voce, true); }}
+          onNonRientra={() => { if (schermo.esito.esito === 'valido' || schermo.esito.esito === 'da_confermare') rifiuta(schermo.esito.voce); }}
+          onChiudi={alloScanner} />
       )}
 
       {confermaEsci && (
@@ -348,6 +378,11 @@ async function altraSerata(chiave: string, eventoId: string | null): Promise<Ser
   } catch {
     return null;
   }
+}
+
+/** "21.11.2003 · 22 anni": quello che lo staff confronta col documento (i tavoli non hanno la data di nascita). */
+function datiDocumento(v: VocePorta) {
+  return v.dataNascita ? `${nascita(v.dataNascita)} · ${anni(v.dataNascita)} anni` : undefined;
 }
 
 /** "Lista: Maremma Musica · da Instagram": senza PR si vede da dove è arrivato. */
@@ -417,23 +452,23 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
 }) {
   const indietro = senzaTelefono ? 'Torna alla ricerca' : 'Torna allo scanner';
 
-  if (esito.esito === 'entrato') {
+  // Può entrare, ma l'ingresso non è ancora registrato: lo staff confronta il documento con la prevendita e sceglie.
+  if (esito.esito === 'valido') {
     const v = esito.voce;
-    const motivo = v.tavolo ? `Tavolo ${v.tavolo.nome} · ${v.tavolo.entrati} di ${v.tavolo.persone}`
-      : categoriaDaControllare(v) ? `${v.categoria} · controllata` : esito.primaPagato || v.importo > 0 ? 'Prevendita pagata' : 'Ingresso libero';
-    // L'età aiuta il confronto col documento; il controllo resta allo staff (la porta non blocca nessuno per l'età).
-    const eta = v.dataNascita ? `${anni(v.dataNascita)} anni` : undefined;
+    const motivo = v.tavolo ? `Tavolo ${v.tavolo.nome} · ${v.tavolo.entrati} di ${v.tavolo.persone}` : esito.primaPagato || v.importo > 0 ? 'Prevendita pagata' : 'Ingresso libero';
     return (
       <>
-        <Blocco ruolo="status" simbolo="ok" motivo={motivo} titolo={titoli.entra} nome={`${v.nome} ${v.cognome}`} riga={eta} />
+        <Blocco ruolo="status" simbolo="ok" motivo={motivo} titolo={titoli.entra} nome={`${v.nome} ${v.cognome}`} mono={datiDocumento(v)} riga={testoLista(v)} />
         <div className="flex flex-none flex-col gap-3 px-4 pb-7">
-          <div className="h-[3px] bg-[rgba(5,5,5,.18)]"><div className="h-full bg-vinile" style={{ animation: 'mm-barra 2s linear forwards' }} /></div>
-          <Pieno onClick={onChiudi}>Prossimo</Pieno>
-          <span className="text-center font-mono text-[11px] font-medium leading-[14px]">{senzaTelefono ? 'TORNO ALLA RICERCA TRA 2 S' : 'TORNO ALLO SCANNER TRA 2 S'}</span>
+          <Pieno onClick={onFaiEntrare} alto={76}>Fai entrare</Pieno>
+          <button type="button" className="mm-btn" style={{ border: '2px solid currentColor', color: 'inherit', minHeight: 76, fontSize: 22 }} onClick={onNonRientra}>Non corrisponde</button>
         </div>
       </>
     );
   }
+
+  // Un ingresso registrato non ha una schermata sua: dopo "Fai entrare" si torna subito allo scanner (con una riga di conferma).
+  if (esito.esito === 'entrato') return null;
 
   // Prevendita non completata (modulo compilato o link del PR, pagamento mai arrivato): non è una prevendita, non ha un QR e non vale per
   // entrare. Alla porta il sito non incassa: può comprarla ora dal suo telefono (poi "Riprova"), altrimenti non entra.
@@ -494,7 +529,7 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
     return (
       <>
         <Blocco ruolo="alert" motivo={riservata ? `${v.categoria} · documento` : 'Documento'} titolo={titoli.controlla} nome={`${v.nome} ${v.cognome}`}
-          mono={`Nascita ${nascita(v.dataNascita)} · ${anni(v.dataNascita)} anni`}
+          mono={datiDocumento(v)}
           riga={v.rifiuto ? `Rifiutato alle ${oraDi(v.rifiuto.ora)} (${v.rifiuto.porta.replace('P', 'porta ')}).` : undefined} />
         <div className="flex flex-none flex-col gap-3 px-4 pb-7">
           <Pieno onClick={onFaiEntrare} alto={76}>Fai entrare</Pieno>
@@ -507,7 +542,12 @@ function Esito({ esito, senzaTelefono, online, onRiprova, onCambiaSerata, onFaiE
 
   if (esito.esito === 'rifiutato') {
     const v = esito.voce;
-    return <Blocco ruolo="status" simbolo="x" motivo="Rifiuto salvato" titolo={titoli.nonEntra} nome={`${v.nome} ${v.cognome}`} riga={online ? undefined : 'Si invia quando torna la rete.'} />;
+    return (
+      <>
+        <Blocco ruolo="status" simbolo="x" motivo={v.tavolo ? 'Non corrisponde' : online ? 'Rifiuto salvato' : 'Rifiuto salvato · si invia con la rete'} titolo={titoli.nonEntra} nome={`${v.nome} ${v.cognome}`} riga="Il biglietto resta valido." />
+        <div className="flex flex-none flex-col px-4 pb-7"><Pieno onClick={onChiudi}>Prossimo</Pieno></div>
+      </>
+    );
   }
 
   // Già entrato, tavolo pieno, annullato, non valido: tutti "Non entra", cambia solo il motivo.

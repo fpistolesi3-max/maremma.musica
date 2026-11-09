@@ -331,6 +331,23 @@ test('porta: categoria da confermare, "Non rientra" salvato, solo lo staff, si p
   assert.equal((await pRifiuta(staff, i.eventoId, i.tokenQr, { porta: 'P1', ora: o.ora })).esito, 'gia_entrato', 'già entrato: nessun rifiuto');
 });
 
+test('porta: "Non corrisponde" salva il rifiuto ma il biglietto resta valido; il vero intestatario entra, un secondo telefono no', async () => {
+  const staff = await sessione('porta@maremmamusica.test');
+  const d = await m.archivio.leggi();
+  const i = d.iscrizioni.find((x) => x.stato === 'pagato' && x.origine === 'lista' && !x.categoria)!;
+  const stato = async () => (await m.archivio.leggi()).iscrizioni.find((x) => x.id === i.id)!;
+  const o = { porta: 'P1', ora: '' };
+  // Il documento non corrisponde: rifiuto salvato, nessun ingresso, il biglietto non si consuma.
+  assert.equal((await pRifiuta(staff, i.eventoId, i.tokenQr, o)).esito, 'rifiutato');
+  assert.deepEqual([(await stato()).stato, (await stato()).rifiutoIngresso?.porta, (await stato()).oraCheckIn], ['pagato', 'P1', null]);
+  // Il vero intestatario arriva: entra (una volta sola, anche se un secondo telefono prova subito dopo).
+  assert.equal((await pCheckIn(staff, i.eventoId, i.tokenQr, o)).esito, 'entrato');
+  const secondo = await pCheckIn(staff, i.eventoId, i.tokenQr, { porta: 'P2', ora: '' });
+  assert.equal(secondo.esito, 'gia_entrato', 'un solo ingresso');
+  assert.deepEqual([(await stato()).stato, (await stato()).porta], ['entrato', 'P1']);
+  await m.archivio.modifica((a) => { const x = a.iscrizioni.find((y) => y.id === i.id)!; x.stato = 'pagato'; x.oraCheckIn = null; x.porta = null; x.rifiutoIngresso = null; });
+});
+
 test('attività PR e canali: solo admin (lo staff vede solo la porta), i PR no', async () => {
   const admin = await m.gestione.panoramicaPr(await sessione('admin@maremmamusica.test'), 'tutte');
   assert.ok(admin.righe.some((r) => r.email), 'l’admin vede i contatti');

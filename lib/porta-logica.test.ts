@@ -45,3 +45,34 @@ test('"Cambia serata" si offre solo per la serata di stanotte, non per una futur
   assert.equal(cambiaSerataPossibile({ finestra: 'prima' }), false);
   assert.equal(cambiaSerataPossibile({ finestra: 'dopo' }), false);
 });
+
+test('scansione = solo guardare: l\'ingresso si registra solo con "Fai entrare"', () => {
+  const o = { porta: 'P1', ora: SERATA.data, finestra: 'aperta' as const };
+  // Prevendita pagata e ingresso libero: "valido", niente da scrivere.
+  for (const v of [voce(), voce({ stato: 'in_lista', importo: 0 })]) {
+    const guarda = decidiIngresso(v, { ...o, anteprima: true });
+    assert.equal(guarda.esito.esito, 'valido');
+    assert.equal(guarda.aggiornata, null, 'nessun ingresso registrato dalla sola scansione');
+    // Poi "Fai entrare": stessa decisione di sempre, adesso registra.
+    const entra = decidiIngresso(v, o);
+    assert.equal(entra.esito.esito, 'entrato');
+    assert.equal(entra.aggiornata?.stato, 'entrato');
+  }
+  // Tavolo: l'anteprima mostra la persona che entrerebbe ("2 di 6") ma non scrive; ogni conferma ne fa entrare una sola.
+  const tavolo = voce({ tavolo: { nome: 'T1', persone: 6, entrati: 1, pagato: true } });
+  const g = decidiIngresso(tavolo, { ...o, anteprima: true });
+  assert.ok(g.esito.esito === 'valido' && g.esito.voce.tavolo!.entrati === 2);
+  assert.equal(g.aggiornata, null);
+  assert.equal(decidiIngresso(tavolo, o).aggiornata?.tavolo?.entrati, 2);
+});
+
+test('l\'anteprima non salta nessun controllo: già entrato, annullato, porta chiusa, categoria, documento', () => {
+  const o = { porta: 'P1', ora: SERATA.data, finestra: 'aperta' as const, anteprima: true };
+  assert.equal(decidiIngresso(voce({ stato: 'entrato', oraCheckIn: SERATA.data, porta: 'P2' }), o).esito.esito, 'gia_entrato', 'entrato da un\'altra porta: non si registra due volte');
+  assert.equal(decidiIngresso(voce({ stato: 'annullato' }), o).esito.esito, 'annullato');
+  assert.equal(decidiIngresso(voce({ stato: 'in_attesa' }), o).esito.esito, 'non_pagato');
+  assert.equal(decidiIngresso(voce(), { ...o, finestra: 'prima' }).esito.esito, 'non_valido');
+  assert.equal(decidiIngresso(voce({ categoria: 'Donne' }), o).esito.esito, 'da_confermare', 'la categoria resta il flusso giallo');
+  assert.equal(decidiIngresso(voce(), { ...o, documento: true }).esito.esito, 'da_confermare', 'serata senza telefono: resta il flusso giallo');
+  assert.equal(decidiIngresso(voce({ tavolo: { nome: 'T1', persone: 4, entrati: 4, pagato: true } }), o).esito.esito, 'gia_entrato', 'tavolo pieno');
+});
