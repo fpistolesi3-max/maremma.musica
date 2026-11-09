@@ -158,7 +158,7 @@ export async function modelloTipiAzione(eventoId: string, modello: NomeModello):
   const s = await admin();
   try { await applicaModelloTipi(s, eventoId, modello); } catch (e) { return { errore: (e as Error).message }; }
   revalidatePath('/', 'layout');
-  return { ok: 'Modello applicato: ritocca prezzi, posti e uscite.' };
+  return { ok: 'Modello applicato: ritocca prezzi, posti e date di vendita.' };
 }
 
 export async function copiaTipiAzione(eventoId: string, daEventoId: string): Promise<EsitoAzione> {

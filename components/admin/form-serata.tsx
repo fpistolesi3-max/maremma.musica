@@ -188,7 +188,7 @@ export function FormSerata({ v, pr, tipi, tavoli, foto, copiaTavoliDa = [], manc
                 <div className={`mm-campo ${c.prezzoLista ? 'mm-campo--errore' : ''}`}>
                   <label className="mm-campo__etichetta" htmlFor="f-prezzoLista">Primo tipo: prezzo (€)</label>
                   <input className="mm-campo__input" style={{ height: 44, fontSize: 15 }} id="f-prezzoLista" name="prezzoLista" form={FORM} inputMode="decimal" value={prezzoPrimo} onChange={(e) => setPrezzoPrimo(e.target.value)} aria-invalid={Boolean(c.prezzoLista)} aria-describedby="f-prezzoLista-a" />
-                  <span className="mm-campo__aiuto" id="f-prezzoLista-a">{c.prezzoLista ?? 'Si chiamerà «Lista». Dopo il primo salvataggio lo ritocchi (nome, posti, quando esce) e ne aggiungi altri.'}</span>
+                  <span className="mm-campo__aiuto" id="f-prezzoLista-a">{c.prezzoLista ?? 'Si chiamerà «Lista». Dopo il primo salvataggio lo ritocchi (nome, posti, quando va in vendita) e ne aggiungi altri.'}</span>
                 </div>
               </div>
             ) : tipi}
@@ -290,6 +290,11 @@ export function FormSerata({ v, pr, tipi, tavoli, foto, copiaTavoliDa = [], manc
           <div className="hidden flex-col gap-1 lg:flex">
             {erroreModuli && <p role="alert" className="m-0 border border-stop-testo px-3 py-2 text-[13px] text-stop-testo">{erroreModuli}</p>}
             {!erroreModuli && <p className="m-0 font-mono text-[12px] text-osso-2">PRIMA DI PUBBLICARE MANCANO {mancaOra.length} {mancaOra.length === 1 ? 'COSA' : 'COSE'}</p>}
+            {!erroreModuli && (
+              <ul className="m-0 flex list-none flex-col gap-1 p-0 text-[13px] leading-5 text-osso-2">
+                {mancaOra.map((m) => <li key={m.id}>{m.testo} <a href={`#${m.ancora}`} className="link-sottolineato whitespace-nowrap">Vai lì</a></li>)}
+              </ul>
+            )}
           </div>
         )}
         <div className="fixed inset-x-0 bottom-[calc(61px+env(safe-area-inset-bottom))] z-30 flex flex-col gap-2 border-t border-linea bg-notte px-4 py-3 md:sticky md:inset-x-auto md:bottom-0 md:z-10 md:border-0 md:px-0">
