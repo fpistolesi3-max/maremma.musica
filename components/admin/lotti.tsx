@@ -106,22 +106,22 @@ function FormLotto({ eventoId, l, pr, primo }: { eventoId: string; l: RigaLotto;
       <label className="flex items-center gap-2 text-[14px] md:col-span-2"><input type="checkbox" name="confermaCategoria" defaultChecked={l.confermaCategoria} disabled={!categoria} className="h-4 w-4 accent-[var(--arancio)]" />Il cliente dichiara nel modulo di rientrare nella categoria</label>
 
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0 md:col-span-2">
-        <legend className="mm-campo__etichetta mb-1 p-0">Esce</legend>
-        <select name="uscitaModo" className="mm-campo__input" style={{ height: 44, fontSize: 15 }} value={uscita} onChange={(e) => setUscita(e.target.value)} aria-label="Quando esce">
-          <option value="subito">Subito (appena è il suo turno)</option>
+        <legend className="mm-campo__etichetta mb-1 p-0">In vendita</legend>
+        <select name="uscitaModo" className="mm-campo__input" style={{ height: 44, fontSize: 15 }} value={uscita} onChange={(e) => setUscita(e.target.value)} aria-label="Quando va in vendita">
+          <option value="subito">Da subito</option>
           <option value="giorni">N giorni prima della serata</option>
-          <option value="data">Data fissa</option>
+          <option value="data">Da una data fissa</option>
         </select>
         {uscita === 'giorni' && <Mini id={`${p}-gg`} nome="uscitaGiorniPrima" etichetta="Giorni prima" v={l.uscitaGiorniPrima == null ? '' : String(l.uscitaGiorniPrima)} />}
         {uscita === 'data' && <Mini id={`${p}-da`} nome="dataInizio" etichetta="Dal" v={l.dataInizio} tipo="datetime-local" />}
-        <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="dopoPrecedente" defaultChecked={l.dopoPrecedente} disabled={primo} className="h-4 w-4 accent-[var(--arancio)]" />Esce solo quando finiscono i posti del tipo prima</label>
+        <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="dopoPrecedente" defaultChecked={l.dopoPrecedente} disabled={primo} className="h-4 w-4 accent-[var(--arancio)]" />In vendita solo quando finiscono i posti del tipo prima</label>
       </fieldset>
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0 md:col-span-2">
-        <legend className="mm-campo__etichetta mb-1 p-0">Chiude</legend>
-        <select name="fineModo" className="mm-campo__input" style={{ height: 44, fontSize: 15 }} value={fine} onChange={(e) => setFine(e.target.value)} aria-label="Quando chiude">
+        <legend className="mm-campo__etichetta mb-1 p-0">Fine vendita</legend>
+        <select name="fineModo" className="mm-campo__input" style={{ height: 44, fontSize: 15 }} value={fine} onChange={(e) => setFine(e.target.value)} aria-label="Quando finisce la vendita">
           <option value="mai">Alla serata (o a esaurimento)</option>
           <option value="ore">N ore prima della serata</option>
-          <option value="data">Data fissa</option>
+          <option value="data">A una data fissa</option>
         </select>
         {fine === 'ore' && <Mini id={`${p}-ore`} nome="fineOrePrima" etichetta="Ore prima (168 = 7 giorni)" v={l.fineOrePrima == null ? '' : String(l.fineOrePrima)} />}
         {fine === 'data' && <Mini id={`${p}-a`} nome="dataFine" etichetta="Fino al" v={l.dataFine} tipo="datetime-local" />}
