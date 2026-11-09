@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { riassuntoTipo, type DatiTipo } from './riassunto-tipo';
+import { quandoParteLaVendita, riassuntoTipo, type DatiTipo } from './riassunto-tipo';
 
 const BASE: DatiTipo = {
   uscitaModo: 'subito', uscitaGiorniPrima: '', dataInizio: '', dopoPrecedente: false, primo: true,
@@ -64,8 +64,8 @@ test('PR: tutti, alcuni, nessuno', () => {
   assert.match(con({ prModo: 'nessuno' }), /solo dal sito, non dai link dei PR$/);
 });
 
-test('PR "alcuni" senza nessuno spuntato: il salvataggio lo tratta come "tutti", e il riepilogo lo dice', () => {
-  assert.match(con({ prModo: 'alcuni', prScelti: [] }), /nessun PR scelto: vale per i link di tutti i PR$/);
+test('PR "alcuni" senza nessuno spuntato: non si salva, e il riepilogo lo dice', () => {
+  assert.match(con({ prModo: 'alcuni', prScelti: [] }), /nessun PR scelto: spunta almeno un PR per salvare$/);
 });
 
 test('campi mancanti: il riepilogo dice che vale "da subito" invece di inventare una data', () => {
@@ -88,4 +88,44 @@ test('tutto insieme', () => {
   assert.equal(
     con({ primo: false, dopoPrecedente: true, uscitaModo: 'giorni', uscitaGiorniPrima: '7', fineModo: 'ore', fineOrePrima: '3', quantita: '50', categoria: 'Donne', confermaCategoria: true, prModo: 'alcuni', prScelti: ['Marco'] }),
     'In vendita da 7 giorni prima della serata fino a 3 ore prima della serata · solo quando finiscono i posti del tipo prima · 50 posti · categoria Donne (il cliente dichiara di rientrarci) · solo dai link di Marco');
+});
+
+// La serata del test: lunedì 7 dicembre 2026, apertura alle 22:00 a Roma (21:00 UTC).
+const SERATA = '2026-12-07T21:00:00.000Z';
+
+test('con la data della serata: «14 giorni prima» diventa anche il giorno', () => {
+  assert.match(con({ dataSerata: SERATA, uscitaModo: 'giorni', uscitaGiorniPrima: '14' }), /^In vendita dal 23\/11 alle 22:00 \(14 giorni prima\) fino alla serata/);
+  assert.match(con({ dataSerata: SERATA, uscitaModo: 'giorni', uscitaGiorniPrima: '1' }), /^In vendita dal 06\/12 alle 22:00 \(1 giorno prima\)/);
+  assert.match(con({ dataSerata: SERATA, uscitaModo: 'giorni', uscitaGiorniPrima: '0' }), /^In vendita dal 07\/12 alle 22:00 \(il giorno della serata\)/);
+});
+
+test('con la data della serata: «N ore prima» diventa anche il giorno e l’ora', () => {
+  assert.match(con({ dataSerata: SERATA, fineModo: 'ore', fineOrePrima: '3' }), /fino al 07\/12 alle 19:00 \(3 ore prima\)/);
+  assert.match(con({ dataSerata: SERATA, fineModo: 'ore', fineOrePrima: '168' }), /fino al 30\/11 alle 22:00 \(7 giorni prima\)/);
+  assert.match(con({ dataSerata: SERATA, fineModo: 'ore', fineOrePrima: '1' }), /fino al 07\/12 alle 21:00 \(1 ora prima\)/);
+  assert.match(con({ dataSerata: SERATA, fineModo: 'ore', fineOrePrima: '0' }), /fino all’inizio della serata \(07\/12 alle 22:00\)/);
+});
+
+test('l’ora è quella di Roma anche a cavallo del cambio d’ora (serata dopo il 28 marzo 2027)', () => {
+  // 3 aprile 2027, apertura 22:00 ora legale (20:00 UTC): 14 giorni prima, in ore, cade il 20 marzo alle 21:00 (ora solare) .
+  assert.match(con({ dataSerata: '2027-04-03T20:00:00.000Z', uscitaModo: 'giorni', uscitaGiorniPrima: '14' }), /^In vendita dal 20\/03 alle 21:00 \(14 giorni prima\)/);
+});
+
+test('con la data della serata ma con una data fissa o niente: non cambia nulla', () => {
+  assert.equal(con({ dataSerata: SERATA, uscitaModo: 'data', dataInizio: '2026-11-28T00:00', quantita: '100' }),
+    'In vendita dal 28/11 alle 00:00 fino alla serata · 100 posti · anche dai link di tutti i PR');
+  assert.equal(con({ dataSerata: SERATA }), con({}));
+});
+
+test('data della serata non valida: il riepilogo torna alle parole senza giorno', () => {
+  assert.match(con({ dataSerata: 'boh', uscitaModo: 'giorni', uscitaGiorniPrima: '14', fineModo: 'ore', fineOrePrima: '3' }),
+    /^In vendita da 14 giorni prima della serata fino a 3 ore prima della serata/);
+});
+
+test('testata della sezione: quando parte la vendita del primo tipo', () => {
+  const tipo = { dataInizio: null, dataFine: null, uscitaGiorniPrima: null, fineOrePrima: null };
+  assert.equal(quandoParteLaVendita(tipo, SERATA), 'da subito');
+  assert.equal(quandoParteLaVendita({ ...tipo, dataInizio: '2026-11-27T23:00:00.000Z' }, SERATA), 'dal 28/11', 'mezzanotte di Roma');
+  assert.equal(quandoParteLaVendita({ ...tipo, uscitaGiorniPrima: 14 }, SERATA), 'dal 23/11');
+  assert.equal(quandoParteLaVendita({ ...tipo, uscitaGiorniPrima: 14, dataInizio: '2026-11-27T23:00:00.000Z' }, SERATA), 'dal 23/11', 'i giorni prima battono la data fissa, come nelle regole di vendita');
 });

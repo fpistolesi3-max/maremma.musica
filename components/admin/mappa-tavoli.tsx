@@ -78,7 +78,8 @@ export function MappaTavoli({ eventoId, piantinaUrl, tavoli }: { eventoId: strin
         <span className="text-[13px] text-osso-2">{inCorso ? 'Salvo…' : 'Foto o disegno della sala, JPG o PNG. Senza piantina i tavoli si mettono sul foglio a quadretti.'}</span>
       </div>
 
-      <div ref={foglio} className={`relative w-full select-none overflow-hidden border border-linea-forte bg-vinile ${piantinaUrl ? '' : 'aspect-[4/3]'}`}
+      {/* Senza piantina e senza nessun tavolo sopra, il foglio a quadretti è solo una striscia: cresce quando c'è qualcosa da trascinare. */}
+      <div ref={foglio} className={`relative w-full select-none overflow-hidden border border-linea-forte bg-vinile ${piantinaUrl ? '' : sulla.length === 0 ? 'h-24' : 'aspect-[4/3]'}`}
         style={piantinaUrl ? undefined : { backgroundImage: 'linear-gradient(var(--linea) 1px, transparent 1px), linear-gradient(90deg, var(--linea) 1px, transparent 1px)', backgroundSize: '10% 10%' }}
         onPointerDown={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'IMG') setScelto(null); }}>
         {piantinaUrl && (
@@ -117,7 +118,7 @@ export function MappaTavoli({ eventoId, piantinaUrl, tavoli }: { eventoId: strin
             {t.nome}
           </button>
         ))}
-        {punti.length === 0 && <span className="absolute inset-0 grid place-items-center p-6 text-center text-[14px] text-osso-2">Aggiungi i tavoli qui sotto: poi li metti al loro posto sulla mappa.</span>}
+        {(piantinaUrl ? punti.length === 0 : sulla.length === 0) && <span className="absolute inset-0 grid place-items-center p-3 text-center text-[14px] text-osso-2">{punti.length === 0 ? 'Aggiungi i tavoli qui sotto: poi li metti al loro posto sulla mappa.' : 'Nessun tavolo sulla mappa: tocca uno dei tavoli qui sotto per metterlo.'}</span>}
       </div>
 
       <div className="flex flex-wrap gap-x-4 gap-y-2">

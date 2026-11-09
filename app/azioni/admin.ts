@@ -17,6 +17,7 @@ import { esitoBenvenutoPr, type ViaEmail } from '@/lib/avviso-email';
 import { rimborsaPagamento } from '@/lib/rimborso';
 import { isoRoma, slugDa } from '@/lib/formato';
 import { componiData, istanteDopoApertura, LIMITE_PREVENDITA_DEFAULT, pubblicatoDopoSalvataggio } from '@/lib/regole';
+import { erroreScelta } from '@/lib/pr-scelti';
 import type { StatoTavolo, TipoIngresso } from '@/lib/dati/tipi';
 
 async function admin(): Promise<Sessione> {
@@ -133,6 +134,8 @@ export async function salvaLottoAzione(_p: EsitoAzione, f: FormData): Promise<Es
   const usaGiorni = t(f, 'uscitaModo') === 'giorni' && giorni != null && !Number.isNaN(giorni) && giorni >= 0;
   const usaOre = t(f, 'fineModo') === 'ore' && ore != null && !Number.isNaN(ore) && ore >= 0;
   const abilitati = t(f, 'prModo') === 'alcuni' ? f.getAll('prAbilitati').map(String) : null;
+  const erroreAbilitati = erroreScelta(t(f, 'prModo'), abilitati ?? [], 'tipo');
+  if (erroreAbilitati) return { errore: erroreAbilitati };
   await salvaLotto(s, {
     id: t(f, 'id') || null, eventoId, nome, prezzo,
     quantita: quantita == null || Number.isNaN(quantita) ? null : Math.round(quantita),
@@ -182,6 +185,8 @@ export async function salvaTavoloAzione(_p: EsitoAzione, f: FormData): Promise<E
   if (nome.length > 40) return { errore: 'Nome troppo lungo.' };
   if (Number.isNaN(spesa) || spesa < 0) return { errore: 'Spesa minima non valida.' };
   if (posti == null || Number.isNaN(posti) || posti < 1 || posti > 99) return { errore: 'Scrivi i posti del tavolo: un numero da 1 a 99.' };
+  const erroreAbilitati = erroreScelta(t(f, 'prChi'), f.getAll('prAbilitati').map(String), 'tavolo');
+  if (erroreAbilitati) return { errore: erroreAbilitati };
   try {
     await salvaTavolo(s, {
       id: t(f, 'id') || null, eventoId: t(f, 'eventoId'), nome, zona: t(f, 'zona').slice(0, 40) || null,
