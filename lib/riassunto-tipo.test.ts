@@ -21,7 +21,7 @@ test('esempio del modulo: data fissa 28/11, 100 posti', () => {
 test('inizio: N giorni prima (0, 1, molti)', () => {
   assert.match(con({ uscitaModo: 'giorni', uscitaGiorniPrima: '14' }), /^In vendita da 14 giorni prima della serata fino/);
   assert.match(con({ uscitaModo: 'giorni', uscitaGiorniPrima: '1' }), /^In vendita da 1 giorno prima della serata fino/);
-  assert.match(con({ uscitaModo: 'giorni', uscitaGiorniPrima: '0' }), /^In vendita dal giorno della serata fino/);
+  assert.match(con({ uscitaModo: 'giorni', uscitaGiorniPrima: '0' }), /^In vendita dall’apertura della serata fino/);
 });
 
 test('inizio: quando finisce il tipo prima, da solo o con una data', () => {
