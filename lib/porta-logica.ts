@@ -91,6 +91,7 @@ export interface SerataBiglietto { id: string; nome: string; data: string; fines
 
 export type EsitoPorta =
   | { esito: 'entrato'; voce: VocePorta; incassato: number; ora: string; primaPagato: boolean }
+  | { esito: 'valido'; voce: VocePorta; primaPagato: boolean } // la persona può entrare ma l'ingresso NON è ancora registrato: lo staff confronta il documento e tocca "Fai entrare" (`voce` = com'è dopo l'ingresso, solo per mostrarla)
   | { esito: 'non_pagato'; voce: VocePorta }    // prevendita non completata (in_attesa): non ha un QR e non vale per entrare
   | { esito: 'oltre_orario'; voce: VocePorta; limite: string } // prevendita valida ma oltre l'orario limite: non entra
   | { esito: 'altra_serata'; serata: SerataBiglietto; chiave: string } // QR valido ma di un'altra serata: solo sul telefono, non lo manda il server
@@ -112,6 +113,8 @@ export interface OpzioniIngresso {
   limite?: string | null;
   /** La finestra della porta all'istante `ora`: se non è "aperta" non entra nessuno (prima viene questo controllo, poi tutti gli altri). */
   finestra?: FinestraPorta;
+  /** Solo guardare: se la persona può entrare risponde "valido" e non scrive niente (l'ingresso si registra dopo, quando lo staff tocca "Fai entrare"). */
+  anteprima?: boolean;
 }
 
 /**
@@ -130,6 +133,7 @@ export function decidiIngresso(voce: VocePorta, o: OpzioniIngresso): { esito: Es
     if (t.entrati >= t.persone) return { esito: { esito: 'gia_entrato', voce }, aggiornata: null };
     const entrati = t.entrati + 1;
     const aggiornata: VocePorta = { ...voce, tavolo: { ...t, entrati }, stato: entrati >= t.persone ? 'entrato' : 'pagato', oraCheckIn: o.ora, porta: o.porta };
+    if (o.anteprima) return { esito: { esito: 'valido', voce: aggiornata, primaPagato: true }, aggiornata: null };
     return { esito: { esito: 'entrato', voce: aggiornata, incassato: 0, ora: o.ora, primaPagato: true }, aggiornata };
   }
   if (voce.stato === 'entrato') return { esito: { esito: 'gia_entrato', voce }, aggiornata: null };
@@ -138,6 +142,7 @@ export function decidiIngresso(voce: VocePorta, o: OpzioniIngresso): { esito: Es
   if (voce.stato === 'in_attesa') return { esito: { esito: 'non_pagato', voce }, aggiornata: null };
   if ((categoriaDaControllare(voce) || o.documento) && !o.confermato) return { esito: { esito: 'da_confermare', voce }, aggiornata: null };
   const aggiornata: VocePorta = { ...voce, stato: 'entrato', oraCheckIn: o.ora, porta: o.porta };
+  if (o.anteprima) return { esito: { esito: 'valido', voce: aggiornata, primaPagato: voce.stato === 'pagato' }, aggiornata: null };
   return { esito: { esito: 'entrato', voce: aggiornata, incassato: 0, ora: o.ora, primaPagato: voce.stato === 'pagato' }, aggiornata };
 }
 
