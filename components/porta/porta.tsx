@@ -41,6 +41,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   const [inSospeso, setInSospeso] = useState<{ eventoId: string; chiave: string } | null>(null); // QR da rileggere dopo "Cambia serata"
   const [conferma, setConferma] = useState<string | null>(null); // "✓ Elena Conti dentro": riga breve sullo scanner dopo "Fai entrare", non blocca niente
   const timerConferma = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const inEntrata = useRef(false); // "Fai entrare" in corso (si attende un attimo la rete): i tocchi ripetuti si ignorano
 
   // Evento di default: quello salvato, altrimenti il più vicino.
   useEffect(() => {
@@ -119,8 +120,15 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
    * da un'altra porta compare "Già entrato" invece di registrare due volte. Il server rifà comunque il controllo quando riceve l'ingresso.
    */
   const faiEntrare = useCallback(async (v: VocePorta, confermato = false) => {
-    if (navigator.onLine) await Promise.race([usePorta.getState().sincronizza(), new Promise((r) => setTimeout(r, 1500))]);
-    entra(trovaVoce(usePorta.getState().elenco, v.id) ?? v, confermato);
+    // Un secondo tocco mentre si aspetta la rete non deve registrare un'altra persona (tavolo) né mostrare "Già entrato" a chi è appena entrato.
+    if (inEntrata.current) return;
+    inEntrata.current = true;
+    try {
+      if (navigator.onLine) await Promise.race([usePorta.getState().sincronizza(), new Promise((r) => setTimeout(r, 1500))]);
+      entra(trovaVoce(usePorta.getState().elenco, v.id) ?? v, confermato);
+    } finally {
+      inEntrata.current = false;
+    }
   }, [entra]);
 
   /** "Non corrisponde" / "Non entra": nessun ingresso, il rifiuto va in coda come gli ingressi (anche offline) e l'iscrizione resta valida (il vero intestatario può ancora entrare). */
