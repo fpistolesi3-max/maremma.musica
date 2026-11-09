@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { recuperaQr, type StatoRecupero } from '@/app/azioni/prevendita';
+import { CampoTrappola } from './campo-trappola';
 
 export function ModuloRecupero({ email = '' }: { email?: string }) {
   const [stato, invia, inCorso] = useActionState(recuperaQr, { inviata: false } as StatoRecupero);
@@ -18,6 +19,7 @@ export function ModuloRecupero({ email = '' }: { email?: string }) {
   }
   return (
     <form action={invia} className="flex flex-col gap-5" noValidate>
+      <CampoTrappola />
       <div className={`mm-campo ${stato.errore ? 'mm-campo--errore' : ''}`}>
         <label className="mm-campo__etichetta" htmlFor="r-email">Email usata per iscriverti</label>
         <input className="mm-campo__input" id="r-email" name="email" type="email" autoComplete="email" autoCapitalize="none" defaultValue={stato.email ?? email}

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useRef } from 'react';
 import { iscriviti, type StatoModulo } from '@/app/azioni/prevendita';
+import { CampoTrappola } from './campo-trappola';
 import { PulsanteMorph } from '@/components/pulsante-morph';
 
 interface Props {
@@ -47,6 +48,7 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
     <form action={invia} noValidate className="flex flex-col gap-[22px]">
       <input type="hidden" name="slug" value={slug} />
       {prHandle && <input type="hidden" name="pr" value={prHandle} />}
+      <CampoTrappola />
       {children}
 
       {senzaTelefono && (

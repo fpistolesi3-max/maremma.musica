@@ -254,6 +254,19 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
 - Admin: `/admin` home con la prossima serata e le cose da fare (rimborsi da fare, pagamenti con importo sbagliato, tavoli in attesa, serate in bozza con "Cosa manca"; ogni voce porta al punto giusto) · serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con tipi di prevendita e tavoli (spesa minima, zona, posti, stato, mappa con piantina del locale) · PR · iscrizioni
   (annulla e rimborsa/CSV) · rimborsi (`/admin/rimborsi`) · staff.
 
+## Moduli pubblici (contro i programmi automatici)
+
+I tre moduli che chiunque può inviare senza accesso sono la **prevendita** (`/e/[serata]/prevendita` e i link dei PR), la **richiesta di un tavolo** (`/tavoli/[serata]`) e **"Recupera il QR"** (`/biglietto`). Non espongono dati, ma un programma potrebbe usarli per tenere fermi posti e tavoli (30 minuti a richiesta non pagata), riempire di nomi finti una serata gratis o far partire email a raffica. Due difese:
+
+1. **Campo trappola** (nel codice, `lib/trappola.ts` e `components/campo-trappola.tsx`): un campo `sito` fuori schermo, che una persona non vede e lascia vuoto. Se arriva compilato, prevendita e tavoli rispondono "Richiesta non valida." senza tenere niente; "Recupera il QR" risponde come sempre ma non manda l'email. Ferma i programmi che riempiono tutti i campi, non chi prende di mira il sito apposta.
+2. **Limite di richieste nel firewall di Vercel** (da impostare a mano da chi ha l'account Vercel: Progetto → Firewall → Configure → New Rule). Le risposte dei moduli arrivano come richieste POST alla pagina stessa, quindi:
+   - **Nome:** `Moduli pubblici: limite per IP`
+   - **If** (tre gruppi in OR): *Request Method* equals `POST` **and** *Request Path* starts with `/e/` · **or** *Request Method* equals `POST` **and** *Request Path* starts with `/tavoli/` · **or** *Request Method* equals `POST` **and** *Request Path* equals `/biglietto`
+   - **Then:** *Rate Limit*, *Fixed Window*, **30 richieste ogni 60 secondi**, per **IP**, poi *Deny* (o *Too Many Requests*).
+   - Il limite è largo apposta: con i telefoni molte persone escono dallo stesso IP dell'operatore, e all'uscita di una prevendita annunciata su Instagram possono compilare in tanti nello stesso minuto. Una persona invia il modulo una o due volte; un programma centinaia.
+   - Non tocca admin, porta, accessi, webhook di Stripe e cron (altri percorsi).
+   - Dopo averla salvata, la pagina Firewall mostra quante richieste la regola ha bloccato: se blocca qualcosa durante un'uscita vera, alzare il numero.
+
 ## Rimborsi
 
 Tutto sta in `lib/dati/rimborsi.ts` (dati, solo admin) e `lib/rimborso.ts` (chiamata a Stripe ed email).
