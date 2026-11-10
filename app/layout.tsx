@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { PuliziaPorta } from '@/components/porta/pulizia';
 
 export const metadata: Metadata = {
   title: { default: 'Maremma Musica', template: '%s · Maremma Musica' },
@@ -23,7 +24,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // data-intro su <html> lo mette lo script dell'intro prima dell'idratazione (app/(sito)/layout.tsx)
     <html lang="it" suppressHydrationWarning>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* L'elenco della porta scaduto sparisce dal telefono dello staff anche se la porta non si riapre. */}
+        <PuliziaPorta />
+      </body>
     </html>
   );
 }

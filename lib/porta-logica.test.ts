@@ -1,7 +1,7 @@
 // La finestra della porta: un biglietto di un'altra sera non si consuma. Si lancia con: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cambiaSerataPossibile, decidiIngresso, finestraPorta, motivoPortaChiusa, serataFuoriPorta, type VocePorta } from './porta-logica';
+import { cambiaSerataPossibile, decidiIngresso, elencoDaTenereAllUscita, elencoScaduto, finestraPorta, motivoPortaChiusa, scadenzaElencoPorta, serataFuoriPorta, type VocePorta } from './porta-logica';
 
 const SERATA = { data: '2026-10-31T21:00:00.000Z', dataFine: '2026-11-01T03:00:00.000Z' }; // 22:00 – 04:00 a Roma
 const ore = (da: string, h: number) => new Date(Date.parse(da) + h * 3_600_000).toISOString();
@@ -86,4 +86,18 @@ test('elenco della porta: la serata esce dalla porta 12 ore dopo la fine, poi il
   const senzaFine = { data: SERATA.data, dataFine: null };
   assert.equal(serataFuoriPorta(senzaFine, ore(SERATA.data, 19.99)), false);
   assert.equal(serataFuoriPorta(senzaFine, ore(SERATA.data, 20.01)), true);
+});
+
+test('"Esci" durante la serata lascia l’elenco (chi esce per sbaglio senza campo lo ritrova); fuori dalla serata lo cancella', () => {
+  assert.equal(elencoDaTenereAllUscita(SERATA, ore(SERATA.data, -12.01)), false, 'telefono usato per una serata futura: si cancella');
+  assert.equal(elencoDaTenereAllUscita(SERATA, ore(SERATA.data, -12)), true, 'da quando si apre la porta');
+  assert.equal(elencoDaTenereAllUscita(SERATA, ore(SERATA.data, 2)), true);
+  assert.equal(elencoDaTenereAllUscita(SERATA, ore(SERATA.dataFine, 1)), true, 'chiusura e sincronizzazioni dopo la fine');
+  assert.equal(elencoDaTenereAllUscita(SERATA, ore(SERATA.dataFine, 12.01)), false, 'serata uscita dalla porta');
+  // La scadenza salvata con l'elenco: 12 ore dopo la fine (senza orario di chiusura, inizio + 8 ore).
+  assert.equal(scadenzaElencoPorta(SERATA), ore(SERATA.dataFine, 12));
+  assert.equal(scadenzaElencoPorta({ data: SERATA.data, dataFine: null }), ore(SERATA.data, 20));
+  assert.equal(elencoScaduto(scadenzaElencoPorta(SERATA), ore(SERATA.dataFine, 12)), false);
+  assert.equal(elencoScaduto(scadenzaElencoPorta(SERATA), ore(SERATA.dataFine, 12.01)), true);
+  assert.equal(elencoScaduto(null, ore(SERATA.dataFine, 100)), false, 'senza scadenza decide la porta');
 });

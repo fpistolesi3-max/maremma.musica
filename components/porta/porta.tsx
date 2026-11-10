@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePorta, nuovoId } from './store';
 import { Fotocamera } from './fotocamera';
-import { cambiaSerataPossibile, categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, entratiVoce, finestraPorta, personeVoce, serataFuoriPorta, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
+import { cambiaSerataPossibile, categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, elencoDaTenereAllUscita, entratiVoce, finestraPorta, personeVoce, scadenzaElencoPorta, serataFuoriPorta, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
 import { etichettaCanale } from '@/lib/canali';
 
 // Scanner della porta (mockup Porta 1–5). Tutto il controllo avviene sul telefono con l'elenco salvato:
@@ -41,7 +41,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   const [inSospeso, setInSospeso] = useState<{ eventoId: string; chiave: string } | null>(null); // QR da rileggere dopo "Cambia serata"
   const [conferma, setConferma] = useState<string | null>(null); // "✓ Elena Conti dentro": riga breve sullo scanner dopo "Fai entrare", non blocca niente
   const timerConferma = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const uscendo = useRef(false); // "Sì, esci" toccato: l'elenco è già cancellato, non va riscaricato prima che la pagina cambi
+  const uscendo = useRef(false); // "Sì, esci" toccato: niente più scelte di serata né download prima che la pagina cambi
   const inEntrata = useRef(false); // "Fai entrare" in corso (si attende un attimo la rete): i tocchi ripetuti si ignorano
 
   // Evento di default: quello salvato, altrimenti il più vicino.
@@ -77,6 +77,10 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   }, [pronto, st.eventoId, eventi]);
 
   const evento = eventi.find((e) => e.id === st.eventoId) ?? null;
+  // La scadenza resta salvata con l'elenco: lo cancella anche un'altra pagina del sito (components/porta/pulizia.tsx), se la porta non si riapre.
+  useEffect(() => { if (pronto && evento) usePorta.getState().segnaScadenza(scadenzaElencoPorta(evento)); }, [pronto, evento]);
+  // Durante la serata "Esci" lascia l'elenco sul telefono: chi esce per sbaglio senza campo riapre la porta e lo ritrova.
+  const tieniAllUscita = evento ? elencoDaTenereAllUscita(evento) : false;
   // Orario limite della prevendita: vale l'ultima sincronizzazione (l'admin lo può cambiare durante la serata), offline quello salvato.
   // Il controllo usa l'orologio del telefono; il server lo rifà comunque quando riceve l'ingresso.
   const limite = evento ? st.limite ?? evento.limite : null;
@@ -374,11 +378,13 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
             {st.coda.length > 0 ? (
               <p className="m-0 text-[15px] leading-5 text-attesa">Hai {st.coda.length} {st.coda.length === 1 ? 'ingresso non ancora inviato' : 'ingressi non ancora inviati'}: se esci ora restano sul telefono. Aspetta la sincronizzazione.</p>
             ) : (
-              <p className="m-0 text-[15px] leading-5 text-osso-2">L&apos;elenco della serata si cancella da questo telefono. Dovrai rientrare con il link che ti arriva per email, con la connessione.</p>
+              <p className="m-0 text-[15px] leading-5 text-osso-2">{tieniAllUscita
+                ? 'Per rientrare ti serve il link che arriva per email. Se esci per sbaglio senza campo, riapri la porta: l’elenco di stanotte resta sul telefono e si cancella da solo 12 ore dopo la fine.'
+                : 'L’elenco della serata si cancella da questo telefono. Per rientrare ti serve il link che arriva per email, con la connessione.'}</p>
             )}
             {st.coda.length > 0
               ? <button type="button" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 52 }} onClick={() => void st.sincronizza()}>Aggiorna ora</button>
-              : <form action={esci} onSubmit={() => { uscendo.current = true; usePorta.getState().svuota(); }}><button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 52 }}>Sì, esci</button></form>}
+              : <form action={esci} onSubmit={() => { uscendo.current = true; if (!tieniAllUscita) usePorta.getState().svuota(); }}><button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 52 }}>Sì, esci</button></form>}
             <button type="button" className="mm-btn mm-btn--linea mm-btn--pieno" style={{ minHeight: 52 }} autoFocus onClick={() => setConfermaEsci(false)}>Resta</button>
           </div>
         </div>
