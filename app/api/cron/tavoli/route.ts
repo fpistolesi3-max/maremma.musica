@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { applicaScadenze, chiuseDaAvvisare, emailDelPr, promemoriaRichiestePr } from '@/lib/dati/tavoli';
+import { anonimizzaPrenotazioniVecchie, applicaScadenze, chiuseDaAvvisare, emailDelPr, promemoriaRichiestePr } from '@/lib/dati/tavoli';
 import { inviaChiusuraTavolo, inviaPromemoriaRichiestaPr, inviaScadutaAlPr } from '@/lib/tavolo-email';
 import { verificaSospesi } from '@/lib/pagamento-tavolo';
 import { modalitaProva } from '@/lib/prova';
@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic';
  * GET /api/cron/tavoli — una volta al giorno (vercel.json): chiede a Stripe l'esito dei pagamenti online rimasti in
  * sospeso, di tavoli e prevendite (se il webhook non li ha portati), segna scadute le prevendite non pagate, fa decadere le prenotazioni non pagate e, per le richieste inserite
  * dal PR (o dalla crew) e non ancora pagate, manda il promemoria al cliente e l'avviso al PR;
- * a chi l'ha persa per il termine passato manda l'avviso che il tavolo è tornato libero.
+ * a chi l'ha persa per il termine passato manda l'avviso che il tavolo è tornato libero. Infine, 30 giorni dopo la serata, cancella
+ * i dati personali di iscrizioni e prenotazioni dei tavoli.
  * Vercel chiama con "Authorization: Bearer <CRON_SECRET>"; senza il segreto giusto non parte (in sviluppo sì).
  */
 export async function GET(req: Request) {
@@ -29,6 +30,8 @@ export async function GET(req: Request) {
   // Un errore qui non deve fermare i promemoria e gli avvisi dei tavoli.
   let anonimizzate = 0;
   try { anonimizzate = await anonimizzaIscrizioniVecchie(); } catch (e) { console.error('[privacy] anonimizzazione non riuscita', e); }
+  let tavoliAnonimizzati = 0;
+  try { tavoliAnonimizzati = await anonimizzaPrenotazioniVecchie(); } catch (e) { console.error('[privacy] anonimizzazione dei tavoli non riuscita', e); }
   let inviati = 0;
   // Richieste inserite dal PR (o dalla crew) non ancora pagate: promemoria al cliente e avviso al PR.
   for (const { vista, emailPr } of await promemoriaRichiestePr()) {
@@ -44,5 +47,5 @@ export async function GET(req: Request) {
       if (emailPr) await inviaScadutaAlPr(v, emailPr, origine);
     } catch (e) { console.error('[tavoli] avviso di chiusura non inviato', e); }
   }
-  return NextResponse.json({ ok: true, pagamenti, prevendite, promemoria: inviati, decadute: avvisati, anonimizzate }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ ok: true, pagamenti, prevendite, promemoria: inviati, decadute: avvisati, anonimizzate, tavoliAnonimizzati }, { headers: { 'Cache-Control': 'no-store' } });
 }

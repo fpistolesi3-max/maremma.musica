@@ -348,6 +348,28 @@ test('porta: "Non corrisponde" salva il rifiuto ma il biglietto resta valido; il
   await m.archivio.modifica((a) => { const x = a.iscrizioni.find((y) => y.id === i.id)!; x.stato = 'pagato'; x.oraCheckIn = null; x.porta = null; x.rifiutoIngresso = null; });
 });
 
+test('porta: 12 ore dopo la fine della serata l’elenco con i dati personali non va più ai telefoni, e la serata sparisce dalla porta', async () => {
+  const staff = await sessione('porta@maremmamusica.test');
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  const { data, dataFine } = ev;
+  assert.ok((await m.porta.elencoPorta(staff, ev.id)).length > 0, 'prima della serata l’elenco c’è');
+  const finitaDa = async (ore: number) => m.archivio.modifica((d) => {
+    const e = d.eventi.find((x) => x.id === ev.id)!;
+    e.dataFine = new Date(Date.now() - ore * 3_600_000).toISOString();
+    e.data = new Date(Date.parse(e.dataFine) - 6 * 3_600_000).toISOString();
+  });
+  try {
+    await finitaDa(11);
+    assert.ok((await m.porta.elencoPorta(staff, ev.id)).length > 0, '11 ore dopo la fine: ingressi tardivi e sincronizzazioni ancora possibili');
+    assert.ok((await m.porta.eventiPorta(staff)).some((e) => e.id === ev.id));
+    await finitaDa(13);
+    assert.deepEqual(await m.porta.elencoPorta(staff, ev.id), [], '13 ore dopo: niente nomi né date di nascita');
+    assert.ok(!(await m.porta.eventiPorta(staff)).some((e) => e.id === ev.id), 'e la serata non è più tra quelle della porta');
+  } finally {
+    await m.archivio.modifica((d) => { const e = d.eventi.find((x) => x.id === ev.id)!; e.data = data; e.dataFine = dataFine; });
+  }
+});
+
 test('attività PR e canali: solo admin (lo staff vede solo la porta), i PR no', async () => {
   const admin = await m.gestione.panoramicaPr(await sessione('admin@maremmamusica.test'), 'tutte');
   assert.ok(admin.righe.some((r) => r.email), 'l’admin vede i contatti');
@@ -1048,6 +1070,36 @@ test('anonimizzazione: dopo 30 giorni spariscono i dati personali, restano età 
   assert.equal(dopo.filter((r) => r.eventoId === ev.id && r.anonimizzata).length >= 2, true);
   const { giaIscritto } = await import('../regole');
   assert.equal(giaIscritto(dopo, ev.id, '', ''), undefined, 'una riga anonima non conta come doppione');
+});
+
+test('anonimizzazione dei tavoli: 30 giorni dopo la serata spariscono nome, cognome, email e telefono, restano conti e ingressi', async () => {
+  const tv = await import('./tavoli');
+  const ev = (await m.archivio.leggi()).eventi.find((e) => e.slug === 'halloween-party')!;
+  const ora = new Date().toISOString();
+  const pren = (id: string, stato: 'confermata' | 'scaduta') => ({
+    id, tavoloId: 'tavolo-anon', eventoId: ev.id, prId: null, nome: 'Rita', cognome: 'Tavolo', email: `${id}@esempio.it`, telefono: '347 0000001',
+    persone: 4, spesaMinima: 200, stato, scade: ora, tokenQr: `MM1.${id}`, codice: id.toUpperCase().slice(0, 8), inseritaDa: 'cliente' as const,
+    consensoPrivacyAt: ora, createdAt: ora, pagatoAt: stato === 'confermata' ? ora : null, metodoPagamento: stato === 'confermata' ? 'online' as const : null,
+    pagatoDa: null, chiusaAt: null, chiusaDa: null, promemoriaAt: null, avvisoChiusuraAt: null,
+    pagamentoOnline: { sessione: null, pagamento: stato === 'confermata' ? `pi_${id}` : null, daRimborsare: false },
+    ingressi: stato === 'confermata' ? [{ rif: 'r1', ora, porta: 'P1' }] : [],
+  });
+  await m.archivio.modifica((d) => { d.prenotazioni.push(pren('anon-pagata', 'confermata'), pren('anon-scaduta', 'scaduta')); });
+  try {
+    const fine = new Date(ev.dataFine ?? new Date(Date.parse(ev.data) + 8 * 3_600_000).toISOString()).getTime();
+    assert.equal(await tv.anonimizzaPrenotazioniVecchie(new Date(fine + 29 * 86_400_000)), 0, 'dopo 29 giorni no');
+    assert.equal((await m.archivio.leggi()).prenotazioni.find((p) => p.id === 'anon-pagata')!.telefono, '347 0000001');
+    assert.ok(await tv.anonimizzaPrenotazioniVecchie(new Date(fine + 31 * 86_400_000)) >= 2, 'pagate e scadute, tutte (anche quelle lasciate dagli altri test)');
+    assert.ok((await m.archivio.leggi()).prenotazioni.find((p) => p.id === 'anon-scaduta')!.anonimizzata, 'anche la scaduta');
+    assert.equal(await tv.anonimizzaPrenotazioniVecchie(new Date(fine + 32 * 86_400_000)), 0, 'una volta sola');
+    const dopo = (await m.archivio.leggi()).prenotazioni.find((p) => p.id === 'anon-pagata')!;
+    assert.deepEqual([dopo.nome, dopo.cognome, dopo.email, dopo.telefono, dopo.anonimizzata], ['', '', '', '', true], 'dati personali spariti');
+    assert.ok(dopo.anonimizzataAt);
+    assert.deepEqual([dopo.stato, dopo.persone, dopo.spesaMinima, dopo.pagamentoOnline!.pagamento, dopo.ingressi.length], ['confermata', 4, 200, 'pi_anon-pagata', 1], 'i conti restano');
+    assert.deepEqual(await tv.prenotazioniPerEmail('anon-pagata@esempio.it'), [], 'il recupero per email non la trova più');
+  } finally {
+    await m.archivio.modifica((d) => { d.prenotazioni = d.prenotazioni.filter((p) => !p.id.startsWith('anon-')); });
+  }
 });
 
 test('cruscotto admin: solo l’admin, con la prossima serata e i rimborsi da fare', async () => {

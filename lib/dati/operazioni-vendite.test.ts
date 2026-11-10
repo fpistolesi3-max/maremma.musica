@@ -234,3 +234,18 @@ test('salva_sessione_prenotazione, crea_accesso e rifiuta_ingresso nei loro casi
     assert.equal(await o.rifiutaIngresso({ id: randomUUID(), eventoId: ev, ora: '2026-10-31T23:50:00.000Z', porta: 'P1', da: 'staff@esempio.it' }), 'non_trovata');
   });
 });
+
+test('anonimizzaPrenotazioni: il codice chiama anonimizza_prenotazioni con i giorni e cancella i dati dei tavoli delle serate vecchie', async () => {
+  await conDb(async (db, ev) => {
+    const o = ops(db);
+    const t = await nuovoTavolo(db, ev, { spesa: 150 });
+    const p = await prenota(db, t, { adesso: tra(0) });
+    await confermaTavolo(db, p.id, 'pi_anon_ops', { adesso: tra(1), centesimi: 15000 });
+    // La serata è finita 40 giorni fa: con 30 giorni si cancella, con 50 no.
+    await db.query('update public.eventi set data = $2::timestamptz, data_fine = $3::timestamptz where id = $1', [ev, tra(-60 * 24 * 40 - 300), tra(-60 * 24 * 40)]);
+    assert.equal(await o.anonimizzaPrenotazioni(50, ADESSO.toISOString()), 0);
+    assert.equal(await o.anonimizzaPrenotazioni(30, ADESSO.toISOString()), 1);
+    const r = await uno(db, 'select nome, cognome, email, telefono, anonimizzata, stato from public.prenotazioni_tavoli where id = $1', [p.id]);
+    assert.deepEqual([r.nome, r.cognome, r.email, r.telefono, r.anonimizzata, r.stato], [null, null, null, null, true, 'confermata']);
+  });
+});

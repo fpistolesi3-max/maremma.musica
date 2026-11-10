@@ -6,6 +6,8 @@ import type { EsitoPorta, VocePorta } from '@/lib/porta-logica';
 
 // Stato del telefono della porta, salvato in localStorage: l'elenco resta anche senza campo
 // e gli ingressi fatti offline aspettano in coda finché torna la connessione.
+// L'elenco contiene dati personali: si cancella quando la serata esce dalla porta (vedi `svuota`), anche da un'altra pagina del sito
+// (`scadeAlle`, components/porta/pulizia.tsx), e quando lo staff esce fuori dalla serata.
 
 export interface Movimento { idLocale: string; voceId: string; chiave: string; ora: string; conferma?: boolean; rifiuto?: boolean }
 
@@ -14,6 +16,7 @@ interface StatoPorta {
   porta: string;
   elenco: VocePorta[];
   salvatoAlle: string | null;     // ultimo elenco scaricato
+  scadeAlle: string | null;       // dopo quest'ora l'elenco si cancella anche fuori dalla porta (12 ore dopo la fine della serata)
   limite: string | null;          // fino a quando la prevendita vale per entrare (dall'ultima sincronizzazione); null = non ancora saputo
   coda: Movimento[];
   conflitti: number;              // ingressi offline che un'altra porta aveva già fatto
@@ -23,9 +26,12 @@ interface StatoPorta {
   serveAccesso: boolean;         // sessione scaduta: rientrare con il link
   scegliEvento: (id: string) => void;
   scegliPorta: (p: string) => void;
+  segnaScadenza: (iso: string) => void;
   applicaLocale: (voce: VocePorta, m: Movimento) => void;
   sincronizza: () => Promise<{ esiti: { idLocale: string; esito: EsitoPorta }[] } | null>;
   scarica: () => Promise<void>;
+  /** Cancella dal telefono l'elenco (nomi, date di nascita). Mai con ingressi ancora da inviare: risponde false e non tocca niente. */
+  svuota: () => boolean;
 }
 
 /** L'elenco del server vince, tranne per le persone con un ingresso ancora in coda sul telefono. */
@@ -49,6 +55,7 @@ export const usePorta = create<StatoPorta>()(
       porta: 'P1',
       elenco: [],
       salvatoAlle: null,
+      scadeAlle: null,
       limite: null,
       coda: [],
       conflitti: 0,
@@ -56,8 +63,9 @@ export const usePorta = create<StatoPorta>()(
       chiudiAltrePorte: () => set({ altrePorte: 0 }),
       online: true,
       serveAccesso: false,
-      scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, limite: null, coda: [], conflitti: 0, altrePorte: 0 }); },
+      scegliEvento: (id) => { if (get().eventoId !== id) set({ eventoId: id, elenco: [], salvatoAlle: null, scadeAlle: null, limite: null, coda: [], conflitti: 0, altrePorte: 0 }); },
       scegliPorta: (p) => set({ porta: p }),
+      segnaScadenza: (iso) => { if (get().scadeAlle !== iso) set({ scadeAlle: iso }); },
       applicaLocale: (voce, m) => {
         set((s) => ({ elenco: s.elenco.map((v) => (v.id === voce.id ? voce : v)), coda: [...s.coda, m] }));
         void get().sincronizza();
@@ -99,11 +107,16 @@ export const usePorta = create<StatoPorta>()(
         }
       },
       scarica: async () => { await get().sincronizza(); },
+      svuota: () => {
+        if (get().coda.length > 0) return false;
+        set({ eventoId: null, elenco: [], salvatoAlle: null, scadeAlle: null, limite: null, conflitti: 0, altrePorte: 0 });
+        return true;
+      },
     }),
     {
       name: 'mm-porta',
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ eventoId: s.eventoId, porta: s.porta, elenco: s.elenco, salvatoAlle: s.salvatoAlle, limite: s.limite, coda: s.coda, conflitti: s.conflitti }),
+      partialize: (s) => ({ eventoId: s.eventoId, porta: s.porta, elenco: s.elenco, salvatoAlle: s.salvatoAlle, scadeAlle: s.scadeAlle, limite: s.limite, coda: s.coda, conflitti: s.conflitti }),
     },
   ),
 );

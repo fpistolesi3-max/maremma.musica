@@ -79,7 +79,7 @@ function Prenotazione({ p, emailVere }: { p: PrenotazioneRiga; emailVere: boolea
         <span className="font-mono text-[12px] text-osso-2">{p.persone} PERSONE · {p.spesaMinima.toLocaleString('it-IT')} €</span>
       </div>
       <span className="font-mono text-[12px] leading-5 text-osso-2">
-        <a href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`} className="text-osso">{p.telefono}</a> · <a href={`mailto:${p.email}`} className="text-osso">{p.email}</a>
+        {p.email ? <><a href={`tel:${p.telefono.replace(/[^\d+]/g, '')}`} className="text-osso">{p.telefono}</a> · <a href={`mailto:${p.email}`} className="text-osso">{p.email}</a></> : 'CONTATTI CANCELLATI'}
         <br />LISTA: {p.lista.toUpperCase()}{p.inseritaDa === 'pr' ? ' · INSERITA DAL PR' : p.inseritaDa === 'crew' ? ' · INSERITA DALLA CREW' : ''}{attesa ? ` · ${p.online ? 'PAGAMENTO ONLINE IN CORSO, ' : ''}DECADE ${p.scade.toUpperCase()}` : ''}
         {p.pagamento && <><br />PAGATO: {p.pagamento.toUpperCase()}</>}
       </span>

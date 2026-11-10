@@ -3,9 +3,9 @@ import { leggi, modifica, operazioni, segreto, usaTabelle } from './archivio';
 import type { Archivio, Iscrizione, PrenotazioneTavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { leggiTokenQr, verificaTokenQr } from '../qr-token';
-import { decidiIngresso, finestraPorta, motivoPortaChiusa, trovaVoce, type EsitoPorta, type OpzioniIngresso, type SerataBiglietto, type VocePorta } from '../porta-logica';
+import { decidiIngresso, finestraPorta, motivoPortaChiusa, serataFuoriPorta, trovaVoce, type EsitoPorta, type OpzioniIngresso, type SerataBiglietto, type VocePorta } from '../porta-logica';
 import { randomUUID } from 'node:crypto';
-import { eventoPassato, iscrizioneScaduta, limiteIngresso, prenotazioneAttiva, prenotazioneScaduta } from '../regole';
+import { iscrizioneScaduta, limiteIngresso, prenotazioneAttiva, prenotazioneScaduta } from '../regole';
 
 // Porta: staff e admin. Lo staff vede le iscrizioni ma dei PR solo il nome della lista
 // (equivalente di porta_elenco() nello schema Supabase).
@@ -48,9 +48,9 @@ export function vociEvento(d: Readonly<Archivio>, eventoId: string): VocePorta[]
 export async function eventiPorta(s: Sessione) {
   soloStaff(s);
   const d = await leggi();
-  const ieri = new Date(Date.now() - 12 * 3_600_000);
+  const adesso = new Date();
   return d.eventi
-    .filter((e) => e.pubblicato && !eventoPassato(e, ieri))
+    .filter((e) => e.pubblicato && !serataFuoriPorta(e, adesso))
     .sort((a, b) => a.data.localeCompare(b.data))
     .map((e) => ({
       id: e.id, nome: e.nome, data: e.data, dataFine: e.dataFine, numero: e.numero, etaMinima: e.etaMinima,
@@ -61,6 +61,9 @@ export async function eventiPorta(s: Sessione) {
 export async function elencoPorta(s: Sessione, eventoId: string): Promise<VocePorta[]> {
   soloStaff(s);
   const d = await leggi();
+  // Serata finita da ore: l'elenco (nomi, date di nascita) non va più ai telefoni; quello che avevano lo cancellano.
+  const e = d.eventi.find((x) => x.id === eventoId);
+  if (e && serataFuoriPorta(e)) return [];
   return vociEvento(d, eventoId);
 }
 
