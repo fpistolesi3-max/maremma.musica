@@ -263,10 +263,11 @@ I tre moduli che chiunque può inviare senza accesso sono la **prevendita** (`/e
 1. **Campo trappola** (nel codice, `lib/trappola.ts` e `components/campo-trappola.tsx`): un campo `sito` fuori schermo, che una persona non vede e lascia vuoto. Se arriva compilato, prevendita e tavoli rispondono "Richiesta non valida." senza tenere niente; "Recupera il QR" risponde come sempre ma non manda l'email. Ferma i programmi che riempiono tutti i campi, non chi prende di mira il sito apposta.
 2. **Limite di richieste nel firewall di Vercel** (da impostare a mano da chi ha l'account Vercel: Progetto → Firewall → Configure → New Rule). Le risposte dei moduli arrivano come richieste POST alla pagina stessa, quindi:
    - **Nome:** `Moduli pubblici: limite per IP`
-   - **If** (tre gruppi in OR): *Request Method* equals `POST` **and** *Request Path* starts with `/e/` · **or** *Request Method* equals `POST` **and** *Request Path* starts with `/tavoli/` · **or** *Request Method* equals `POST` **and** *Request Path* equals `/biglietto`
+   - **If** (tre gruppi in OR): *Request Method* equals `POST` **and** *Request Path* starts with `/e/` · **or** *Request Method* equals `POST` **and** *Request Path* starts with `/tavoli/` · **or** *Request Method* equals `POST` **and** *Request Path* starts with `/biglietto` (il modulo sta anche in `/biglietto/[codice]`)
    - **Then:** *Rate Limit*, *Fixed Window*, **30 richieste ogni 60 secondi**, per **IP**, poi *Deny* (o *Too Many Requests*).
    - Il limite è largo apposta: con i telefoni molte persone escono dallo stesso IP dell'operatore, e all'uscita di una prevendita annunciata su Instagram possono compilare in tanti nello stesso minuto. Una persona invia il modulo una o due volte; un programma centinaia.
    - Non tocca admin, porta, accessi, webhook di Stripe e cron (altri percorsi).
+   - **Seconda regola, consigliata: `Accessi: limite per IP`.** La pagina `/accedi` manda un'email con link e codice a 6 cifre a chi ha un accesso (admin, staff, PR) e non ha limiti nel codice: un programma potrebbe riempire di email quelle caselle o provare molti codici (ogni nuovo codice dà 5 tentativi). *Request Method* equals `POST` **and** *Request Path* starts with `/accedi` → *Rate Limit*, *Fixed Window*, **10 richieste ogni 60 secondi**, per **IP**, poi *Deny*. Chi sbaglia il codice due o tre volte non se ne accorge.
    - Dopo averla salvata, la pagina Firewall mostra quante richieste la regola ha bloccato: se blocca qualcosa durante un'uscita vera, alzare il numero.
 
 ## Rimborsi
