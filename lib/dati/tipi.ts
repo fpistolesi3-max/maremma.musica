@@ -156,6 +156,12 @@ export interface PrenotazioneTavolo {
   pagamentoOnline: PagamentoOnline | null; // null solo per le prenotazioni segnate a mano prima che tutto passasse dal sito
   /** Persone del tavolo già entrate. `rif` è l'id creato dal telefono della porta: una sincronizzazione ripetuta non conta due volte. */
   ingressi: { rif: string; ora: string; porta: string }[];
+  /**
+   * Come per le iscrizioni: `GIORNI_ANONIMIZZAZIONE` giorni dopo la serata nome, cognome, email e telefono si cancellano (stringa vuota;
+   * null nelle tabelle). Restano tavolo, persone, spesa minima, PR, pagamenti e ingressi. Assente nelle righe salvate prima = false.
+   */
+  anonimizzata?: boolean;
+  anonimizzataAt?: string | null;
 }
 
 export interface Pr {

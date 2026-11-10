@@ -65,6 +65,7 @@ export function normalizza(d: Archivio): Archivio {
   for (const p of d.prenotazioni) {
     p.ingressi ??= []; p.promemoriaAt ??= null;
     p.metodoPagamento ??= null; p.pagatoDa ??= null; p.chiusaDa ??= null; p.avvisoChiusuraAt ??= null; p.pagamentoOnline ??= null;
+    p.anonimizzata ??= false; p.anonimizzataAt ??= null;
   }
   for (const l of d.lotti) {
     l.categoria ??= null; l.confermaCategoria ??= false; l.uscitaGiorniPrima ??= null; l.fineOrePrima ??= null;

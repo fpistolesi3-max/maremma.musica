@@ -239,7 +239,7 @@ export function vociRimborso(d: Readonly<Archivio>): VoceRimborso[] {
     }
   };
   for (const i of d.iscrizioni) aggiungi('prevendita', i, i.eventoId, i.anonimizzata ? 'Dati cancellati' : `${i.nome} ${i.cognome}`, i.anonimizzata ? null : i.email, i.importo);
-  for (const p of d.prenotazioni) aggiungi('tavolo', p, p.eventoId, `${p.nome} ${p.cognome} · tavolo ${d.tavoli.find((t) => t.id === p.tavoloId)?.nome ?? ''}`.trim(), p.email, p.spesaMinima);
+  for (const p of d.prenotazioni) aggiungi('tavolo', p, p.eventoId, `${p.anonimizzata ? 'Dati cancellati' : `${p.nome} ${p.cognome}`} · tavolo ${d.tavoli.find((t) => t.id === p.tavoloId)?.nome ?? ''}`.trim(), p.anonimizzata ? null : p.email, p.spesaMinima);
   return out.sort((a, b) => b.at.localeCompare(a.at));
 }
 

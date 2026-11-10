@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePorta, nuovoId } from './store';
 import { Fotocamera } from './fotocamera';
-import { cambiaSerataPossibile, categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, entratiVoce, finestraPorta, personeVoce, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
+import { cambiaSerataPossibile, categoriaDaControllare, cercaPerNome, conteggioPorta, decidiIngresso, elencoDaTenereAllUscita, entratiVoce, finestraPorta, personeVoce, scadenzaElencoPorta, serataFuoriPorta, trovaVoce, type EsitoPorta, type SerataBiglietto, type VocePorta } from '@/lib/porta-logica';
 import { etichettaCanale } from '@/lib/canali';
 
 // Scanner della porta (mockup Porta 1–5). Tutto il controllo avviene sul telefono con l'elenco salvato:
@@ -41,6 +41,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
   const [inSospeso, setInSospeso] = useState<{ eventoId: string; chiave: string } | null>(null); // QR da rileggere dopo "Cambia serata"
   const [conferma, setConferma] = useState<string | null>(null); // "✓ Elena Conti dentro": riga breve sullo scanner dopo "Fai entrare", non blocca niente
   const timerConferma = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const uscendo = useRef(false); // "Sì, esci" toccato: niente più scelte di serata né download prima che la pagina cambi
   const inEntrata = useRef(false); // "Fai entrare" in corso (si attende un attimo la rete): i tocchi ripetuti si ignorano
 
   // Evento di default: quello salvato, altrimenti il più vicino.
@@ -48,23 +49,38 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
     usePorta.persist.rehydrate();
     setPronto(true);
   }, []);
+  // La serata salvata non è più tra quelle della porta (finita, tolta): l'elenco sparisce dal telefono, poi si passa alla prossima.
+  // Con la pagina aperta da ore la lista `eventi` è vecchia: conta anche l'orologio (serataFuoriPorta).
   useEffect(() => {
-    if (!pronto) return;
-    if (!st.eventoId || !eventi.some((e) => e.id === st.eventoId)) { if (eventi[0]) st.scegliEvento(eventi[0].id); }
+    if (!pronto || uscendo.current) return;
+    const aperte = eventi.filter((e) => !serataFuoriPorta(e));
+    if (st.eventoId && aperte.some((e) => e.id === st.eventoId)) return;
+    if (st.eventoId || st.elenco.length) { if (!st.svuota()) return; } // ingressi ancora da inviare: prima la sincronizzazione
+    if (aperte[0]) st.scegliEvento(aperte[0].id);
   }, [pronto, eventi, st]);
 
   // Sincronizza all'avvio, ogni 10 secondi, al ritorno della rete e quando il telefono si riaccende.
   useEffect(() => {
     if (!pronto || !st.eventoId) return;
-    const sync = () => { void usePorta.getState().sincronizza(); };
+    const sync = () => {
+      const s = usePorta.getState();
+      const e = eventi.find((x) => x.id === s.eventoId);
+      // Serata finita mentre il telefono era acceso: niente più download, l'elenco si cancella (dopo aver inviato la coda).
+      if (e && serataFuoriPorta(e)) { if (s.coda.length) void s.sincronizza(); else s.svuota(); return; }
+      void s.sincronizza();
+    };
     sync();
     const t = setInterval(sync, 10_000);
     window.addEventListener('online', sync);
     document.addEventListener('visibilitychange', sync);
     return () => { clearInterval(t); window.removeEventListener('online', sync); document.removeEventListener('visibilitychange', sync); };
-  }, [pronto, st.eventoId]);
+  }, [pronto, st.eventoId, eventi]);
 
   const evento = eventi.find((e) => e.id === st.eventoId) ?? null;
+  // La scadenza resta salvata con l'elenco: lo cancella anche un'altra pagina del sito (components/porta/pulizia.tsx), se la porta non si riapre.
+  useEffect(() => { if (pronto && evento) usePorta.getState().segnaScadenza(scadenzaElencoPorta(evento)); }, [pronto, evento]);
+  // Durante la serata "Esci" lascia l'elenco sul telefono: chi esce per sbaglio senza campo riapre la porta e lo ritrova.
+  const tieniAllUscita = evento ? elencoDaTenereAllUscita(evento) : false;
   // Orario limite della prevendita: vale l'ultima sincronizzazione (l'admin lo può cambiare durante la serata), offline quello salvato.
   // Il controllo usa l'orologio del telefono; il server lo rifà comunque quando riceve l'ingresso.
   const limite = evento ? st.limite ?? evento.limite : null;
@@ -322,7 +338,7 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
           <div className="mm-campo">
             <label className="mm-campo__etichetta" htmlFor="imp-evento">Serata</label>
             <select id="imp-evento" className="mm-campo__input" value={st.eventoId ?? ''} onChange={(e) => st.scegliEvento(e.target.value)}>
-              {eventi.map((e) => <option key={e.id} value={e.id}>{new Date(e.data).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' })} · {e.nome}</option>)}
+              {eventi.filter((e) => !serataFuoriPorta(e)).map((e) => <option key={e.id} value={e.id}>{new Date(e.data).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' })} · {e.nome}</option>)}
             </select>
           </div>
           <div className="mm-campo">
@@ -362,11 +378,13 @@ export function Porta({ eventi, email, admin, esci }: { eventi: EventoPorta[]; e
             {st.coda.length > 0 ? (
               <p className="m-0 text-[15px] leading-5 text-attesa">Hai {st.coda.length} {st.coda.length === 1 ? 'ingresso non ancora inviato' : 'ingressi non ancora inviati'}: se esci ora restano sul telefono. Aspetta la sincronizzazione.</p>
             ) : (
-              <p className="m-0 text-[15px] leading-5 text-osso-2">Dovrai rientrare con il link che ti arriva per email.</p>
+              <p className="m-0 text-[15px] leading-5 text-osso-2">{tieniAllUscita
+                ? 'Per rientrare ti serve il link che arriva per email. Se esci per sbaglio senza campo, riapri la porta: l’elenco di stanotte resta sul telefono e si cancella da solo 12 ore dopo la fine.'
+                : 'L’elenco della serata si cancella da questo telefono. Per rientrare ti serve il link che arriva per email, con la connessione.'}</p>
             )}
             {st.coda.length > 0
               ? <button type="button" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 52 }} onClick={() => void st.sincronizza()}>Aggiorna ora</button>
-              : <form action={esci}><button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 52 }}>Sì, esci</button></form>}
+              : <form action={esci} onSubmit={() => { uscendo.current = true; if (!tieniAllUscita) usePorta.getState().svuota(); }}><button type="submit" className="mm-btn mm-btn--primario mm-btn--pieno" style={{ minHeight: 52 }}>Sì, esci</button></form>}
             <button type="button" className="mm-btn mm-btn--linea mm-btn--pieno" style={{ minHeight: 52 }} autoFocus onClick={() => setConfermaEsci(false)}>Resta</button>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { leggi, modifica, operazioni, segreto, usaTabelle } from './archivio';
 import type { Archivio, Evento, MotivoRimborso, Pr, PrenotazioneTavolo, Tavolo } from './tipi';
 import type { Sessione } from '../sessione';
 import { creaCodice, creaTokenQr } from '../qr-token';
+import { GIORNI_ANONIMIZZAZIONE } from './prevendita';
 import { EMAIL_RE, ORE_MINIME_PROMEMORIA_PR, eventoPassato, importoCorretto, inCentesimi, prenotazioneAttiva, prenotazioneScaduta, richiesteTavoliAperte, scadenzaPagamentoOnline, type PagamentoRicevuto } from '../regole';
 
 // Prenotazione dei tavoli. Il cliente (o il PR o la crew per lui) chiede un tavolo libero: resta bloccato mentre
@@ -266,6 +267,32 @@ export function prPrenotaTavolo(s: Sessione, i: DatiPrenotazione): Promise<Esito
 export function adminPrenotaTavolo(s: Sessione, i: DatiPrenotazione): Promise<EsitoPrenotazione> {
   if (s.utente.ruolo !== 'admin') throw new Error('non_autorizzato');
   return crea(i, { inseritaDa: 'crew', prId: () => null });
+}
+
+// ------------------------------------------------------------------ anonimizzazione
+
+/**
+ * Come per le iscrizioni: `GIORNI_ANONIMIZZAZIONE` giorni dopo la serata, per tutte le prenotazioni dei tavoli (pagate, scadute,
+ * annullate) si cancellano nome, cognome, email e telefono. Restano tavolo, persone, spesa minima, PR, pagamenti e ingressi, per i
+ * conti e le statistiche. Idempotente: ritorna quante ne ha anonimizzate. Lo chiama il cron giornaliero.
+ * Con le tabelle lo fa `anonimizza_prenotazioni` (stessa regola sulla fine della serata di `eventoPassato`).
+ */
+export async function anonimizzaPrenotazioniVecchie(adesso = new Date()): Promise<number> {
+  if (usaTabelle()) return operazioni().anonimizzaPrenotazioni(GIORNI_ANONIMIZZAZIONE, adesso.toISOString());
+  const limite = new Date(adesso.getTime() - GIORNI_ANONIMIZZAZIONE * 86_400_000);
+  const da = (d: Readonly<Archivio>) => {
+    const passate = new Set(d.eventi.filter((e) => eventoPassato(e, limite)).map((e) => e.id));
+    return d.prenotazioni.filter((p) => !p.anonimizzata && passate.has(p.eventoId));
+  };
+  if (!da(await leggi()).length) return 0;
+  return modifica((d) => {
+    const lista = da(d);
+    for (const p of lista) {
+      p.nome = ''; p.cognome = ''; p.email = ''; p.telefono = '';
+      p.anonimizzata = true; p.anonimizzataAt = adesso.toISOString();
+    }
+    return lista.length;
+  });
 }
 
 // ------------------------------------------------------------------ recupero e promemoria
