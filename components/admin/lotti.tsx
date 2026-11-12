@@ -3,6 +3,8 @@
 import { useEffect, useState, useTransition } from 'react';
 import { copiaTipiAzione, eliminaLottoAzione, modelloTipiAzione, salvaLottoAzione, type EsitoAzione } from '@/app/azioni/admin';
 import { MODELLI } from '@/lib/tipi-modelli';
+import { erroreScelta } from '@/lib/pr-scelti';
+import { isoRoma } from '@/lib/formato';
 import { riassuntoTipo, type DatiTipo, type FineModo, type PrModo, type UscitaModo } from '@/lib/riassunto-tipo';
 import { StatoSalvataggio, useModuloSalvabile } from './salva-tutto';
 
@@ -16,8 +18,8 @@ export interface RigaLotto {
 const CATEGORIE = ['Donne', 'Studenti', 'Gruppi', 'Under 25'];
 
 /** Tipi di prevendita della serata: prezzo, categoria, quando va in vendita e quando finisce, posti, link PR. */
-export function Lotti({ eventoId, lotti, pr, altreSerate }: {
-  eventoId: string; lotti: RigaLotto[]; pr: { id: string; nome: string }[]; altreSerate: { id: string; etichetta: string; quanti: number }[];
+export function Lotti({ eventoId, dataSerata, lotti, pr, altreSerate }: {
+  eventoId: string; dataSerata: string; lotti: RigaLotto[]; pr: { id: string; nome: string }[]; altreSerate: { id: string; etichetta: string; quanti: number }[];
 }) {
   const [msg, setMsg] = useState<EsitoAzione>({});
   const [inCorso, avvia] = useTransition();
@@ -63,7 +65,7 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
 
       {lotti.map((l, k) => (
         <div key={l.id} className="flex flex-col gap-2 border border-linea bg-notte-2 p-4">
-          <FormLotto eventoId={eventoId} l={l} pr={pr} primo={k === 0} />
+          <FormLotto eventoId={eventoId} dataSerata={dataSerata} l={l} pr={pr} primo={k === 0} />
           <div className="flex items-center justify-between">
             <span className="font-mono text-[11px] text-osso-2">{l.usati}{l.quantita != null ? `/${l.quantita}` : ''} VENDUTI{l.categoria ? ` · ${l.categoria.toUpperCase()}` : ''}</span>
             <button type="button" className="mm-btn mm-btn--muto" disabled={inCorso || l.usati > 0} style={{ minHeight: 44 }}
@@ -75,12 +77,32 @@ export function Lotti({ eventoId, lotti, pr, altreSerate }: {
       <details className="border border-dashed border-linea-forte p-4" open={lotti.length === 0}>
         <summary className="cursor-pointer font-display text-[22px] font-extrabold uppercase">+ Aggiungi tipo di prevendita</summary>
         <div className="pt-4">
-          <FormLotto key={lotti.length} eventoId={eventoId} pr={pr} primo={lotti.length === 0}
+          <FormLotto key={lotti.length} eventoId={eventoId} dataSerata={dataSerata} pr={pr} primo={lotti.length === 0}
             l={{ id: '', nome: '', prezzo: 0, quantita: null, usati: 0, dataInizio: '', dataFine: '', visibileDaPr: true, ordine: lotti.length, categoria: '', confermaCategoria: false, uscitaGiorniPrima: null, fineOrePrima: null, dopoPrecedente: false, prAbilitati: null }} />
         </div>
       </details>
     </div>
   );
+}
+
+/**
+ * La data della serata come è scritta adesso nel modulo dei dati (anche se non ancora salvata): i tipi relativi
+ * ("14 giorni prima") si contano da lì. Parte dalla data salvata.
+ */
+function useDataSerata(salvata: string) {
+  const [data, setData] = useState(salvata);
+  useEffect(() => {
+    const leggi = () => {
+      const giorno = (document.getElementById('f-giorno') as HTMLInputElement | null)?.value;
+      const apertura = (document.getElementById('f-apertura') as HTMLInputElement | null)?.value;
+      if (!giorno || !apertura) return;
+      try { setData(isoRoma(giorno, apertura)); } catch { /* data a metà: resta l'ultima buona */ }
+    };
+    document.addEventListener('input', leggi);
+    document.addEventListener('change', leggi);
+    return () => { document.removeEventListener('input', leggi); document.removeEventListener('change', leggi); };
+  }, []);
+  return data;
 }
 
 /** I valori del modulo come sono adesso (anche non salvati), per il riepilogo in parole semplici. */
@@ -97,9 +119,10 @@ function leggiDati(form: HTMLFormElement, pr: { id: string; nome: string }[], pr
   };
 }
 
-function FormLotto({ eventoId, l, pr, primo }: { eventoId: string; l: RigaLotto; pr: { id: string; nome: string }[]; primo: boolean }) {
+function FormLotto({ eventoId, dataSerata: dataSalvata, l, pr, primo }: { eventoId: string; dataSerata: string; l: RigaLotto; pr: { id: string; nome: string }[]; primo: boolean }) {
   const { formRef, esito, modificato, inCorso, proprieta } = useModuloSalvabile(salvaLottoAzione, 'tipo');
   const p = l.id || 'nuovo';
+  const dataSerata = useDataSerata(dataSalvata);
   const [uscita, setUscita] = useState(l.uscitaGiorniPrima != null ? 'giorni' : l.dataInizio ? 'data' : 'subito');
   const [fine, setFine] = useState(l.fineOrePrima != null ? 'ore' : l.dataFine ? 'data' : 'mai');
   const [categoria, setCategoria] = useState(l.categoria);
@@ -111,6 +134,8 @@ function FormLotto({ eventoId, l, pr, primo }: { eventoId: string; l: RigaLotto;
     quantita: l.quantita == null ? '' : String(l.quantita), categoria: l.categoria, confermaCategoria: l.confermaCategoria,
     prModo: prModo as PrModo, prScelti: pr.filter((x) => l.prAbilitati?.includes(x.id)).map((x) => x.nome),
   }));
+  // Stessa regola del salvataggio: «alcuni» senza nessun PR non si salva. Qui lo si dice subito, accanto al campo.
+  const errorePr = erroreScelta(dati.prModo, dati.prScelti, 'tipo');
   const aggiorna = () => { if (formRef.current) setDati(leggiDati(formRef.current, pr, primo)); };
   // Quando si cambia modo compaiono altri campi: il riepilogo li rilegge appena ci sono.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -165,13 +190,15 @@ function FormLotto({ eventoId, l, pr, primo }: { eventoId: string; l: RigaLotto;
             {pr.map((x) => (
               <label key={x.id} className="flex items-center gap-2 text-[14px]"><input type="checkbox" name="prAbilitati" value={x.id} defaultChecked={l.prAbilitati?.includes(x.id) ?? false} className="h-4 w-4 accent-[var(--arancio)]" />{x.nome}</label>
             ))}
+            {pr.length === 0 && <span className="text-[14px] text-osso-2">Non ci sono PR attivi.</span>}
           </div>
         )}
+        {errorePr && !esito.errore && <span role="alert" className="text-[13px] text-stop-testo">{errorePr}</span>}
       </fieldset>
 
       <div className="border-l-2 border-linea-forte bg-notte px-4 py-3 md:col-span-4" aria-live="polite">
         <span className="mm-campo__etichetta">In parole semplici</span>
-        <p className="m-0 mt-1 text-[14px] leading-5">{riassuntoTipo(dati)}</p>
+        <p className="m-0 mt-1 text-[14px] leading-5">{riassuntoTipo({ ...dati, dataSerata })}</p>
       </div>
 
       <div className="flex items-center justify-end gap-3 md:col-span-4">

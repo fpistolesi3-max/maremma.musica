@@ -149,19 +149,20 @@ export function FormSerata({ v, pr, tipi, tavoli, foto, copiaTavoliDa = [], manc
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="mm-campo">
-              <label className="mm-campo__etichetta" htmlFor="f-lat">Latitudine</label>
+              <label className="mm-campo__etichetta" htmlFor="f-lat">Latitudine (facoltativa)</label>
               <input className="mm-campo__input" id="f-lat" name="lat" form={FORM} inputMode="decimal" value={lat} onChange={(e) => setLat(e.target.value)} />
             </div>
             <div className="mm-campo">
-              <label className="mm-campo__etichetta" htmlFor="f-lng">Longitudine</label>
+              <label className="mm-campo__etichetta" htmlFor="f-lng">Longitudine (facoltativa)</label>
               <input className="mm-campo__input" id="f-lng" name="lng" form={FORM} inputMode="decimal" value={lng} onChange={(e) => setLng(e.target.value)} />
             </div>
+            <span className="mm-campo__aiuto col-span-2">Non serve scriverle: si riempiono da sole quando incolli il link di Google Maps qui sopra.</span>
           </div>
           <label className="flex items-center gap-[10px] text-[15px]"><input type="checkbox" name="locationSegreta" form={FORM} defaultChecked={v.locationSegreta} className="h-[18px] w-[18px] accent-[var(--arancio)]" />Location segreta: mostra il posto solo 48 ore prima</label>
           <Area nome="infoArrivo" etichetta="Come arrivare" v={v.infoArrivo} aiuto="Parcheggio, navetta" righe={2} />
         </Sezione>
 
-        <Sezione id="lotti" n="03" titolo="Ingresso" nota={tipo === 'libero' ? 'INGRESSO LIBERO' : notaTipi ?? 'PREVENDITA ONLINE'} aperta={nuova} forza={conErrore('tipoIngresso', 'prezzoLista', 'prevenditaFinoAlle', 'etaMinima', 'capienza')}>
+        <Sezione id="lotti" n="03" titolo="Ingresso e prevendita" nota={tipo === 'libero' ? 'INGRESSO LIBERO' : notaTipi ?? 'PREVENDITA ONLINE'} aperta={nuova} forza={conErrore('tipoIngresso', 'prezzoLista', 'prevenditaFinoAlle', 'etaMinima', 'capienza')}>
           <div className="flex flex-col gap-2">
             <span className="mm-campo__etichetta" id="tipo-ingresso">Come si entra</span>
             <div role="radiogroup" aria-labelledby="tipo-ingresso" className="grid border border-linea-forte sm:grid-cols-2">
@@ -192,8 +193,8 @@ export function FormSerata({ v, pr, tipi, tavoli, foto, copiaTavoliDa = [], manc
                 </div>
               </div>
             ) : tipi}
-            <Campo nome="prevenditaFinoAlle" etichetta="Prevendita valida fino alle" tipo="time" v={v.prevenditaFinoAlle} errore={c.prevenditaFinoAlle}
-              aiuto="Dopo quest'ora il QR di una prevendita non fa più entrare, anche se è pagato; dopo la mezzanotte vale per la notte della serata. I tavoli non hanno limite." />
+            <Campo nome="prevenditaFinoAlle" etichetta="Il QR fa entrare fino alle" tipo="time" v={v.prevenditaFinoAlle} errore={c.prevenditaFinoAlle}
+              aiuto="È l'orario d'ingresso, non la fine della vendita (quella si sceglie su ogni tipo). Dopo quest'ora il QR di una prevendita non fa più entrare, anche se è pagato; dopo la mezzanotte vale per la notte della serata. I tavoli non hanno limite." />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

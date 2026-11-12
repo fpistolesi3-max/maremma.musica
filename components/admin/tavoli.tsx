@@ -6,6 +6,7 @@ import type { StatoPrenotazione, StatoTavolo } from '@/lib/dati/tipi';
 import { AzioniPrenotazione } from '@/components/tavoli-azioni';
 import { MandaLinkPagamento } from '@/components/area-pr-client';
 import { nomiInSerie } from '@/lib/regole';
+import { erroreScelta } from '@/lib/pr-scelti';
 import { StatoSalvataggio, useModuloSalvabile } from './salva-tutto';
 
 export interface PrenotazioneRiga {
@@ -124,6 +125,9 @@ function SerieTavoli({ eventoId }: { eventoId: string }) {
 function FormTavolo({ eventoId, t, pr }: { eventoId: string; t: RigaTavolo; pr: { id: string; nome: string }[] }) {
   const { esito, modificato, inCorso, proprieta } = useModuloSalvabile(salvaTavoloAzione, 'tavolo');
   const [chi, setChi] = useState<'tutti' | 'alcuni' | 'nessuno'>(!t.visibileDaPr ? 'nessuno' : t.prAbilitati ? 'alcuni' : 'tutti');
+  const [scelti, setScelti] = useState<string[]>(t.prAbilitati ?? []);
+  // Come il salvataggio: «alcuni» senza nessun PR non si salva. Si dice subito, accanto al campo.
+  const errorePr = erroreScelta(chi, scelti, 'tavolo');
   const p = t.id || 'nuovo';
   return (
     <form {...proprieta} className="grid gap-3 md:grid-cols-6">
@@ -154,12 +158,14 @@ function FormTavolo({ eventoId, t, pr }: { eventoId: string; t: RigaTavolo; pr: 
         <div className="flex flex-wrap content-end gap-x-4 gap-y-2 md:col-span-3">
           {pr.map((x) => (
             <label key={x.id} className="flex items-center gap-2 text-[14px]">
-              <input type="checkbox" name="prAbilitati" value={x.id} defaultChecked={t.prAbilitati?.includes(x.id)} className="h-4 w-4 accent-[var(--arancio)]" />{x.nome}
+              <input type="checkbox" name="prAbilitati" value={x.id} checked={scelti.includes(x.id)} className="h-4 w-4 accent-[var(--arancio)]"
+                onChange={(e) => setScelti((s) => (e.target.checked ? [...s, x.id] : s.filter((i) => i !== x.id)))} />{x.nome}
             </label>
           ))}
-          {pr.length === 0 && <span className="text-[14px] text-osso-2">Non ci sono PR.</span>}
+          {pr.length === 0 && <span className="text-[14px] text-osso-2">Non ci sono PR attivi.</span>}
         </div>
       )}
+      {errorePr && <span role="alert" className="text-[13px] text-stop-testo md:col-span-6">{errorePr}</span>}
       <div className="flex flex-wrap items-center justify-end gap-3 md:col-span-6">
         <StatoSalvataggio esito={esito} modificato={modificato} nuovo={!t.id} />
         {/* Un tavolo esistente si salva con il «Salva» in basso (insieme a tutto il resto); uno nuovo si aggiunge qui. */}

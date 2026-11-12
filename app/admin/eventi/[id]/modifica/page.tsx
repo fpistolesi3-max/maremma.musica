@@ -7,6 +7,7 @@ import { prenotazioniAdmin } from '@/lib/dati/tavoli';
 import { riepilogoFoto } from '@/lib/dati/foto';
 import { cosaManca, limitePrevendita, prenotazioneAttiva, prezzoDaTipi, prezzoVendibile, testoPrezzoTipi } from '@/lib/regole';
 import { linkPagamento, quandoScade } from '@/lib/tavolo-email';
+import { quandoParteLaVendita } from '@/lib/riassunto-tipo';
 import { emailVereAttive } from '@/lib/posta';
 import { dataIso, euro, numeroEvento, ora } from '@/lib/formato';
 import { TestataAdmin } from '@/components/admin/ui';
@@ -39,6 +40,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
   const prezzi = prezzoDaTipi(x.lotti);
   const prezzoOra = prezzoVendibile(e, x.lotti, x.usati);
   const manca = cosaManca(e, x.lotti, x.tavoli.length);
+  const primoTipo = [...x.lotti].sort((a, b) => a.ordine - b.ordine)[0];
   const inAttesa = prenotazioni.filter((v) => v.prenotazione.stato === 'in_attesa').length;
   const METODI = { bonifico: 'Bonifico', satispay: 'Satispay', contanti: 'Contanti', pos: 'POS', online: 'Online dal sito' };
   /** "Bonifico · 26.10 alle 10:04 · admin@…": come è arrivato il pagamento e chi l'ha segnato (online: nessuno). */
@@ -51,7 +53,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         sotto={copia ? 'COPIA CREATA IN BOZZA ✓ · CONTROLLA LE DATE E PUBBLICA QUANDO È PRONTA' : salvato ? 'SALVATO ✓ · DATI, TIPI E TAVOLI' : undefined}
         azioni={<><a className="mm-btn mm-btn--muto" href="#lotti">Ingresso</a><a className="mm-btn mm-btn--muto" href="#tavoli">Tavoli</a><a className="mm-btn mm-btn--muto" href="#foto">Foto</a><Link className="mm-btn mm-btn--muto" href={`/admin/eventi/${e.id}`}>Serata live</Link><Link className="mm-btn mm-btn--muto" href={`/e/${e.slug}`} target="_blank">Vedi pagina</Link></>} />
       <FormSerata key={e.updatedAt} manca={manca} prezzoTesto={prezzoOra ? testoPrezzoTipi(prezzoOra) : undefined}
-        notaTipi={`${x.lotti.length} ${x.lotti.length === 1 ? 'TIPO' : 'TIPI'}${prezzoOra ? ` · ${testoPrezzoTipi(prezzoOra).toUpperCase()}` : ''}`} pr={x.pr.map((p) => ({ id: p.id, nome: p.nomeDisplay, stato: p.stato }))} v={{
+        notaTipi={`${x.lotti.length} ${x.lotti.length === 1 ? 'TIPO' : 'TIPI'}${prezzoOra ? ` · ${testoPrezzoTipi(prezzoOra).toUpperCase()}` : ''}${primoTipo ? ` · IN VENDITA ${quandoParteLaVendita(primoTipo, e.data).toUpperCase()}` : ''}`} pr={x.pr.map((p) => ({ id: p.id, nome: p.nomeDisplay, stato: p.stato }))} v={{
         id: e.id, numero: e.numero == null ? '' : String(e.numero), nome: e.nome, slug: e.slug,
         giorno: dataIso(e.data), apertura: ora(e.data), chiusura: e.dataFine ? ora(e.dataFine) : '',
         lineup: e.lineup.join('\n'), highlight: e.highlight ?? '', dressCode: e.dressCode ?? '', descrizione: e.descrizione ?? '',
@@ -60,7 +62,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         tipoIngresso: e.tipoIngresso === 'libero' ? 'libero' : 'lista', prezzoLista: String(e.prezzoLista), prevenditaFinoAlle: ora(limitePrevendita(e)), capienza: e.capienza == null ? '' : String(e.capienza), senzaTelefono: e.senzaTelefono, inCopertina: e.inCopertina === true, etaMinima: String(e.etaMinima),
         locandinaUrl: e.locandinaUrl ?? '', pubblicato: e.pubblicato, prAbilitati: e.prAbilitati,
       }} tipi={
-        <Lotti eventoId={e.id} lotti={x.lotti.map((l) => ({
+        <Lotti eventoId={e.id} dataSerata={e.data} lotti={x.lotti.map((l) => ({
           id: l.id, nome: l.nome, prezzo: l.prezzo, quantita: l.quantita, usati: x.usati[l.id] ?? 0,
           dataInizio: locale(l.dataInizio), dataFine: locale(l.dataFine), visibileDaPr: l.visibileDaPr, ordine: l.ordine,
           categoria: l.categoria ?? '', confermaCategoria: l.confermaCategoria, uscitaGiorniPrima: l.uscitaGiorniPrima, fineOrePrima: l.fineOrePrima,
@@ -96,7 +98,11 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
         <Sezione id="tavoli" n="04" titolo="Tavoli" forza={Boolean(richiesta)} nota={x.tavoli.length === 0 ? 'NESSUN TAVOLO' : (
           <>{x.tavoli.length} TAVOLI · {x.tavoli.filter((t) => t.stato === 'libero').length} LIBERI · {x.tavoli.reduce((n, t) => n + (t.posti ?? 0), 0)} POSTI · {euro(x.tavoli.filter((t) => t.stato === 'riservato' || t.stato === 'confermato').reduce((n, t) => n + t.spesaMinima, 0))} PRENOTATI{inAttesa > 0 && <span className="text-attesa"> · {inAttesa} IN ATTESA DI PAGAMENTO</span>}</>
         )}>
-          <span className="text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata online con Stripe: tutti i pagamenti passano dal sito. Il cliente paga sul sito, o dal link che riceve se la richiesta la inserisce il PR o la crew, e la prenotazione si conferma da sola. Se non paga in tempo il tavolo torna libero. Per un tavolo venduto a voce usa &quot;Prenota per un cliente&quot;: {emailVereAttive() ? 'al cliente arriva il link per pagare' : 'il link per pagare lo mandi tu al cliente (le email vere non sono ancora attive)'}.</span>
+          <span className="text-[14px] text-osso-2">Aggiungi i tavoli qui sotto. Il cliente paga la spesa minima sul sito e il tavolo si conferma da solo.</span>
+          <details className="border border-linea p-4">
+            <summary className="cursor-pointer font-mono text-[12px] tracking-[.04em]">COME FUNZIONA</summary>
+            <span className="block pt-3 text-[14px] text-osso-2">Ogni tavolo si prende con una spesa minima, pagata online con Stripe: tutti i pagamenti passano dal sito. Il cliente paga sul sito, o dal link che riceve se la richiesta la inserisce il PR o la crew, e la prenotazione si conferma da sola. Se non paga in tempo il tavolo torna libero. Per un tavolo venduto a voce usa &quot;Prenota per un cliente&quot;: {emailVereAttive() ? 'al cliente arriva il link per pagare' : 'il link per pagare lo mandi tu al cliente (le email vere non sono ancora attive)'}.</span>
+          </details>
           {(() => {
             // Di ritorno da "Prenota per un cliente": conferma la richiesta; dice che al cliente è partito il link solo se le email vere sono attive.
             const nuova = richiesta ? prenotazioni.find((q) => q.prenotazione.id === richiesta && q.prenotazione.stato === 'in_attesa') : undefined;
