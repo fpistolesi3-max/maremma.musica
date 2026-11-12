@@ -10,6 +10,7 @@ import { origineRichiesta } from '@/lib/sessione';
 import { prenotazioniPerEmail } from '@/lib/dati/tavoli';
 import { lasciaPosto } from '@/lib/dati/prevendita';
 import { apriPagamentoIscrizione } from '@/lib/pagamento-prevendita';
+import { daProgramma } from '@/lib/trappola';
 
 export interface StatoModulo {
   errori: Partial<Record<'nome' | 'cognome' | 'nascita' | 'email' | 'privacy' | 'categoria' | 'generale', string>>;
@@ -28,6 +29,8 @@ export async function iscriviti(_prima: StatoModulo, f: FormData): Promise<Stato
   const slug = testo(f, 'slug');
   const handlePr = testo(f, 'pr') || null;
   const errori: StatoModulo['errori'] = {};
+  // Campo trappola compilato: è un programma. Niente posto tenuto, niente email.
+  if (daProgramma(f)) return { errori: { generale: 'Richiesta non valida.' }, valori };
 
   if (!valori.nome) errori.nome = 'Scrivi il nome, come sul documento.';
   else if (valori.nome.length > 80) errori.nome = 'Nome troppo lungo.';
@@ -78,6 +81,8 @@ export interface StatoRecupero { inviata: boolean; errore?: string; email?: stri
 export async function recuperaQr(_prima: StatoRecupero, f: FormData): Promise<StatoRecupero> {
   const email = testo(f, 'email').toLowerCase();
   if (!EMAIL_RE.test(email)) return { inviata: false, errore: 'Scrivi l’email che hai usato per iscriverti.', email };
+  // Campo trappola compilato: è un programma. Risposta uguale a quella vera (non impara niente), ma nessuna email parte.
+  if (daProgramma(f)) return { inviata: true, email };
   const biglietti = await bigliettiPerEmail(email);
   const tavoli = await prenotazioniPerEmail(email);
   if (biglietti.length || tavoli.length) await inviaRecupero(email, biglietti, await origineRichiesta(), tavoli);
