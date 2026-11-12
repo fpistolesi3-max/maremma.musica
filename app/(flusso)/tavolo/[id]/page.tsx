@@ -11,6 +11,7 @@ import { luogoTesto } from '@/lib/luogo';
 import { QrBiglietto } from '@/components/client';
 import { Monogramma } from '@/components/ui';
 import { PulsanteMorph } from '@/components/pulsante-morph';
+import { EMAIL_CONTATTI } from '@/lib/costanti';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Il tuo tavolo', robots: { index: false, follow: false } };
@@ -138,7 +139,7 @@ export default async function PaginaTavolo({ params, searchParams }: Props) {
       )}
 
       <footer className="flex justify-between px-4 py-8 font-mono text-[10px] leading-[14px] text-osso-3 md:px-8">
-        <span>MAREMMAMUSICA@GMAIL.COM</span><span>@MAREMMA.MUSICA</span>
+        <span>{EMAIL_CONTATTI.toUpperCase()}</span><span>@MAREMMA.MUSICA</span>
       </footer>
     </div>
   );

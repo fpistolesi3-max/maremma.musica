@@ -19,6 +19,7 @@ import { ModuloRecupero } from '@/components/modulo-recupero';
 import { Monogramma } from '@/components/ui';
 import { PulsanteMorph } from '@/components/pulsante-morph';
 import { PulsantiWallet, type WalletDisponibili } from '@/components/pulsanti-wallet';
+import { EMAIL_CONTATTI } from '@/lib/costanti';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Il tuo QR', robots: { index: false, follow: false } };
@@ -121,7 +122,7 @@ export default async function PaginaBiglietto({ params, searchParams }: Props) {
       )}
 
       <footer className="flex justify-between px-4 py-8 font-mono text-[10px] leading-[14px] text-osso-3 md:px-8">
-        <span>MAREMMAMUSICA@GMAIL.COM</span><span>@MAREMMA.MUSICA</span>
+        <span>{EMAIL_CONTATTI.toUpperCase()}</span><span>@MAREMMA.MUSICA</span>
       </footer>
     </div>
   );
@@ -185,7 +186,7 @@ function SenzaQr({ b, pagato, annullato, errore }: { b: Biglietto; pagato: boole
   );
 }
 
-const EMAIL_ASSISTENZA = 'maremmamusica@gmail.com';
+const EMAIL_ASSISTENZA = EMAIL_CONTATTI;
 const secondario = 'mm-btn mm-btn--clip mm-btn--linea min-h-[48px] flex-1 !px-3 text-center !text-[13px] !leading-4 !tracking-[.04em]';
 
 function Azioni({ id, email, nuovo, senzaTelefono, wallet, emailVere, comeArrivare, codice }: { id: string; email: string; nuovo: boolean; senzaTelefono: boolean; wallet: WalletDisponibili; emailVere: boolean; comeArrivare: string | null; codice: string }) {

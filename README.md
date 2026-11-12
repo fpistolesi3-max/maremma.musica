@@ -38,7 +38,7 @@ Da telefono: menu ☰ → "Accedi" (nel sito non c'è un link separato alla port
 | `test-pr@maremmamusica.test` | PR "Test PR" | `/pr/test-pr` |
 | `zarro@maremmamusica.test` | PR "Zarro Pollicino" | `/pr/zarro-pollicino` |
 
-Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_MITTENTE` in `.env.local`.
+Per un servizio email vero: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_MITTENTE` in `.env.local` (mittente `noreply@maremmamusica.it`; le risposte vanno a `info@maremmamusica.it`, l'unico indirizzo mostrato nel sito: `EMAIL_CONTATTI` in `lib/costanti.ts`).
 
 ## Area riservata (navigazione)
 
@@ -109,7 +109,7 @@ Campo facoltativo "Foto di …" (un credito per serata, max 80 caratteri). Massi
   link diretto (cache dello Storage). "Nascondi" toglie la foto dal sito ma non il file: chi ha già il link può ancora aprirla (i nomi sono UUID, non si indovinano),
   e per una richiesta di rimozione serve "Elimina" (lo dice anche la pagina Foto accanto al pulsante).
 - **Privacy**: in fondo alla Galleria e alla griglia della serata c'è "Ti riconosci e vuoi togliere una foto? Scrivici" (`mailto:` a
-  `maremmamusica@gmail.com`; chi scrive viene accontentato eliminando la foto dalla pagina Foto). **L'informativa privacy va completata con
+  `info@maremmamusica.it`, costante `EMAIL_CONTATTI` in `lib/costanti.ts`; chi scrive viene accontentato eliminando la foto dalla pagina Foto). **L'informativa privacy va completata con
   il trattamento delle foto (persone riconoscibili, base giuridica, tempi di conservazione, richieste di rimozione) e verificata dal consulente**
   prima di pubblicare foto vere: serate con minori o categorie particolari vanno valutate a parte.
 

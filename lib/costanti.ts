@@ -7,3 +7,5 @@ export const SEGMENTI_RISERVATI = ['prevendita'];
 export const HEADER_PERCORSO = 'x-mm-percorso';
 /** Se una pagina rimanda alla tua area perché quella aperta non è tua, aggiunge `?avviso=area`. */
 export const PARAMETRO_AVVISO = 'avviso';
+/** L'unico indirizzo email mostrato nel sito (contatti, assistenza, privacy, booking, foto). Le email automatiche partono da EMAIL_MITTENTE (noreply@) e le risposte arrivano qui. */
+export const EMAIL_CONTATTI = 'info@maremmamusica.it';
