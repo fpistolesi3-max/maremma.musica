@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { SEZIONI_VISIBILI } from '@/lib/sezioni';
 import Link from 'next/link';
 import { Disco } from '@/components/ui';
 import { Parallasse } from '@/components/parallasse';
@@ -14,6 +16,7 @@ const RESIDENTI = [
 ];
 
 export default function ChiSiamo() {
+  if (!SEZIONI_VISIBILI.crew) notFound();
   return (
     <>
       <section className="mm-curve overflow-hidden bg-[position:-600px_-200px]">
