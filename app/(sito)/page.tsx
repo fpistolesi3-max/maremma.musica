@@ -11,6 +11,7 @@ import { Rivela } from '@/components/rivela';
 import { CopertinaViva } from '@/components/copertina-viva';
 import { TitoloDecodifica } from '@/components/titolo-decodifica';
 import { PulsanteMorph } from '@/components/pulsante-morph';
+import { SEZIONI_VISIBILI } from '@/lib/sezioni';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,7 +104,7 @@ export default async function Home() {
               <p className="m-0 flex-1 text-[17px] leading-[26px] md:text-[18px] md:leading-7">Campi sportivi, pinete, casali. Portiamo la cassa dritta nei posti della Maremma dove di solito d&apos;estate si sentono solo le cicale.</p>
               <p className="m-0 flex-1 text-[17px] leading-[26px] text-osso-2 md:text-[18px] md:leading-7">Ogni serata ha la sua location, la sua locandina e la sua lista. Mettiti in lista dal link del tuo PR o da qui: il QR ti arriva subito.</p>
             </div>
-            <Link href="/chi-siamo" className="link-sottolineato self-start py-3">Chi siamo →</Link>
+            {SEZIONI_VISIBILI.crew && <Link href="/chi-siamo" className="link-sottolineato self-start py-3">Chi siamo →</Link>}
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/img/logo-maremma-musica.png" alt="Logo Maremma Musica" className="mt-4 h-[300px] w-[300px] self-center md:mt-0 md:h-[300px] md:w-[300px] md:flex-none lg:h-[440px] lg:w-[440px]" />

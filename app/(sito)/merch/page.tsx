@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { SEZIONI_VISIBILI } from '@/lib/sezioni';
 import { Disco } from '@/components/ui';
 
 export const metadata: Metadata = { title: 'Merch', description: 'Magliette, felpe e gadget Maremma Musica: lo shop online apre presto.' };
@@ -13,6 +15,7 @@ const IN_ARRIVO = [
 ];
 
 export default function Merch() {
+  if (!SEZIONI_VISIBILI.merch) notFound();
   return (
     <section className="contenitore flex flex-col gap-8 pb-16 pt-8 md:gap-12 md:pb-24 md:pt-14">
       <div className="flex flex-col gap-5 md:gap-6">

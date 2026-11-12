@@ -1,14 +1,15 @@
 import Link from 'next/link';
 import { MenuTelefono } from './client';
 import { IconaInstagram, MarchioLink } from './ui';
+import { SEZIONI_VISIBILI } from '@/lib/sezioni';
 
 // Testata e piede del sito pubblico (mockup Home desktop / telefono).
 
 const VOCI = [
-  { href: '/eventi', testo: 'Serate' },
-  { href: '/merch', testo: 'Merch' },
-  { href: '/chi-siamo', testo: 'Crew' },
-];
+  { href: '/eventi', testo: 'Serate', visibile: true },
+  { href: '/merch', testo: 'Merch', visibile: SEZIONI_VISIBILI.merch },
+  { href: '/chi-siamo', testo: 'Crew', visibile: SEZIONI_VISIBILI.crew },
+].filter((v) => v.visibile);
 
 const INSTAGRAM = 'https://www.instagram.com/maremma.musica/';
 
