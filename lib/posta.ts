@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { MAX_POSTA, modifica } from './dati/archivio';
 import { escapeHtmlBase } from './html';
 import type { ViaEmail } from './avviso-email';
+import { EMAIL_CONTATTI } from '@/lib/costanti';
 
 // Email transazionali. Finché il servizio vero non è configurato (TODO: cliente — es. Resend, Postmark,
 // Brevo) le email restano in archivio e si leggono su /dev/posta. Se in .env.local ci sono SMTP_HOST,
@@ -45,7 +46,7 @@ export async function inviaEmail(m: Messaggio): Promise<ViaEmail> {
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
   });
   await t.sendMail({
-    from: MITTENTE, to: m.a, subject: m.oggetto, html: m.html,
+    from: MITTENTE, replyTo: EMAIL_CONTATTI, to: m.a, subject: m.oggetto, html: m.html,
     attachments: (m.immagini ?? []).map((img) => ({ cid: img.cid, path: img.dataUrl, filename: `${img.cid}.png` })),
   });
   return 'smtp';
@@ -60,7 +61,7 @@ export function guscioEmail(titolo: string, corpo: string) {
 <p style="font:600 12px/16px Arial,sans-serif;letter-spacing:.24em;color:#a39e95;margin:0 0 24px;">MAREMMA MUSICA</p>
 <h1 style="font:900 40px/1 'Arial Narrow',Arial,sans-serif;text-transform:uppercase;margin:0 0 16px;color:#e1d7c9;">${titolo}</h1>
 ${corpo}
-<p style="font:400 12px/18px Arial,sans-serif;color:#77736c;margin:32px 0 0;">maremmamusica@gmail.com · @maremma.musica</p>
+<p style="font:400 12px/18px Arial,sans-serif;color:#77736c;margin:32px 0 0;">${EMAIL_CONTATTI} · @maremma.musica</p>
 </div></body></html>`;
 }
 

@@ -4,6 +4,7 @@ import { SEZIONI_VISIBILI } from '@/lib/sezioni';
 import Link from 'next/link';
 import { Disco } from '@/components/ui';
 import { Parallasse } from '@/components/parallasse';
+import { EMAIL_CONTATTI } from '@/lib/costanti';
 
 export const metadata: Metadata = { title: 'Chi siamo', description: 'La crew di Maremma Musica: techno in giro per la Maremma, dai campi sportivi alle pinete.' };
 
@@ -66,7 +67,7 @@ export default function ChiSiamo() {
             <p className="m-0 max-w-[520px] text-[17px] leading-[26px] text-osso-2">Hai un posto che suonerebbe bene? Vuoi portarci a suonare da te? Scrivici.</p>
           </div>
           <div className="flex flex-col gap-3 md:items-end">
-            <a href="mailto:maremmamusica@gmail.com?subject=Booking" className="mm-btn mm-btn--primario">Scrivi per il booking</a>
+            <a href={`mailto:${EMAIL_CONTATTI}?subject=Booking`} className="mm-btn mm-btn--primario">Scrivi per il booking</a>
             <Link href="/eventi" className="link-sottolineato py-3">Vedi le prossime date →</Link>
           </div>
           <Disco className="hidden h-[160px] w-[160px] lg:block" />

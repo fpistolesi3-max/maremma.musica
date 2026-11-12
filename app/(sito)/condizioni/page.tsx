@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { PaginaLegale } from '@/components/legale';
+import { EMAIL_CONTATTI } from '@/lib/costanti';
 
 export const metadata: Metadata = { title: 'Termini della lista' };
 
@@ -24,7 +25,7 @@ export default function Condizioni() {
         <li>La prevendita pagata non si annulla dal sito. In caso di annullamento della serata ti avvisiamo per email e ti restituiamo i soldi sulla carta con cui hai pagato.</li>
       </ul>
       <h2>Contatti</h2>
-      <p>[RAGIONE SOCIALE, SEDE, P.IVA] — maremmamusica@gmail.com.</p>
+      <p>[RAGIONE SOCIALE, SEDE, P.IVA] — {EMAIL_CONTATTI}.</p>
     </PaginaLegale>
   );
 }

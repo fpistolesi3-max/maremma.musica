@@ -59,7 +59,16 @@ test('inviaEmail con SMTP_HOST: parte davvero e lo dice', async () => {
     assert.equal(await posta.inviaEmail(msg), 'smtp');
     assert.equal((await archivio.leggi()).posta[0].via, 'smtp');
     assert.equal(s.ricevute.length, 1, 'il server ha ricevuto l’email');
+    // Mittente automatico (noreply@) e risposte all'unico indirizzo mostrato nel sito.
+    assert.match(s.ricevute[0], /^From: .*noreply@maremmamusica\.it/mi);
+    assert.match(s.ricevute[0], /^Reply-To: info@maremmamusica\.it/mi);
   } finally {
     delete process.env.SMTP_HOST; delete process.env.SMTP_PORT; s.chiudi();
   }
+});
+
+test('il guscio delle email chiude con l’indirizzo dei contatti, non con una casella personale', () => {
+  const html = posta.guscioEmail('Titolo', '<p>Corpo</p>');
+  assert.match(html, /info@maremmamusica\.it · @maremma\.musica/);
+  assert.doesNotMatch(html, /gmail/i);
 });

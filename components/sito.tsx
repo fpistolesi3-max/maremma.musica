@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { MenuTelefono } from './client';
 import { IconaInstagram, MarchioLink } from './ui';
+import { EMAIL_CONTATTI } from '@/lib/costanti';
 import { SEZIONI_VISIBILI } from '@/lib/sezioni';
 
 // Testata e piede del sito pubblico (mockup Home desktop / telefono).
@@ -58,7 +59,7 @@ export function Piede() {
           <p className="m-0 flex-grow font-display text-[52px] font-black uppercase leading-[.86] md:basis-full md:text-[72px] lg:basis-auto">Ci vediamo<br />sotto cassa.</p>
           <div className="flex flex-col gap-[10px] md:w-[260px] md:gap-[14px]">
             <span className="etichetta">Contatti</span>
-            <a href="mailto:maremmamusica@gmail.com" className="font-mono text-[13px] leading-5 no-underline md:text-[14px]">maremmamusica@gmail.com</a>
+            <a href={`mailto:${EMAIL_CONTATTI}`} className="font-mono text-[13px] leading-5 no-underline md:text-[14px]">{EMAIL_CONTATTI}</a>
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:contents">
             <div className="contents md:flex md:w-[180px] md:flex-col md:gap-[14px]">

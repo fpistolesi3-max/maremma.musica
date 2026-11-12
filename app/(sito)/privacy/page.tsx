@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { PaginaLegale } from '@/components/legale';
+import { EMAIL_CONTATTI } from '@/lib/costanti';
 
 export const metadata: Metadata = { title: 'Privacy' };
 
@@ -7,7 +8,7 @@ export default function Privacy() {
   return (
     <PaginaLegale titolo="Privacy" aggiornata="29.10.2026">
       <h2>Chi tratta i tuoi dati</h2>
-      <p>Titolare del trattamento: [RAGIONE SOCIALE, SEDE, P.IVA] — Maremma Musica. Contatto: maremmamusica@gmail.com.</p>
+      <p>Titolare del trattamento: [RAGIONE SOCIALE, SEDE, P.IVA] — Maremma Musica. Contatto: {EMAIL_CONTATTI}.</p>
       <h2>Quali dati</h2>
       <ul>
         <li>Nome, cognome, data di nascita ed email che scrivi per metterti in lista.</li>
@@ -27,7 +28,7 @@ export default function Privacy() {
       <h2>La mappa della serata</h2>
       <p>Nella pagina di una serata la sezione «Come arrivare» ha una mappa che si carica solo quando la sezione sta per comparire. La mappa arriva da un servizio esterno, OpenFreeMap, che dà strade e nomi da OpenStreetMap. Come ogni servizio esterno, riceve il tuo indirizzo IP per mandarti la mappa. Non usa cookie e non riceve nessun altro dato tuo. Con la location ancora segreta la mappa non si carica. I pulsanti «Apri in Google Maps», «Apri in Apple Maps» e «Apri in Waze» ti portano fuori dal sito solo se li tocchi: da lì valgono le regole di quei servizi.</p>
       <h2>I tuoi diritti</h2>
-      <p>Puoi chiedere accesso, correzione, cancellazione, limitazione e portabilità dei tuoi dati, o opporti al trattamento, scrivendo a maremmamusica@gmail.com. Puoi anche rivolgerti al Garante per la protezione dei dati personali.</p>
+      <p>Puoi chiedere accesso, correzione, cancellazione, limitazione e portabilità dei tuoi dati, o opporti al trattamento, scrivendo a {EMAIL_CONTATTI}. Puoi anche rivolgerti al Garante per la protezione dei dati personali.</p>
     </PaginaLegale>
   );
 }
