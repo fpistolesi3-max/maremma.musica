@@ -125,7 +125,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
               id: t.id, nome: t.nome, zona: t.zona ?? '', posti: t.posti, spesaMinima: t.spesaMinima, stato: t.stato,
               nota: t.nota ?? '', visibileDaPr: t.visibileDaPr, prAbilitati: t.prAbilitati, ordine: t.ordine,
               prenotazione: v ? {
-                id: v.prenotazione.id, nome: `${v.prenotazione.nome} ${v.prenotazione.cognome}`, email: v.prenotazione.email, telefono: v.prenotazione.telefono,
+                id: v.prenotazione.id, nome: v.prenotazione.anonimizzata ? 'Dati cancellati' : `${v.prenotazione.nome} ${v.prenotazione.cognome}`, email: v.prenotazione.email, telefono: v.prenotazione.telefono,
                 persone: v.prenotazione.persone, spesaMinima: v.prenotazione.spesaMinima, stato: v.prenotazione.stato, lista: v.lista,
                 scade: quandoScade(v.prenotazione.scade), inseritaDa: v.prenotazione.inseritaDa, pagamento: pagamento(v.prenotazione),
                 online: Boolean(v.prenotazione.pagamentoOnline),
@@ -144,9 +144,9 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
                   return (
                     <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-linea py-3">
                       <span className={`mm-chip ${p.stato === 'rimborsata' ? 'mm-chip--rimborsato' : 'mm-chip--annullato'}`}>{p.pagamentoOnline && !p.pagatoAt && p.stato !== 'rimborsata' ? 'Pagamento non completato' : { scaduta: 'Scaduta', annullata: 'Annullata', rimborsata: 'Rimborsata', in_attesa: '', confermata: '' }[p.stato]}</span>
-                      <span className="font-display text-[20px] font-extrabold uppercase leading-none">{v.tavolo.nome} · {p.nome} {p.cognome}</span>
+                      <span className="font-display text-[20px] font-extrabold uppercase leading-none">{v.tavolo.nome} · {p.anonimizzata ? 'Dati cancellati' : `${p.nome} ${p.cognome}`}</span>
                       <span className="w-full font-mono text-[11px] leading-4 text-osso-2">
-                        {p.persone} PERSONE · {euro(p.spesaMinima)} · {p.telefono} · LISTA: {v.lista.toUpperCase()} · RICHIESTA {quandoScade(p.createdAt).toUpperCase()}
+                        {p.persone} PERSONE · {euro(p.spesaMinima)} · {p.anonimizzata ? 'ANONIMIZZATA' : p.telefono} · LISTA: {v.lista.toUpperCase()} · RICHIESTA {quandoScade(p.createdAt).toUpperCase()}
                         {pagamento(p) && ` · PAGATO: ${pagamento(p)!.toUpperCase()}`}
                         {p.chiusaAt && ` · ${p.stato === 'scaduta' ? 'DECADUTA' : 'CHIUSA'} ${quandoScade(p.chiusaAt).toUpperCase()}${p.chiusaDa ? ` DA ${p.chiusaDa.toUpperCase()}` : ''}`}
                       </span>
@@ -154,7 +154,7 @@ export default async function ModificaSerata({ params, searchParams }: Props) {
                       {p.pagamentoOnline?.daRimborsare && p.pagamentoOnline.pagamento && p.pagamentoOnline.rimborso?.stato !== 'fatto' && (
                         <div className="flex w-full flex-col gap-2 border border-stop-testo px-4 py-3">
                           <span role="alert" className="text-[14px] leading-5 text-stop-testo">Ha pagato online {euro(p.spesaMinima)} quando la prenotazione era già chiusa e il tavolo non era più suo: va rimborsato. <Link href={`/admin/rimborsi?evento=${e.id}`} className="link-sottolineato">Tutti i rimborsi →</Link></span>
-                          <RimborsaPagamento tipo="tavolo" id={p.id} pagamento={p.pagamentoOnline.pagamento} persona={`${p.nome} ${p.cognome}`} importo={euro(p.spesaMinima)} />
+                          <RimborsaPagamento tipo="tavolo" id={p.id} pagamento={p.pagamentoOnline.pagamento} persona={p.anonimizzata ? 'Dati cancellati' : `${p.nome} ${p.cognome}`} importo={euro(p.spesaMinima)} />
                         </div>
                       )}
                     </div>

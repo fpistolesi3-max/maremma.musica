@@ -80,6 +80,40 @@ export function finestraPorta(e: Pick<Evento, 'data' | 'dataFine'>, ora: string 
   return eventoPassato(e, new Date(t)) ? 'dopo' : 'aperta';
 }
 
+/**
+ * Ore dopo la fine della serata in cui la porta la tiene ancora (ingressi tardivi, sincronizzazioni rimaste indietro).
+ * Poi il server non manda più l'elenco e il telefono dello staff lo cancella: nomi e date di nascita non restano nei telefoni.
+ */
+export const ORE_PORTA_DOPO_SERATA = 12;
+
+/** La serata è uscita dalla porta (finita da più di ORE_PORTA_DOPO_SERATA): niente più elenco, né sul server né sul telefono. */
+export function serataFuoriPorta(e: Pick<Evento, 'data' | 'dataFine'>, ora: string | Date = new Date()): boolean {
+  const t = typeof ora === 'string' ? Date.parse(ora) : ora.getTime();
+  return eventoPassato(e, new Date(t - ORE_PORTA_DOPO_SERATA * 3_600_000));
+}
+
+/** Fino a quando il telefono può tenere l'elenco della serata: ORE_PORTA_DOPO_SERATA dopo la fine (senza orario di chiusura: inizio + 8 ore). */
+export function scadenzaElencoPorta(e: Pick<Evento, 'data' | 'dataFine'>): string {
+  const fine = e.dataFine ? Date.parse(e.dataFine) : Date.parse(e.data) + 8 * 3_600_000;
+  return new Date(fine + ORE_PORTA_DOPO_SERATA * 3_600_000).toISOString();
+}
+
+/**
+ * "Esci" durante la serata (dalle 12 ore prima dell'inizio a 12 ore dopo la fine) lascia l'elenco sul telefono:
+ * chi esce per sbaglio senza campo riapre la porta e trova ancora i nomi. Si cancella da solo alla scadenza.
+ * Fuori dalla serata (telefono usato giorni fa) "Esci" lo cancella subito.
+ */
+export function elencoDaTenereAllUscita(e: Pick<Evento, 'data' | 'dataFine'>, ora: string | Date = new Date()): boolean {
+  return finestraPorta(e, ora) !== 'prima' && !serataFuoriPorta(e, ora);
+}
+
+/** Pulizia fuori dalla porta: l'elenco salvato è scaduto (la scadenza manca solo negli elenchi salvati prima di questa regola: li pulisce la porta). */
+export function elencoScaduto(scadeAlle: string | null | undefined, ora: string | Date = new Date()): boolean {
+  if (!scadeAlle) return false;
+  const t = typeof ora === 'string' ? Date.parse(ora) : ora.getTime();
+  return Date.parse(scadeAlle) < t;
+}
+
 /** "Cambia serata →" si offre solo se la porta dell'altra serata è aperta adesso (è quella di stanotte): una serata futura non si apre per far entrare un biglietto. */
 export const cambiaSerataPossibile = (serata: Pick<SerataBiglietto, 'finestra'>) => serata.finestra === 'aperta';
 

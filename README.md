@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (267 test, 32 dei quali di gara e saltati senza database di prova: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta, e le migrazioni del nuovo schema provate su un Postgres vero in memoria con PGlite), `npm run typecheck`,
+Altri comandi: `npm test` (338 test, 32 dei quali di gara e saltati senza database di prova: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta, e le migrazioni del nuovo schema provate su un Postgres vero in memoria con PGlite), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -121,6 +121,8 @@ Per le serate dove il telefono non si porta: *Modifica serata → Ingresso senza
 - **Cambio nominativo**: solo l'admin, da *Iscrizioni → Cambia nome* (un piccolo modulo con nome, cognome, data di nascita ed email del biglietto, facoltativa), solo per chi non è ancora entrato; controlla età minima e doppioni, il biglietto resta lo stesso. Se cambia l'email, il link e il recupero usano la nuova; non parte nessuna email.
 - **Privacy**: nessuna foto né numero del documento. I dati personali si cancellano per tutte le iscrizioni, vedi *Anonimizzazione* qui sotto.
 - **Anonimizzazione** (tutte le iscrizioni, non solo le serate senza telefono): 30 giorni dopo la fine della serata il cron giornaliero (`/api/cron/tavoli`, `anonimizzaIscrizioniVecchie`; un errore non ferma i promemoria dei tavoli) cancella nome, cognome, email e data di nascita. La riga resta e serve alle analisi: **età alla serata** (calcolata prima di cancellare), tipo di prevendita, importo, PR o sito, data e ora d'acquisto, entrato sì/no con l'ora. Il consenso marketing non si tocca. Le righe anonime hanno `anonimizzata`, `etaAllaSerata`, `anonimizzataAt`; nell'archivio attuale i campi cancellati sono stringhe vuote, nel database relazionale sono `null` (`20261016000000_anonimizzazione.sql`: campi personali nullable, un solo vincolo "dati personali presenti oppure tutti null", indice unico su cognome e data di nascita solo per le righe non anonime). L'admin le vede come "Dati cancellati · N anni"; il CSV ha la colonna *Età alla serata*.
+- **Anonimizzazione dei tavoli**: con la stessa regola dei 30 giorni lo stesso cron (`anonimizzaPrenotazioniVecchie` in `lib/dati/tavoli.ts`; con le tabelle la funzione `anonimizza_prenotazioni`, già in `20261106000000_schema_tavoli.sql`) cancella nome, cognome, email e telefono di tutte le prenotazioni dei tavoli. Restano tavolo, persone, spesa minima, PR, pagamenti e ingressi; l'admin le vede come "Dati cancellati".
+- **Elenco sui telefoni della porta**: il telefono tiene l'elenco della serata (nomi e date di nascita) in `localStorage` per lavorare senza campo. Lo cancella quando la serata esce dalla porta, cioè 12 ore dopo la fine (`serataFuoriPorta` in `lib/porta-logica.ts`); da lì anche il server (`elencoPorta`) non lo manda più. **"Esci" durante la serata** (dalle 12 ore prima dell'inizio a 12 ore dopo la fine, `elencoDaTenereAllUscita`) lascia l'elenco sul telefono: chi esce per sbaglio senza campo riapre la porta (pagina in cache del service worker) e ritrova i nomi. La scadenza resta salvata con l'elenco (`scadeAlle`) e qualsiasi pagina del sito lo cancella dopo (`components/porta/pulizia.tsx`, `lib/porta-pulizia.ts`), anche se la porta non si riapre più. "Esci" fuori dalla serata (telefono usato giorni prima) lo cancella subito. Gli ingressi non ancora inviati non si cancellano mai: prima la sincronizzazione.
 - Supabase: `supabase/migrations/20261015000000_senza_telefono.sql` (colonna `eventi.senza_telefono`; RLS invariata). `porta_elenco` non cambia.
 
 ### Creare una serata (un solo prezzo, un solo Salva)
@@ -253,6 +255,20 @@ dell'elenco (`statoLista` in `lib/regole.ts`); gli altri si vedono nella pagina 
   dell'admin e alla porta ("Lista: Maremma Musica · da Instagram").
 - Admin: `/admin` home con la prossima serata e le cose da fare (rimborsi da fare, pagamenti con importo sbagliato, tavoli in attesa, serate in bozza con "Cosa manca"; ogni voce porta al punto giusto) · serate · serata live (si aggiorna ogni 4 s) · nuova/modifica serata con tipi di prevendita e tavoli (spesa minima, zona, posti, stato, mappa con piantina del locale) · PR · iscrizioni
   (annulla e rimborsa/CSV) · rimborsi (`/admin/rimborsi`) · staff.
+
+## Moduli pubblici (contro i programmi automatici)
+
+I tre moduli che chiunque può inviare senza accesso sono la **prevendita** (`/e/[serata]/prevendita` e i link dei PR), la **richiesta di un tavolo** (`/tavoli/[serata]`) e **"Recupera il QR"** (`/biglietto`). Non espongono dati, ma un programma potrebbe usarli per tenere fermi posti e tavoli (30 minuti a richiesta non pagata), riempire di nomi finti una serata gratis o far partire email a raffica. Due difese:
+
+1. **Campo trappola** (nel codice, `lib/trappola.ts` e `components/campo-trappola.tsx`): un campo `sito` fuori schermo, che una persona non vede e lascia vuoto. Se arriva compilato, prevendita e tavoli rispondono "Richiesta non valida." senza tenere niente; "Recupera il QR" risponde come sempre ma non manda l'email. Ferma i programmi che riempiono tutti i campi, non chi prende di mira il sito apposta.
+2. **Limite di richieste nel firewall di Vercel** (da impostare a mano da chi ha l'account Vercel: Progetto → Firewall → Configure → New Rule). Le risposte dei moduli arrivano come richieste POST alla pagina stessa, quindi:
+   - **Nome:** `Moduli pubblici: limite per IP`
+   - **If** (tre gruppi in OR): *Request Method* equals `POST` **and** *Request Path* starts with `/e/` · **or** *Request Method* equals `POST` **and** *Request Path* starts with `/tavoli/` · **or** *Request Method* equals `POST` **and** *Request Path* starts with `/biglietto` (il modulo sta anche in `/biglietto/[codice]`)
+   - **Then:** *Rate Limit*, *Fixed Window*, **30 richieste ogni 60 secondi**, per **IP**, poi *Deny* (o *Too Many Requests*).
+   - Il limite è largo apposta: con i telefoni molte persone escono dallo stesso IP dell'operatore, e all'uscita di una prevendita annunciata su Instagram possono compilare in tanti nello stesso minuto. Una persona invia il modulo una o due volte; un programma centinaia.
+   - Non tocca admin, porta, accessi, webhook di Stripe e cron (altri percorsi).
+   - **Seconda regola, consigliata: `Accessi: limite per IP`.** La pagina `/accedi` manda un'email con link e codice a 6 cifre a chi ha un accesso (admin, staff, PR) e non ha limiti nel codice: un programma potrebbe riempire di email quelle caselle o provare molti codici (ogni nuovo codice dà 5 tentativi). *Request Method* equals `POST` **and** *Request Path* starts with `/accedi` → *Rate Limit*, *Fixed Window*, **10 richieste ogni 60 secondi**, per **IP**, poi *Deny*. Chi sbaglia il codice due o tre volte non se ne accorge.
+   - Dopo averla salvata, la pagina Firewall mostra quante richieste la regola ha bloccato: se blocca qualcosa durante un'uscita vera, alzare il numero.
 
 ## Rimborsi
 

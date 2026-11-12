@@ -87,6 +87,8 @@ export interface Operazioni {
   confermaPagamentoPrenotazione(d: { id: string; pagamento: string; centesimi: number; valuta: string; importoOk: boolean; adesso: string }): Promise<EsitoConfermaPagamento>;
   annullaPrenotazione(id: string, da: string, adesso: string): Promise<EsitoAnnullaPrenotazione>;
   scadenzePrenotazioni(adesso: string): Promise<number>;
+  /** Cancella i dati personali delle prenotazioni delle serate finite da più di `giorni` giorni (anonimizza_prenotazioni, già nella migrazione dei tavoli). */
+  anonimizzaPrenotazioni(giorni: number, adesso: string): Promise<number>;
   avvisiChiusura(adesso: string): Promise<string[]>;
   promemoriaPrenotazioni(oreMinime: number, adesso: string): Promise<string[]>;
   salvaSessionePrenotazione(id: string, sessione: string): Promise<boolean>;
@@ -166,6 +168,9 @@ export function operazioniDa(rpc: Rpc): Operazioni {
     },
     async scadenzePrenotazioni(adesso) {
       return Number(await rpc('scadenze_prenotazioni', { p_adesso: adesso }));
+    },
+    async anonimizzaPrenotazioni(giorni, adesso) {
+      return Number(await rpc('anonimizza_prenotazioni', { p_giorni: giorni, p_adesso: adesso }));
     },
     async avvisiChiusura(adesso) {
       return ((await rpc('avvisi_chiusura', { p_adesso: adesso })) as string[] | null) ?? [];

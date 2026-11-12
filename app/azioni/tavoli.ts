@@ -13,6 +13,7 @@ import { inviaChiusuraTavolo, inviaRichiestaTavolo, linkTavolo } from '@/lib/tav
 import { modoPagamentoOnline } from '@/lib/pagamenti';
 import { rimborsaPagamento } from '@/lib/rimborso';
 import { apriPagamento } from '@/lib/pagamento-tavolo';
+import { daProgramma } from '@/lib/trappola';
 
 export interface StatoTavoloModulo {
   errori: Partial<Record<'nome' | 'cognome' | 'email' | 'telefono' | 'persone' | 'tavolo' | 'privacy' | 'generale', string>>;
@@ -31,7 +32,7 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
     telefono: testo(f, 'telefono'), persone: testo(f, 'persone'), privacy: f.get('privacy') ? '1' : '',
   };
   // Campo trappola, invisibile alle persone: se arriva compilato è un programma, non un cliente.
-  if (testo(f, 'sito')) return { errori: { generale: 'Richiesta non valida.' }, valori };
+  if (daProgramma(f)) return { errori: { generale: 'Richiesta non valida.' }, valori };
   if (!valori.tavoloId) return { errori: { tavolo: 'Scegli un tavolo dalla mappa o dall’elenco.' }, valori };
   if (!valori.privacy) return { errori: { privacy: 'Per prenotare devi accettare l’informativa privacy.' }, valori };
   const dati: DatiPrenotazione = {
