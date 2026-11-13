@@ -33,7 +33,7 @@ const TRATTAMENTI: { quando: string; dati: string; perche: string; base: string;
     dati: 'Nome, cognome, data di nascita, categoria della prevendita, stato, orario d’ingresso. Il documento lo guarda lo staff: non lo fotocopiamo e non ne scriviamo il numero.',
     perche: 'Farti entrare, controllare età minima e categoria, evitare QR copiati e doppi ingressi.',
     base: 'Contratto; legittimo interesse alla sicurezza dell’evento (art. 6.1.f).',
-    quanto: 'L’elenco sui telefoni dello staff si cancella entro 12 ore dalla fine della serata. Il resto come sopra.',
+    quanto: 'L’elenco sui telefoni dello staff si cancella alla prima apertura del sito dopo 12 ore dalla fine della serata (e alle uscite dalla porta fuori serata). Il resto come sopra.',
   },
   {
     quando: 'Ricevi le email del servizio',

@@ -24,8 +24,8 @@ export default function Cookie() {
       <h2>Memoria del browser</h2>
       <ul>
         <li><strong>mm_biglietti</strong> (localStorage). Sul tuo telefono ricorda fino a 12 tuoi biglietti (id, email, nome, serata, data) per ritrovarli in «Il mio QR». Non viene inviata a nessuno. Le voci di serate finite da più di 12 ore si cancellano da sole; puoi cancellarle prima svuotando i dati del sito.</li>
-        <li><strong>mm-intro</strong> (sessionStorage). Un segno «hai già visto l’animazione di apertura», per non rifarla a ogni pagina. Dura fino alla chiusura della scheda.</li>
-        <li><strong>Solo per lo staff:</strong> l’elenco della serata e gli ingressi non ancora inviati (localStorage), e una copia della pagina della porta (cache del browser), per lavorare senza campo. L’elenco si cancella entro 12 ore dalla fine della serata.</li>
+        <li><strong>mm-intro</strong> (sessionStorage). Un segno «hai già visto l’animazione di apertura», per non rifarla a ogni pagina. Dura fino alla chiusura della scheda. Lo stesso vale per <strong>mm-caricamento</strong>, il segno «hai già visto la schermata di caricamento».</li>
+        <li><strong>Solo per lo staff:</strong> l’elenco della serata e gli ingressi non ancora inviati (localStorage), e una copia della pagina della porta (cache del browser), per lavorare senza campo. L’elenco si cancella alla prima apertura del sito dopo 12 ore dalla fine della serata.</li>
       </ul>
 
       <h2>Terze parti</h2>
