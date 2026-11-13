@@ -72,3 +72,42 @@ test('il guscio delle email chiude con l’indirizzo dei contatti, non con una c
   assert.match(html, /info@maremmamusica\.it · @maremma\.musica/);
   assert.doesNotMatch(html, /gmail/i);
 });
+
+test('sul sito vero con le email che partono davvero il testo NON resta nel database; in prova e senza SMTP sì', async () => {
+  const env = process.env as Record<string, string | undefined>;
+  const prima = { NODE_ENV: env.NODE_ENV, prova: env.MM_MODALITA_PROVA };
+  const registro = async () => (await archivio.leggi()).posta.length;
+  const s = await serverFinto();
+  try {
+    env.NODE_ENV = 'production'; delete env.MM_MODALITA_PROVA;
+    // Sito vero + SMTP: parte, ma non si salva (nome, email e link dei clienti non restano nel database).
+    env.SMTP_HOST = '127.0.0.1'; env.SMTP_PORT = String(s.porta);
+    let n = await registro();
+    assert.equal(await posta.inviaEmail({ ...msg, oggetto: 'Sito vero' }), 'smtp');
+    assert.equal(await registro(), n, 'niente nel registro');
+    assert.equal(s.ricevute.length, 1, 'ma l’email è partita');
+    // Istanza di prova online (MM_MODALITA_PROVA=1) + SMTP: si salva, per /dev/posta.
+    env.MM_MODALITA_PROVA = '1';
+    n = await registro();
+    assert.equal(await posta.inviaEmail({ ...msg, oggetto: 'Istanza di prova' }), 'smtp');
+    assert.equal(await registro(), n + 1);
+    // Sito vero senza SMTP (email non ancora attive): resta nell'archivio, per non perdere i messaggi.
+    delete env.MM_MODALITA_PROVA; delete env.SMTP_HOST; delete env.SMTP_PORT;
+    n = await registro();
+    assert.equal(await posta.inviaEmail({ ...msg, oggetto: 'Senza SMTP' }), 'archivio');
+    assert.equal(await registro(), n + 1);
+  } finally {
+    if (prima.NODE_ENV === undefined) delete env.NODE_ENV; else env.NODE_ENV = prima.NODE_ENV;
+    if (prima.prova === undefined) delete env.MM_MODALITA_PROVA; else env.MM_MODALITA_PROVA = prima.prova;
+    delete env.SMTP_HOST; delete env.SMTP_PORT; s.chiudi();
+  }
+});
+
+test('il piede delle email dice chi scrive e rinvia a termini e privacy; la nota sul recesso rinvia ai termini', () => {
+  const html = posta.guscioEmail('Titolo', '<p>Corpo</p>');
+  assert.match(html, / · P\.IVA \d{11}/);
+  assert.match(html, /href="[^"]*\/condizioni"[^>]*>Termini e condizioni<\/a> · <a href="[^"]*\/privacy"/);
+  const nota = posta.notaCondizioniEmail();
+  assert.match(nota, /non c'è diritto di recesso/);
+  assert.match(nota, /\/condizioni/);
+});
