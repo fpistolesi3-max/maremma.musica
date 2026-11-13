@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { MAX_POSTA, modifica } from './dati/archivio';
 import { escapeHtmlBase } from './html';
 import type { ViaEmail } from './avviso-email';
-import { EMAIL_CONTATTI } from '@/lib/costanti';
+import { EMAIL_CONTATTI, RIGA_TITOLARE } from '@/lib/costanti';
+import { modalitaProva } from './prova';
 
 // Email transazionali. Finché il servizio vero non è configurato (TODO: cliente — es. Resend, Postmark,
 // Brevo) le email restano in archivio e si leggono su /dev/posta. Se in .env.local ci sono SMTP_HOST,
@@ -17,6 +18,7 @@ export interface Messaggio {
   immagini?: { cid: string; dataUrl: string }[];
 }
 
+const SITO = (process.env.SITO_URL || 'https://maremmamusica.it').replace(/\/$/, '');
 const MITTENTE = process.env.EMAIL_MITTENTE || 'Maremma Musica <noreply@maremmamusica.it>'; // TODO: cliente
 
 /** Le email vere partono solo con SMTP_HOST; senza, restano nell'archivio di prova (e l'admin non deve credere che siano arrivate). */
@@ -29,10 +31,14 @@ export async function inviaEmail(m: Messaggio): Promise<ViaEmail> {
   let htmlArchivio = m.html;
   for (const img of m.immagini ?? []) htmlArchivio = htmlArchivio.replaceAll(`cid:${img.cid}`, img.dataUrl);
 
-  await modifica((d) => {
-    d.posta.unshift({ id: randomUUID(), a: m.a, oggetto: m.oggetto, html: htmlArchivio, inviataAt: new Date().toISOString(), via: viaSmtp ? 'smtp' : 'archivio' });
-    d.posta = d.posta.slice(0, MAX_POSTA);
-  });
+  // Privacy: sul sito vero, con le email che partono davvero, il testo (nome, email, link, QR) NON resta nel database.
+  // L'archivio serve solo a leggere la posta in prova (/dev/posta) e, senza SMTP, a non perdere i messaggi.
+  if (!viaSmtp || modalitaProva()) {
+    await modifica((d) => {
+      d.posta.unshift({ id: randomUUID(), a: m.a, oggetto: m.oggetto, html: htmlArchivio, inviataAt: new Date().toISOString(), via: viaSmtp ? 'smtp' : 'archivio' });
+      d.posta = d.posta.slice(0, MAX_POSTA);
+    });
+  }
 
   if (!viaSmtp) {
     console.info(`[posta] → ${m.a} · ${m.oggetto} (leggila su /dev/posta)`);
@@ -61,8 +67,16 @@ export function guscioEmail(titolo: string, corpo: string) {
 <p style="font:600 12px/16px Arial,sans-serif;letter-spacing:.24em;color:#a39e95;margin:0 0 24px;">MAREMMA MUSICA</p>
 <h1 style="font:900 40px/1 'Arial Narrow',Arial,sans-serif;text-transform:uppercase;margin:0 0 16px;color:#e1d7c9;">${titolo}</h1>
 ${corpo}
-<p style="font:400 12px/18px Arial,sans-serif;color:#77736c;margin:32px 0 0;">${EMAIL_CONTATTI} · @maremma.musica</p>
+<p style="font:400 12px/18px Arial,sans-serif;color:#77736c;margin:32px 0 0;">${EMAIL_CONTATTI} · @maremma.musica<br>${RIGA_TITOLARE}<br><a href="${SITO}/condizioni" style="color:#77736c;">Termini e condizioni</a> · <a href="${SITO}/privacy" style="color:#77736c;">Privacy</a></p>
 </div></body></html>`;
+}
+
+/**
+ * Nota delle email di conferma (supporto durevole, art. 51 Codice del consumo): recesso escluso e rinvio ai termini.
+ * Solo per ciò che si è pagato: le serate gratis non hanno recesso da escludere.
+ */
+export function notaCondizioniEmail() {
+  return `<p style="font:400 13px/19px Arial,sans-serif;color:#a39e95;margin:24px 0 0;">Per le serate con data fissa non c'è diritto di recesso (art. 59, comma 1, lettera n, Codice del consumo): non si rimborsa, salvo annullamento della serata. Le regole di vendita sono nei <a href="${SITO}/condizioni" style="color:#a39e95;">termini e condizioni</a>; come trattiamo i tuoi dati, nella <a href="${SITO}/privacy" style="color:#a39e95;">privacy</a>.</p>`;
 }
 
 export function bottoneEmail(href: string, testo: string) {

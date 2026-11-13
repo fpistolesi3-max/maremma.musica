@@ -24,7 +24,7 @@ export async function iscriviti(_prima: StatoModulo, f: FormData): Promise<Stato
   const valori = {
     nome: testo(f, 'nome'), cognome: testo(f, 'cognome'),
     giorno: testo(f, 'giorno'), mese: testo(f, 'mese'), anno: testo(f, 'anno'),
-    email: testo(f, 'email'), marketing: f.get('marketing') ? '1' : '', confermaCategoria: f.get('confermaCategoria') ? '1' : '', privacy: f.get('privacy') ? '1' : '',
+    email: testo(f, 'email'), confermaCategoria: f.get('confermaCategoria') ? '1' : '', privacy: f.get('privacy') ? '1' : '',
   };
   const slug = testo(f, 'slug');
   const handlePr = testo(f, 'pr') || null;
@@ -39,13 +39,13 @@ export async function iscriviti(_prima: StatoModulo, f: FormData): Promise<Stato
   const dataNascita = componiData(valori.giorno, valori.mese, valori.anno);
   if (!dataNascita) errori.nascita = 'Controlla la data: giorno, mese e anno (es. 14 05 2001).';
   if (!EMAIL_RE.test(valori.email)) errori.email = 'Serve un’email valida: ti mandiamo lì il QR.';
-  if (!f.get('privacy')) errori.privacy = 'Per metterti in lista devi accettare l’informativa privacy.';
+  if (!f.get('privacy')) errori.privacy = 'Per metterti in lista devi accettare i termini e condizioni di vendita.';
   if (Object.keys(errori).length) return { errori, valori };
 
   // Canale: cookie lasciato all'arrivo, altrimenti il browser interno del social da cui sta compilando.
   const canale = normalizzaCanale((await cookies()).get(COOKIE_CANALE)?.value) ?? canaleDaUserAgent((await headers()).get('user-agent')) ?? 'diretto';
   const esito = await creaIscrizione({
-    slug, handlePr, canale, confermaCategoria: Boolean(f.get('confermaCategoria')), nome: valori.nome, cognome: valori.cognome, dataNascita: dataNascita!, email: valori.email, marketing: Boolean(valori.marketing),
+    slug, handlePr, canale, confermaCategoria: Boolean(f.get('confermaCategoria')), nome: valori.nome, cognome: valori.cognome, dataNascita: dataNascita!, email: valori.email,
   });
   if (!esito.ok) {
     const campo = (esito.campo ?? 'generale') as keyof StatoModulo['errori'];

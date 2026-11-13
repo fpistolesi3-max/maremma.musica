@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { MenuTelefono } from './client';
 import { IconaInstagram, MarchioLink } from './ui';
-import { EMAIL_CONTATTI } from '@/lib/costanti';
+import { EMAIL_CONTATTI, RIGA_TITOLARE } from '@/lib/costanti';
 import { SEZIONI_VISIBILI } from '@/lib/sezioni';
 
 // Testata e piede del sito pubblico (mockup Home desktop / telefono).
@@ -71,13 +71,13 @@ export function Piede() {
               <span className="etichetta hidden md:block">Legale</span>
               <Link href="/privacy" className="py-[10px] font-sans text-[16px] font-medium leading-[22px] no-underline md:py-0">Privacy</Link>
               <Link href="/cookie" className="py-[10px] font-sans text-[16px] font-medium leading-[22px] no-underline md:py-0">Cookie</Link>
-              <Link href="/condizioni" className="py-[10px] font-sans text-[16px] font-medium leading-[22px] no-underline md:py-0">Termini della lista</Link>
+              <Link href="/condizioni" className="py-[10px] font-sans text-[16px] font-medium leading-[22px] no-underline md:py-0">Termini e condizioni</Link>
             </div>
           </div>
         </div>
         <div className="flex flex-col justify-between gap-2 border-t border-linea pt-6 font-mono text-[10px] leading-[14px] tracking-[.04em] text-osso-3 md:flex-row md:text-[11px]">
-          {/* TODO: cliente — ragione sociale e partita IVA */}
-          <span>© 2026 MAREMMA MUSICA · [RAGIONE SOCIALE · P.IVA]</span>
+          {/* TODO: cliente — sede completa, REA e PEC (dati dal Pacchetto legale dell'11.11.2026, da confermare) */}
+          <span>© 2026 {RIGA_TITOLARE.toUpperCase()}</span>
           <span>MAREMMA, TOSCANA · 42.76°N 11.11°E</span>
         </div>
       </div>

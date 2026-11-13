@@ -22,6 +22,9 @@ export default async function ListaSerata({ params }: Props) {
         <Link href={`/admin/eventi/${e.id}`} className="text-osso underline decoration-arancio underline-offset-[3px]">← Torna alla serata</Link>
         <span className="font-mono text-[12px] text-osso-2">STAMPA CON CTRL+P · I DATI SI CANCELLANO 30 GIORNI DOPO LA SERATA</span>
       </div>
+      <p className="m-0 border border-attesa px-4 py-3 text-[14px] leading-5 text-attesa print:hidden">
+        Il foglio ha nomi e date di nascita: tienilo solo alla porta e <strong>distruggilo a fine serata</strong>. Non fotografarlo né condividerlo.
+      </p>
       <h1 className="m-0 font-display text-[36px] font-black uppercase leading-none">{e.nome}</h1>
       <p className="m-0 font-mono text-[13px]">{giornoSett(e.data)} {dataPunti(e.data)} · {righe.length} IN LISTA · {righe.filter((r) => r.entrato).length} ENTRATI · STAMPATA ALLE {ora(new Date().toISOString())}</p>
       <table className="w-full border-collapse text-left text-[15px]">

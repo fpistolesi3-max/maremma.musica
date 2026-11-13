@@ -110,12 +110,16 @@ export function PrenotaTavolo({ tavoli, piantinaUrl, prHandle, scadenza, perClie
 
           <label className="mm-prevendita__legale" htmlFor="tv-privacy">
             <input type="checkbox" id="tv-privacy" name="privacy" required defaultChecked={v.privacy === '1'} aria-invalid={Boolean(e.privacy)} />
-            <span>{perCliente ? 'Il cliente ha letto l’' : 'Ho letto l’'}<Link href="/privacy" target="_blank">informativa privacy</Link> e i <Link href="/condizioni" target="_blank">termini</Link>.</span>
+            <span>{perCliente ? 'Il cliente ha letto e accetta i ' : 'Ho letto e accetto i '}<Link href="/condizioni" target="_blank">termini e condizioni di vendita</Link>.</span>
           </label>
           {e.privacy && <span className="-mt-2 text-[14px] leading-5 text-stop-testo">{e.privacy}</span>}
+          <p className="m-0 text-[13px] leading-5 text-osso-2">
+            La spesa minima si paga subito, online. Per le serate con data fissa <strong>non c&apos;è diritto di recesso</strong> (art. 59, comma 1, lettera n, Codice del consumo): dopo il pagamento il tavolo non si annulla da solo (vedi i termini).
+            Il telefono serve solo per contattarti su questo tavolo. Usiamo i dati solo per questa serata e li cancelliamo 30 giorni dopo: <Link href="/privacy" target="_blank">informativa privacy</Link>.
+          </p>
 
           <PulsanteMorph type="submit" className="mm-btn--pieno" caricamento={inCorso} disabled={inCorso || !sel}>
-            {perCliente ? 'Manda il link per pagare' : 'Continua al pagamento'}
+            {perCliente ? 'Manda il link per pagare' : sel ? `Prenota e paga ${euro(sel.spesaMinima)}` : 'Continua al pagamento'}
           </PulsanteMorph>
           <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
             {perCliente ? `AL CLIENTE ARRIVA IL LINK PER PAGARE · IL TAVOLO RESTA FERMO FINO A ${scadenza.toUpperCase()}`

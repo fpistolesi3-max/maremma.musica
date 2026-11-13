@@ -87,7 +87,13 @@ export function RicordaBiglietto(b: BigliettoRicordato) {
 
 export function BigliettiRicordati() {
   const [lista, setLista] = useState<BigliettoRicordato[] | null>(null);
-  useEffect(() => { setLista(leggiRicordati().filter((b) => new Date(b.data).getTime() > Date.now() - 12 * 3_600_000)); }, []);
+  useEffect(() => {
+    const tutti = leggiRicordati();
+    const validi = tutti.filter((b) => new Date(b.data).getTime() > Date.now() - 12 * 3_600_000);
+    // Le voci di serate finite da più di 12 ore non servono più: si cancellano (nome ed email non restano sul telefono).
+    if (validi.length < tutti.length) { try { localStorage.setItem(CHIAVE, JSON.stringify(validi)); } catch { /* memoria non disponibile */ } }
+    setLista(validi);
+  }, []);
   if (!lista?.length) return null;
   return (
     <div className="flex flex-col">
