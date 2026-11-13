@@ -103,18 +103,23 @@ export function ModuloPrevendita({ slug, prHandle, totaleEtichetta, totaleValore
         )}
         <label className="mm-prevendita__legale" htmlFor="p-privacy">
           <input type="checkbox" id="p-privacy" name="privacy" required defaultChecked={v.privacy === '1'} aria-invalid={Boolean(e.privacy)} aria-describedby={e.privacy ? 'p-privacy-err' : undefined} />
-          <span>Ho letto l&apos;<Link href="/privacy" target="_blank">informativa privacy</Link> e i <Link href="/condizioni" target="_blank">termini della lista</Link>.</span>
+          <span>Ho letto e accetto i <Link href="/condizioni" target="_blank">termini e condizioni di vendita</Link>.</span>
         </label>
         {e.privacy && <span id="p-privacy-err" className="-mt-2 text-[14px] leading-5 text-stop-testo">{e.privacy}</span>}
-        <label className="mm-prevendita__legale" htmlFor="p-news">
-          <input type="checkbox" id="p-news" name="marketing" defaultChecked={v.marketing === '1'} />
-          <span>Avvisami per email delle prossime serate. Facoltativo.</span>
-        </label>
+        {aPagamento && (
+          <p className="m-0 text-[13px] leading-5 text-osso-2">
+            Per le serate con data fissa <strong>non c&apos;è diritto di recesso</strong> (art. 59, comma 1, lettera n, Codice del consumo): la prevendita non si rimborsa, salvo annullamento della serata.
+            {validaFino ? ` Vale per entrare fino alle ${validaFino}: chi arriva dopo non entra e non ha rimborso.` : ''} Il biglietto è nominativo: alla porta serve un documento.
+          </p>
+        )}
+        <p className="m-0 text-[13px] leading-5 text-osso-2">
+          Usiamo i tuoi dati solo per questa serata e li cancelliamo 30 giorni dopo. Leggi l&apos;<Link href="/privacy" target="_blank">informativa privacy</Link>.
+        </p>
       </div>
 
       <div className="mm-prevendita__totale mt-1"><span>{totaleEtichetta}</span><strong>{totaleValore}</strong></div>
       <PulsanteMorph type="submit" className="mm-btn--pieno" caricamento={inCorso} disabled={inCorso}>
-        {aPagamento ? `Paga ${totaleValore}` : 'Mettiti in lista'}
+        {aPagamento ? `Acquista e paga ${totaleValore}` : 'Mettiti in lista'}
       </PulsanteMorph>
       <span className="text-center font-mono text-[11px] leading-4 text-osso-2">
         {senzaTelefono ? (aPagamento ? 'CARTA · APPLE PAY · GOOGLE PAY · ALLA PORTA SERVE IL DOCUMENTO' : 'ALLA PORTA SERVE IL DOCUMENTO')

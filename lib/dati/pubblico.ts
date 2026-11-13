@@ -69,7 +69,7 @@ const ERRORE_ALTRA_EMAIL = 'C’è già una prevendita in attesa di pagamento pe
 const ERRORE_LISTA_PIENA = 'Lista piena: i posti sono finiti.';
 
 interface DatiIscrizione {
-  slug: string; handlePr: string | null; nome: string; cognome: string; dataNascita: string; email: string; marketing: boolean; canale?: string | null; confermaCategoria?: boolean;
+  slug: string; handlePr: string | null; nome: string; cognome: string; dataNascita: string; email: string; marketing?: boolean; canale?: string | null; confermaCategoria?: boolean;
 }
 
 export async function creaIscrizione(input: DatiIscrizione): Promise<EsitoIscrizione> {
@@ -139,7 +139,7 @@ function valutaIscrizione(d: Readonly<Archivio>, input: DatiIscrizione, evento: 
     stato: daPagare ? 'in_attesa' : 'in_lista', metodoPagamento: null, importo: stato.prezzo, pagatoAt: null,
     scade: daPagare ? scadenzaPrevendita(adesso, evento) : null,
     pagamentoOnline: daPagare ? { sessione: null, pagamento: null, daRimborsare: false } : null,
-    oraCheckIn: null, porta: null, consensoPrivacyAt: adesso.toISOString(), consensoMarketing: input.marketing,
+    oraCheckIn: null, porta: null, consensoPrivacyAt: adesso.toISOString(), consensoMarketing: Boolean(input.marketing),
     annullatoAt: null, createdAt: adesso.toISOString(),
     canale: input.canale || 'diretto', consegnaId: null, origine: 'lista',
   };

@@ -2,7 +2,7 @@ import 'server-only';
 import QRCode from 'qrcode';
 import type { Biglietto } from './dati/pubblico';
 import type { PrenotazioneVista } from './dati/tavoli';
-import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
+import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail, notaCondizioniEmail } from './posta';
 import { dataPunti, euro, giornoSett, numeroEvento, orari } from './formato';
 import { TESTO_MOTIVO_RIMBORSO, testoLimite } from './regole';
 import type { MotivoRimborso } from './dati/tipi';
@@ -49,7 +49,8 @@ export async function inviaBiglietto(b: Biglietto, origine: string) {
 </div>
 ${bottoneEmail(link, 'Apri il biglietto →')}
 ${senzaTel ? '' : `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0 0 12px;">Se il QR non si legge, alla porta basta dettare il codice ${mostraCodice(i.codice)}.</p>`}
-${limite && !senzaTel ? `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0;">Gli amici prendono il loro QR dallo stesso link.</p>` : ''}`;
+${limite && !senzaTel ? `<p style="font:400 14px/20px Arial,sans-serif;color:#a39e95;margin:0;">Gli amici prendono il loro QR dallo stesso link.</p>` : ''}
+${i.importo > 0 ? notaCondizioniEmail() : ''}`;
   await inviaEmail({
     a: i.email,
     oggetto: `${i.importo > 0 ? 'Prevendita pagata' : 'Sei in lista'} · ${e.nome} ${dataPunti(e.data)}`,

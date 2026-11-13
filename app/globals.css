@@ -412,6 +412,9 @@ html[data-intro] .mm-caricamento { display: none; }
 .testo-legale h2 { font: 800 28px/1 var(--font-display); text-transform: uppercase; margin: 40px 0 12px; }
 .testo-legale p, .testo-legale li { font: 400 16px/24px var(--font-sans); color: var(--osso-2); margin: 0 0 12px; }
 .testo-legale ul { padding-left: 20px; list-style: square; }
+.testo-legale h3 { font: 700 18px/24px var(--font-sans); color: var(--osso); margin: 24px 0 6px; }
+.testo-legale strong { color: var(--osso); font-weight: 600; }
+.testo-legale a { text-decoration: underline; text-decoration-color: var(--arancio); text-underline-offset: 3px; }
 
 @tailwind utilities;
 

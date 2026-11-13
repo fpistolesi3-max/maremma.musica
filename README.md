@@ -9,7 +9,7 @@ npm install
 npm run dev        # http://localhost:3000 — anche dal telefono in rete: http://<IP-del-PC>:3000
 ```
 
-Altri comandi: `npm test` (339 test, 32 dei quali di gara e saltati senza database di prova: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta, e le migrazioni del nuovo schema provate su un Postgres vero in memoria con PGlite), `npm run typecheck`,
+Altri comandi: `npm test` (341 test, 32 dei quali di gara e saltati senza database di prova: token QR, età, doppioni, lotti, prevendita online, porta, orario limite, permessi, tavoli, rimborsi, foto delle serate, mappa ed etichetta, e le migrazioni del nuovo schema provate su un Postgres vero in memoria con PGlite), `npm run typecheck`,
 `npm run dati:reset` (a server fermo: al prossimo avvio riparte dai dati di esempio), `npm run dev:https`
 (serve per la fotocamera dello scanner su telefono: i browser la danno solo su https o localhost).
 
@@ -376,6 +376,17 @@ All'apertura del sito parte un'intro di 2,8 s (uscita compresa) disegnata su un 
 - **Se qualcosa va storto**: se l'animazione non parte entro 2 s dall'apertura della pagina, o c'è un errore, si va dritti al sito; senza JS la copertura sparisce da sola (CSS).
 - **Peso**, solo quando l'intro parte: modulo dell'intro circa 7 KB compressi, logo 71 KB, Archivo Black 19 KB.
 - **Disegno** in `lib/intro/sketch.ts`, sopra `lib/intro/pennello.ts`: un piccolo strato su Canvas 2D con gli stessi nomi delle funzioni di p5.js (con cui l'intro era nata), compreso lo stesso rumore di Perlin, così il disegno è rimasto identico. Tutto dipende dal tempo, quindi ogni fotogramma si ridisegna uguale (utile per esportare il video per i social). Composizione responsive: 1920×1080 è il riferimento, sul telefono in verticale testo e disco si ricompongono.
+
+## Pagine legali e privacy (bozza, in attesa dell'avvocato)
+
+Le pagine `/privacy`, `/cookie` e `/condizioni` («Termini e condizioni», non più «Termini della lista») sono adattate al sito vero dal Pacchetto legale dell'11.11.2026; i testi completi, le note per l'avvocato e le scelte aperte stanno in `documenti-legali/` (fuori dal repo, nella cartella madre). Restano il riquadro «Bozza in attesa della revisione di un avvocato» e le parti da completare (sede, REA, PEC: `TITOLARE` e `RIGA_TITOLARE` in `lib/costanti.ts`, usate dal footer, dalle pagine e dal piede delle email).
+- **Marketing non previsto** (deciso il 13.11.2026): la casella «Avvisami delle prossime serate» non c'è più. Il campo `consensoMarketing` e la colonna `consenso_marketing` restano nei dati (sempre `false`), così non serve una migrazione ora; un giorno, se il cliente lo vorrà, serviranno consenso separato con data e testo, archivio delle email consenzienti fuori dalla cancellazione a 30 giorni e disiscrizione.
+- **Moduli**: la casella obbligatoria è solo «Ho letto e accetto i termini e condizioni di vendita» (campo `privacy`, resta il nome per i dati già salvati); sotto, l'avviso sul recesso escluso (art. 59 lett. n), sull'orario limite e sul biglietto nominativo, e una riga di informativa con link. Pulsante «Acquista e paga X €» (prevendita) e «Prenota e paga X €» (tavolo).
+- **Email di conferma** (biglietto pagato, tavolo confermato): nota sul recesso e link a termini e privacy (`notaCondizioniEmail` in `lib/posta.ts`); ogni email ha nel piede titolare e link.
+- **Registro email**: con le email vere attive (SMTP) e fuori dalla modalità di prova il testo **non** si salva più nel database; resta solo in prova e senza SMTP.
+- **`mm_biglietti`** (browser del cliente): le voci di serate finite da più di 12 ore si cancellano, non solo si nascondono.
+- **«Lista da stampare»**: avviso «distruggi il foglio a fine serata».
+- **Non fatto, in attesa dell'avvocato**: cookie `mm_canale` e `mm_pr` (tecnici o no: tre strade nelle note), cancellazione automatica delle foto e `noindex`, strumento «cancella persona», token al posto dell'email nell'URL dei biglietti.
 
 ## Da completare con il cliente (`TODO: cliente` nel codice)
 

@@ -1,7 +1,7 @@
 import 'server-only';
 import type { PrenotazioneVista } from './dati/tavoli';
 import { qrPng } from './biglietto-email';
-import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail } from './posta';
+import { bottoneEmail, escapeHtml, guscioEmail, inviaEmail, notaCondizioniEmail } from './posta';
 import { dataPunti, euro, giornoSett, numeroEvento, ora, orari } from './formato';
 import { mostraCodice } from './qr-token';
 import { luogoTesto } from './luogo';
@@ -127,7 +127,8 @@ export async function inviaConfermaTavolo(v: PrenotazioneVista, origine: string)
   const corpo = `
 <p style="font:400 16px/24px Arial,sans-serif;margin:0 0 24px;">Pagamento ricevuto, ${escapeHtml(p.nome)}: il tavolo ${escapeHtml(t.nome)} è vostro. Alla porta basta questo QR per tutto il gruppo (${p.persone} persone).</p>
 ${riquadro(v, qr)}
-${bottoneEmail(linkTavolo(origine, p.id, p.email), 'Apri il QR del tavolo →')}`;
+${bottoneEmail(linkTavolo(origine, p.id, p.email), 'Apri il QR del tavolo →')}
+${notaCondizioniEmail()}`;
   await inviaEmail({
     a: p.email,
     oggetto: `Tavolo confermato · ${e.nome} ${dataPunti(e.data)}`,

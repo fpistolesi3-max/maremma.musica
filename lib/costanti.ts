@@ -9,3 +9,15 @@ export const HEADER_PERCORSO = 'x-mm-percorso';
 export const PARAMETRO_AVVISO = 'avviso';
 /** L'unico indirizzo email mostrato nel sito (contatti, assistenza, privacy, booking, foto). Le email automatiche partono da EMAIL_MITTENTE (noreply@) e le risposte arrivano qui. */
 export const EMAIL_CONTATTI = 'info@maremmamusica.it';
+
+/**
+ * Dati del titolare per footer, email e pagine legali. Fonte: Pacchetto legale dell'11.11.2026, DA CONFERMARE dal cliente.
+ * TODO: cliente — sede completa, codice fiscale, REA, PEC (vedi documenti-legali/07-da-fornire-e-modifiche-al-sito.md).
+ */
+export const TITOLARE = {
+  nome: 'Maremma Musica di Gallinaro Alessio',
+  piva: '02103960494',
+  comune: 'Campiglia Marittima (LI)',
+} as const;
+/** Riga del titolare per footer ed email. */
+export const RIGA_TITOLARE = `${TITOLARE.nome} · P.IVA ${TITOLARE.piva}`;

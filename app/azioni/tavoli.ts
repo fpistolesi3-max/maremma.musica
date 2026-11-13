@@ -34,7 +34,7 @@ export async function prenotaTavoloAzione(_prima: StatoTavoloModulo, f: FormData
   // Campo trappola, invisibile alle persone: se arriva compilato è un programma, non un cliente.
   if (daProgramma(f)) return { errori: { generale: 'Richiesta non valida.' }, valori };
   if (!valori.tavoloId) return { errori: { tavolo: 'Scegli un tavolo dalla mappa o dall’elenco.' }, valori };
-  if (!valori.privacy) return { errori: { privacy: 'Per prenotare devi accettare l’informativa privacy.' }, valori };
+  if (!valori.privacy) return { errori: { privacy: 'Per prenotare devi accettare i termini e condizioni di vendita.' }, valori };
   const dati: DatiPrenotazione = {
     tavoloId: valori.tavoloId, nome: valori.nome, cognome: valori.cognome, email: valori.email, telefono: valori.telefono, persone: Number(valori.persone),
   };

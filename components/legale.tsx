@@ -7,7 +7,7 @@ export function PaginaLegale({ titolo, aggiornata, children }: { titolo: string;
       <span className="font-mono text-[11px] tracking-[.06em] text-arancio">✦ LEGALE · AGGIORNATA IL {aggiornata}</span>
       <h1 className="m-0 mt-4 font-display text-[56px] font-black uppercase leading-[.86] md:text-[88px]">{titolo}</h1>
       <p className="mt-6 border border-attesa px-4 py-3 text-[14px] leading-5 text-attesa">
-        Testo di base per l&apos;MVP. TODO: cliente — da completare con ragione sociale e far rivedere a un consulente prima del lancio.
+        Bozza in attesa della revisione di un avvocato. TODO: cliente — mancano ancora sede completa, REA e PEC del titolare.
       </p>
       <div className="testo-legale">{children}</div>
     </article>
